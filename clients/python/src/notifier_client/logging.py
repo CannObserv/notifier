@@ -11,7 +11,14 @@ import logging
 
 
 class RedactingFilter(logging.Filter):
-    """Filter that masks the X-API-Key value in log messages and args."""
+    """Filter that masks the X-API-Key value in log messages and args.
+
+    Best-effort: only scrubs string ``record.msg`` and string entries in
+    ``record.args``. Non-string ``msg`` values (e.g. an exception object passed
+    via ``logger.error(exc)``) and nested structures (dicts, tuples, custom
+    objects) pass through unredacted. Use this filter as a guardrail for the
+    common case, not as a guaranteed redactor for every logging shape.
+    """
 
     def __init__(self, api_key: str | None) -> None:
         super().__init__()

@@ -27,3 +27,6 @@ jobs:
             echo "::error::SDK generated/ is stale. Run clients/python/scripts/regen.sh and commit the result."
             exit 1
           fi
+      - name: SDK tests pass against regenerated client
+        working-directory: clients/python
+        run: uv run pytest -v

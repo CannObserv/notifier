@@ -75,3 +75,44 @@ async def test_per_request_no_retry_extension_disables_retries(fast_cfg):
         r = await c.post("/dispatch", json={}, extensions={"notifier_no_retry": True})
     assert r.status_code == 503
     assert route.call_count == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_retries_on_network_error_then_succeeds(fast_cfg):
+    route = respx.get("https://test.local/health").mock(side_effect=[
+        httpx.ConnectError("connection refused"),
+        httpx.ReadTimeout("read timeout"),
+        httpx.Response(200, json={"ok": True}),
+    ])
+    async with await _client(fast_cfg) as c:
+        r = await c.get("/health")
+    assert r.status_code == 200
+    assert route.call_count == 3
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_network_error_exhaustion_reraises(fast_cfg):
+    respx.get("https://test.local/health").mock(side_effect=httpx.ConnectError("nope"))
+    async with await _client(fast_cfg) as c:
+        with pytest.raises(httpx.ConnectError):
+            await c.get("/health")
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_network_error_retry_disabled():
+    cfg = RetryConfig(max_attempts=3, backoff_base=0.0, retry_on_network_error=False)
+    route = respx.get("https://test.local/health").mock(
+        side_effect=httpx.ConnectError("nope")
+    )
+    async with await _client(cfg) as c:
+        with pytest.raises(httpx.ConnectError):
+            await c.get("/health")
+    assert route.call_count == 1
+
+
+def test_max_attempts_zero_rejected():
+    with pytest.raises(ValueError, match="max_attempts must be >= 1"):
+        RetryConfig(max_attempts=0)

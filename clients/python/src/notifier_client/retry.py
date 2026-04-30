@@ -25,8 +25,11 @@ class RetryConfig:
     backoff_base: float = 0.5
     retry_on: frozenset[int] = field(default_factory=lambda: frozenset({500, 502, 503, 504}))
     honor_retry_after: bool = True
+    retry_on_network_error: bool = True
 
     def __post_init__(self) -> None:
+        if self.max_attempts < 1:
+            raise ValueError("max_attempts must be >= 1")
         if not isinstance(self.retry_on, frozenset):
             object.__setattr__(self, "retry_on", frozenset(self.retry_on))
 
@@ -39,14 +42,40 @@ class RetryTransport(httpx.AsyncBaseTransport):
         self._config = config
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        # Per-request opt-out: callers signal "do not retry this one" via extensions.
-        # Used by NotifierClient to skip retries on POST /dispatch without an idempotency key.
+        """Send ``request`` through the inner transport with retry semantics.
+
+        Retries on ``cfg.retry_on`` status codes (5xx by default), on 429 when
+        ``cfg.honor_retry_after`` is set, and on ``httpx.TransportError`` (network
+        failures, timeouts) when ``cfg.retry_on_network_error`` is set. Backoff is
+        exponential from ``cfg.backoff_base``; for 429 the ``Retry-After`` header
+        wins when present.
+
+        Per-request opt-out: callers can set ``extensions={"notifier_no_retry": True}``
+        on the request to bypass the retry loop for a single call. Used by the
+        wrapper to skip retries on ``POST /dispatch`` without an idempotency key.
+
+        The transport never raises notifier-typed errors; it returns the final
+        response (or re-raises the final ``httpx.TransportError`` on exhaustion).
+
+        Note: relies on the request body being a re-readable buffer, which is
+        true for ``client.request(json=...)``. Streaming bodies would be consumed
+        on the first attempt and silently send empty payloads on retries.
+        """
+        # The request body must be re-readable across attempts.
         if request.extensions.get("notifier_no_retry"):
             return await self._inner.handle_async_request(request)
         cfg = self._config
         last: httpx.Response | None = None
         for attempt in range(1, cfg.max_attempts + 1):
-            response = await self._inner.handle_async_request(request)
+            try:
+                response = await self._inner.handle_async_request(request)
+            except httpx.TransportError:
+                if cfg.retry_on_network_error and attempt < cfg.max_attempts:
+                    sleep_for = cfg.backoff_base * (2 ** (attempt - 1))
+                    if sleep_for > 0:
+                        await asyncio.sleep(sleep_for)
+                    continue
+                raise
             last = response
             should_retry, sleep_for = self._should_retry(response, attempt)
             if not should_retry:
@@ -54,7 +83,8 @@ class RetryTransport(httpx.AsyncBaseTransport):
             await response.aclose()
             if sleep_for > 0:
                 await asyncio.sleep(sleep_for)
-        return last  # type: ignore[return-value]
+        assert last is not None
+        return last
 
     def _should_retry(self, response: httpx.Response, attempt: int) -> tuple[bool, float]:
         cfg = self._config
