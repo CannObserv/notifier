@@ -1,0 +1,1 @@
+"""Notifier service root package."""
