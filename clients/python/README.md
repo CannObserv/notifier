@@ -46,7 +46,11 @@ retry = RetryConfig(
     honor_retry_after=True,                  # honor 429 Retry-After header
     retry_on_network_error=True,             # retry httpx.TransportError (timeouts, conn errors)
 )
-async with NotifierClient(base_url=..., api_key=..., retry_config=retry) as client:
+async with NotifierClient(
+    base_url=..., api_key=...,
+    retry_config=retry,
+    timeout=30.0,                            # per-request timeout in seconds; default 10.0
+) as client:
     ...
 ```
 

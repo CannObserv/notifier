@@ -75,11 +75,35 @@ class NotifierClient:
         idempotency_key: str | _AutoIdempotencyKey | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """POST /api/v1/dispatch.
+        """POST /api/v1/dispatch — render, validate, dispatch, log.
 
-        Auto-retries are only attempted when ``idempotency_key`` is non-None
-        (including ``AUTO``). Without a key, retrying is unsafe and the SDK
-        will surface the first failure.
+        Args:
+            template_id: ID of a stored template. Either this or both
+                ``title_template`` and ``body_template`` must be provided.
+            title_template: Inline Jinja2 title template. Overrides the stored
+                template's title when both are given.
+            body_template: Inline Jinja2 body template. Same precedence as
+                ``title_template``.
+            variables: Variable bag for template rendering and JSON Schema
+                validation (against the template's ``variables_schema``).
+            channel_ids: Tenant-owned channel IDs to fan out to (required).
+            idempotency_key: ``str`` for an explicit key, ``AUTO`` to generate a
+                ULID, or ``None`` to omit. Auto-retry on transient failures only
+                when this is non-None — without a key, retrying is unsafe and the
+                SDK surfaces the first failure.
+            metadata: Free-form consumer metadata stored alongside the dispatch.
+
+        Returns:
+            The dispatch record as a dict (id, status, rendered_title/body,
+            attempts, etc.).
+
+        Raises:
+            ValidationError: Server returned 422; ``.field_path`` and ``.section``
+                identify the offending field.
+            AuthError: 401 or 403.
+            RateLimited: 429 after retries are exhausted.
+            ServerError: 5xx after retries are exhausted.
+            NotifierError: Any other 4xx (e.g. 404 for unknown channel/template).
         """
         resolved_key = resolve_idempotency_key(idempotency_key)
         body: dict[str, Any] = {
