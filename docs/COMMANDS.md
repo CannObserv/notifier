@@ -73,6 +73,16 @@ uv run ruff check .                    # lint
 uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
+## SDK regeneration
+
+```bash
+# Regenerate the Python SDK from notifier's OpenAPI schema
+clients/python/scripts/regen.sh
+
+# Verify SDK is not stale (mirrors CI)
+git diff --exit-code clients/python/src/notifier_client/generated/
+```
+
 ## Generating a tenant + API key (until admin UI exists)
 
 For v0, tenants and API keys are seeded via SQL or a one-off Python script. Example:

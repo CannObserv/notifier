@@ -1,0 +1,32 @@
+name: SDK staleness check
+
+on:
+  pull_request:
+    paths:
+      - "src/api/**"
+      - "src/api/schemas/**"
+      - "scripts/dump_openapi.py"
+      - "clients/python/scripts/regen.sh"
+
+jobs:
+  staleness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install notifier deps
+        run: uv sync
+      - name: Install SDK dev deps
+        working-directory: clients/python
+        run: uv sync
+      - name: Regenerate SDK
+        run: clients/python/scripts/regen.sh
+      - name: Fail if generated/ is stale
+        run: |
+          if ! git diff --exit-code clients/python/src/notifier_client/generated/; then
+            echo "::error::SDK generated/ is stale. Run clients/python/scripts/regen.sh and commit the result."
+            exit 1
+          fi
+      - name: SDK tests pass against regenerated client
+        working-directory: clients/python
+        run: uv run pytest -v
