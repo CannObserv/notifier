@@ -89,6 +89,9 @@ async def test_dispatch_never_auto_retried_without_idempotency_key(fast_retry):
             )
     # Should have been called exactly once — no retries on POST /dispatch without idempotency_key
     assert route.call_count == 1
+    # And the request body must omit idempotency_key when caller passed None
+    body = route.calls.last.request.read().decode()
+    assert "idempotency_key" not in body
 
 
 @respx.mock
@@ -135,12 +138,14 @@ async def test_validation_error_with_field_path(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_auth_error_on_401(fast_retry):
-    respx.get("https://t.local/health").mock(return_value=httpx.Response(401))
+    route = respx.get("https://t.local/health").mock(return_value=httpx.Response(401))
     async with NotifierClient(
         base_url="https://t.local", api_key="bad", retry_config=fast_retry
     ) as c:
         with pytest.raises(AuthError):
             await c.health()
+    # 401 is not in retry_on — must not be retried
+    assert route.call_count == 1
 
 
 @respx.mock
