@@ -116,3 +116,36 @@ async def test_network_error_retry_disabled():
 def test_max_attempts_zero_rejected():
     with pytest.raises(ValueError, match="max_attempts must be >= 1"):
         RetryConfig(max_attempts=0)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_network_error_and_5xx_share_retry_budget():
+    # max_attempts=4: ConnectError (attempt 1) → 503 (attempt 2) → 200 (attempt 3).
+    # Both retry pathways draw from the same `attempt` counter.
+    cfg = RetryConfig(max_attempts=4, backoff_base=0.0)
+    route = respx.get("https://test.local/health").mock(side_effect=[
+        httpx.ConnectError("nope"),
+        httpx.Response(503),
+        httpx.Response(200, json={"ok": True}),
+    ])
+    async with await _client(cfg) as c:
+        r = await c.get("/health")
+    assert r.status_code == 200
+    assert route.call_count == 3
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_mixed_retries_exhaust_budget():
+    # max_attempts=2: ConnectError (attempt 1, retried) → 503 (attempt 2, terminal).
+    # Budget exhausted; final 503 surfaces (transport returns it; wrapper would map to ServerError).
+    cfg = RetryConfig(max_attempts=2, backoff_base=0.0)
+    route = respx.get("https://test.local/health").mock(side_effect=[
+        httpx.ConnectError("nope"),
+        httpx.Response(503),
+    ])
+    async with await _client(cfg) as c:
+        r = await c.get("/health")
+    assert r.status_code == 503
+    assert route.call_count == 2

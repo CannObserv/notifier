@@ -65,26 +65,28 @@ class RetryTransport(httpx.AsyncBaseTransport):
         if request.extensions.get("notifier_no_retry"):
             return await self._inner.handle_async_request(request)
         cfg = self._config
-        last: httpx.Response | None = None
         for attempt in range(1, cfg.max_attempts + 1):
             try:
                 response = await self._inner.handle_async_request(request)
             except httpx.TransportError:
                 if cfg.retry_on_network_error and attempt < cfg.max_attempts:
-                    sleep_for = cfg.backoff_base * (2 ** (attempt - 1))
+                    sleep_for = self._backoff_for(attempt)
                     if sleep_for > 0:
                         await asyncio.sleep(sleep_for)
                     continue
                 raise
-            last = response
             should_retry, sleep_for = self._should_retry(response, attempt)
             if not should_retry:
                 return response
             await response.aclose()
             if sleep_for > 0:
                 await asyncio.sleep(sleep_for)
-        assert last is not None
-        return last
+        # Unreachable: _should_retry returns (False, ...) when attempt == max_attempts,
+        # which triggers the `return response` above. Defensive guard for the type checker.
+        raise RuntimeError("retry loop exited without producing a response")
+
+    def _backoff_for(self, attempt: int) -> float:
+        return self._config.backoff_base * (2 ** (attempt - 1))
 
     def _should_retry(self, response: httpx.Response, attempt: int) -> tuple[bool, float]:
         cfg = self._config
@@ -92,10 +94,10 @@ class RetryTransport(httpx.AsyncBaseTransport):
             return (False, 0.0)
         status = response.status_code
         if status in cfg.retry_on:
-            return (True, cfg.backoff_base * (2 ** (attempt - 1)))
+            return (True, self._backoff_for(attempt))
         if status == 429 and cfg.honor_retry_after:
             wait = parse_retry_after(response.headers.get("Retry-After"))
-            return (True, wait if wait is not None else cfg.backoff_base * (2 ** (attempt - 1)))
+            return (True, wait if wait is not None else self._backoff_for(attempt))
         return (False, 0.0)
 
     async def aclose(self) -> None:
