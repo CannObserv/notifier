@@ -48,3 +48,22 @@ sudo journalctl -u notifier -f
 ## Future: split VM
 
 Once the v0 API has held still for a few weeks, provision a separate exe.dev VM and pg_dump → restore the `notifier` database there. Update watcher's `NOTIFY_BASE_URL` to point at the new host. Decommission the local notifier service on watcher's VM.
+
+## SocratiCode indexing (agent tooling)
+
+Cross-project semantic search and context-artifact retrieval rely on two files:
+
+- **`.socraticodecontextartifacts.json`** — committed catalog of non-code knowledge to index alongside source (DB schema migrations, deployment doc, ops runbook, systemd unit). Edit when adding new authoritative reference material.
+- **`.claude/settings.local.json`** — gitignored, **per-VM**. Provides `SOCRATICODE_LINKED_PROJECTS` so the MCP server can search sibling projects (e.g. `watcher`).
+
+On a fresh VM, create `.claude/settings.local.json` with absolute paths to any sibling repos you want linked:
+
+```json
+{
+  "env": {
+    "SOCRATICODE_LINKED_PROJECTS": "/home/exedev/watcher"
+  }
+}
+```
+
+Reload the VS Code window after creating or editing this file — the MCP server reads its env at session start, not on file change. Verify with a cross-project search; results should be tagged `[notifier]` or `[watcher]`.

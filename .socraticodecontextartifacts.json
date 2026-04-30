@@ -1,0 +1,24 @@
+{
+  "artifacts": [
+    {
+      "name": "database-schema",
+      "path": "./alembic/versions",
+      "description": "PostgreSQL schema (Alembic migrations). Authoritative source for table definitions, columns, indexes, constraints, foreign keys, and JSONB/ARRAY column shapes."
+    },
+    {
+      "name": "deployment-architecture",
+      "path": "./docs/DEPLOYMENT.md",
+      "description": "Production deployment topology — systemd service (notifier on :9000), port assignments, env file layout (/etc/notifier/.env vs repo .env), co-location with watcher service, and lifecycle commands."
+    },
+    {
+      "name": "operational-runbook",
+      "path": "./docs/COMMANDS.md",
+      "description": "Operational command reference — uv/pytest/ruff/alembic invocations, dev server vs systemd workflow, env loading, and database migration procedures."
+    },
+    {
+      "name": "systemd-unit",
+      "path": "./deploy/notifier.service",
+      "description": "systemd unit file for the notifier service — User, ExecStart command, EnvironmentFile sources, restart policy. Authoritative for production runtime config."
+    }
+  ]
+}

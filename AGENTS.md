@@ -46,6 +46,7 @@ scripts/                     — Build helpers (none required for v0)
 skills/                      — Agent skills: committed local overrides + symlinks → skills-vendor/
 skills-vendor/               — Git submodules for external skill repos (gregoryfoster-skills, obra-superpowers)
 .claude/skills/              — Claude Code skill discovery: symlinks → ../../skills/<name>
+.socraticodecontextartifacts.json — SocratiCode context artifacts catalog (DB schema, deployment, runbook, systemd unit) for semantic search beyond raw code
 ```
 
 **Environment files** (not in the repo tree):

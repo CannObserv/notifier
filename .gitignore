@@ -23,6 +23,9 @@ coverage.xml
 *.swp
 *.swo
 
+# Claude Code machine-local settings (per-deployment env, MCP overrides)
+.claude/settings.local.json
+
 # Git worktrees
 .worktrees/
 .claude/worktrees/
