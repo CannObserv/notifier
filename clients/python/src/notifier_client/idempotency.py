@@ -19,9 +19,9 @@ from ulid import ULID
 class _AutoIdempotencyKey:
     """Sentinel — see module docstring."""
 
-    _instance: "_AutoIdempotencyKey | None" = None
+    _instance: _AutoIdempotencyKey | None = None
 
-    def __new__(cls) -> "_AutoIdempotencyKey":
+    def __new__(cls) -> _AutoIdempotencyKey:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance

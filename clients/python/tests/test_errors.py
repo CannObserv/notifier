@@ -1,5 +1,4 @@
 import httpx
-import pytest
 
 from notifier_client.errors import (
     AuthError,
@@ -38,15 +37,16 @@ def test_validation_error_parses_field_path():
 
 def test_validation_error_handles_pydantic_style_detail():
     # FastAPI default 422 shape: detail is a list of {loc, msg, type}
-    err = error_from_response(
-        _resp(422, {"detail": [{"loc": ["body", "channel_ids"], "msg": "field required", "type": "missing"}]})
-    )
+    detail = [{"loc": ["body", "channel_ids"], "msg": "field required", "type": "missing"}]
+    err = error_from_response(_resp(422, {"detail": detail}))
     assert isinstance(err, ValidationError)
     assert err.field_path == "body.channel_ids"
 
 
 def test_rate_limited_carries_retry_after():
-    resp = httpx.Response(status_code=429, headers={"Retry-After": "30"}, json={"detail": "slow down"})
+    resp = httpx.Response(
+        status_code=429, headers={"Retry-After": "30"}, json={"detail": "slow down"}
+    )
     err = error_from_response(resp)
     assert isinstance(err, RateLimited)
     assert err.retry_after_seconds == 30

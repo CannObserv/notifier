@@ -2,7 +2,6 @@ import httpx
 import pytest
 import respx
 
-from notifier_client.errors import RateLimited
 from notifier_client.retry import RetryConfig, RetryTransport
 
 

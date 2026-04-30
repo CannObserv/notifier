@@ -92,7 +92,10 @@ def _message(detail, *, default: str) -> str:
 
 
 def _parse_validation_detail(detail) -> tuple[str | None, str | None, str]:
-    """Return (section, field_path, message). Handles notifier's typed shape and FastAPI defaults."""
+    """Return (section, field_path, message).
+
+    Handles notifier's typed shape and FastAPI defaults.
+    """
     if isinstance(detail, dict):
         # Notifier shape: {"section": ..., "path": ..., "message": ...}
         return (

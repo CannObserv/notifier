@@ -1,6 +1,4 @@
 from datetime import UTC, datetime, timedelta
-
-import pytest
 from email.utils import format_datetime
 
 from notifier_client.retry_after import parse_retry_after
