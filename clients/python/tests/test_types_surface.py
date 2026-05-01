@@ -6,18 +6,21 @@ import path; this test breaks at PR time (not at consumer-pin time) if a
 public name disappears.
 """
 
+import notifier_client
+from notifier_client.types import (
+    AssembleResponse,
+    ChannelOut,
+    ChannelTestResponse,
+    DispatchOut,
+    PluginDetail,
+    PluginListItem,
+    PreviewResponse,
+    TemplateOut,
+    TemplatePreviewResponse,
+)
+
+
 def test_public_type_names_importable():
-    from notifier_client.types import (
-        AssembleResponse,
-        ChannelOut,
-        ChannelTestResponse,
-        DispatchOut,
-        PluginDetail,
-        PluginListItem,
-        PreviewResponse,
-        TemplateOut,
-        TemplatePreviewResponse,
-    )
     # Each must be a class, not a module
     for cls in (AssembleResponse, ChannelOut, ChannelTestResponse, DispatchOut,
                 PluginDetail, PluginListItem, PreviewResponse, TemplateOut,
@@ -28,7 +31,6 @@ def test_public_type_names_importable():
 
 
 def test_channel_out_has_expected_fields():
-    from notifier_client.types import ChannelOut
     out = ChannelOut.from_dict({
         "id": "01H", "tenant_id": "t1", "name": "n",
         "apprise_url_masked": "m", "channel_hint": None,
@@ -41,7 +43,6 @@ def test_channel_out_has_expected_fields():
 
 
 def test_dispatch_out_has_expected_fields():
-    from notifier_client.types import DispatchOut
     out = DispatchOut.from_dict({
         "id": "01H", "tenant_id": "t1", "template_id": None,
         "idempotency_key": None, "rendered_title": "T", "rendered_body": "B",
@@ -55,7 +56,12 @@ def test_dispatch_out_has_expected_fields():
 
 def test_top_level_init_re_exports_types():
     """Common types should also be available as `from notifier_client import ...`."""
-    import notifier_client
     assert hasattr(notifier_client, "ChannelOut")
     assert hasattr(notifier_client, "TemplateOut")
     assert hasattr(notifier_client, "DispatchOut")
+    assert hasattr(notifier_client, "AssembleResponse")
+    assert hasattr(notifier_client, "ChannelTestResponse")
+    assert hasattr(notifier_client, "PluginDetail")
+    assert hasattr(notifier_client, "PluginListItem")
+    assert hasattr(notifier_client, "PreviewResponse")
+    assert hasattr(notifier_client, "TemplatePreviewResponse")

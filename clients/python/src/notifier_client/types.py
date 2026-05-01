@@ -9,8 +9,6 @@ The surface test (``tests/test_types_surface.py``) guards every name listed
 in ``__all__``.
 """
 
-from __future__ import annotations
-
 from notifier_client.generated.models.assemble_response import AssembleResponse
 from notifier_client.generated.models.channel_out import ChannelOut
 from notifier_client.generated.models.channel_test_response import ChannelTestResponse
