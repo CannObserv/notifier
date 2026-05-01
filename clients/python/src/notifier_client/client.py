@@ -156,4 +156,4 @@ class NotifierClient:
         response = await self._http.request(method, path, json=json, extensions=extensions)
         if response.status_code >= 400:
             raise error_from_response(response)
-        return model.from_dict(response.json())
+        return model.from_dict(response.json() if response.content else {})

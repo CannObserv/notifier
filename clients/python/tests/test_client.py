@@ -68,10 +68,11 @@ async def test_dispatch_with_auto_idempotency_generates_ulid(fast_retry):
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
-        await c.dispatch(
+        result = await c.dispatch(
             title_template="T", body_template="B", channel_ids=["ch1"],
             idempotency_key=AUTO,
         )
+    assert isinstance(result, DispatchOut)
     body = route.calls.last.request.read().decode()
     assert "idempotency_key" in body
     # ULIDs are 26 chars; check the value isn't empty or AUTO literal
@@ -113,10 +114,11 @@ async def test_dispatch_retried_with_idempotency_key(fast_retry):
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
-        await c.dispatch(
+        result = await c.dispatch(
             title_template="T", body_template="B", channel_ids=["ch1"],
             idempotency_key="k",
         )
+    assert isinstance(result, DispatchOut)
     assert route.call_count == 2
 
 
