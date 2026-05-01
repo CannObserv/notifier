@@ -5,10 +5,12 @@ Async Python SDK for the [notifier](https://github.com/CannObserv/notifier) serv
 ## Install
 
 ```bash
-uv add "notifier-client @ git+ssh://git@github.com/CannObserv/notifier.git@v0.1.0#subdirectory=clients/python"
+uv add "notifier-client @ git+ssh://git@github.com/CannObserv/notifier.git@v0.2.0#subdirectory=clients/python"
 ```
 
 Versions are pinned 1:1 with the notifier server. SDK `0.x.y` ⇔ notifier `0.x.y`.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for version history.
 
 ## Usage
 
@@ -16,13 +18,30 @@ Versions are pinned 1:1 with the notifier server. SDK `0.x.y` ⇔ notifier `0.x.
 from notifier_client import AUTO, NotifierClient
 
 async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...") as client:
-    result = await client.dispatch(
-        template_id="...",
-        variables={"strain": "Blue Dream"},
-        channel_ids=["..."],
-        idempotency_key="watcher-event-1234",   # or AUTO to auto-generate a ULID
+    ch = await client.channels.create(name="ops", apprise_url="slack://...")
+    print(ch.id, ch.apprise_url_masked)
+
+    tpl = await client.templates.create(
+        name="alert", title_template="{{ event }}", body_template="...",
     )
+
+    result = await client.dispatch(
+        template_id=tpl.id,
+        variables={"event": "fire"},
+        channel_ids=[ch.id],
+        idempotency_key="evt-1",
+    )
+    print(result.status, [a.status for a in result.attempts])
 ```
+
+### Sub-clients
+
+- `client.channels.{list, create, get, update, delete, test}` → `ChannelOut` / `ChannelTestResponse`
+- `client.templates.{list, create, get, update, delete, preview}` → `TemplateOut` / `TemplatePreviewResponse`
+- `client.preview(*, title_template, body_template, variables, variables_schema=None)` → `PreviewResponse` (stateless inline render; rendering failures return 200 OK with `.error` populated, no exception)
+- `client.apprise.{list_plugins, get_plugin, assemble}` → `PluginListItem` / `PluginDetail` / `AssembleResponse`
+
+`client.dispatch(...)` returns `DispatchOut`. `client.health()` and `client.ready()` continue to return `dict[str, Any]` because the server's response is a free-form key/value bag.
 
 ### Idempotency
 
