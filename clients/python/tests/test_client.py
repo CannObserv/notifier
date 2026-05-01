@@ -5,6 +5,7 @@ import respx
 from notifier_client import (
     AUTO,
     AuthError,
+    DispatchOut,
     NotifierClient,
     RateLimited,
     RetryConfig,
@@ -32,10 +33,11 @@ async def test_health_round_trip(fast_retry):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_dispatch_sends_x_api_key_header(fast_retry):
+async def test_dispatch_sends_x_api_key_header_and_returns_typed(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch").mock(
         return_value=httpx.Response(202, json={
-            "id": "01H...", "tenant_id": "t1", "template_id": None, "idempotency_key": "k",
+            "id": "01HABCDEFGHJKMNPQRSTVWXYZ0", "tenant_id": "t1",
+            "template_id": None, "idempotency_key": "k",
             "rendered_title": "T", "rendered_body": "B", "status": "succeeded",
             "metadata": {}, "created_at": "2026-04-30T00:00:00Z", "attempts": [],
         })
@@ -43,11 +45,14 @@ async def test_dispatch_sends_x_api_key_header(fast_retry):
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_secret", retry_config=fast_retry
     ) as c:
-        await c.dispatch(
+        result = await c.dispatch(
             title_template="T", body_template="B", channel_ids=["ch1"],
             idempotency_key="k",
         )
     assert route.calls.last.request.headers["X-API-Key"] == "nk_secret"
+    assert isinstance(result, DispatchOut)
+    assert result.id == "01HABCDEFGHJKMNPQRSTVWXYZ0"
+    assert result.status == "succeeded"
 
 
 @respx.mock
@@ -167,3 +172,17 @@ def test_repr_redacts_api_key():
     c = NotifierClient(base_url="https://t.local", api_key="nk_supersecret")
     assert "nk_supersecret" not in repr(c)
     assert "nk_***" in repr(c)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_health_returns_dict(fast_retry):
+    respx.get("https://t.local/health").mock(
+        return_value=httpx.Response(200, json={"status": "ok", "build_id": "abc"})
+    )
+    async with NotifierClient(
+        base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
+    ) as c:
+        result = await c.health()
+    assert isinstance(result, dict)
+    assert result["status"] == "ok"

@@ -12,13 +12,16 @@ file an issue with a use case.
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Any
+from typing import Any, TypeVar
 
 import httpx
 
 from notifier_client.errors import error_from_response
 from notifier_client.idempotency import _AutoIdempotencyKey, resolve_idempotency_key
 from notifier_client.retry import RetryConfig, RetryTransport
+from notifier_client.types import DispatchOut
+
+T = TypeVar("T")
 
 
 class NotifierClient:
@@ -59,9 +62,11 @@ class NotifierClient:
     # --- endpoints ---
 
     async def health(self) -> dict[str, Any]:
+        # Free-form server schema; no typed model worth wrapping.
         return await self._json_request("GET", "/health", retry_safe=True)
 
     async def ready(self) -> dict[str, Any]:
+        # Free-form server schema; no typed model worth wrapping.
         return await self._json_request("GET", "/ready", retry_safe=True)
 
     async def dispatch(
@@ -74,7 +79,7 @@ class NotifierClient:
         channel_ids: list[str],
         idempotency_key: str | _AutoIdempotencyKey | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> DispatchOut:
         """POST /api/v1/dispatch — render, validate, dispatch, log.
 
         Args:
@@ -94,8 +99,9 @@ class NotifierClient:
             metadata: Free-form consumer metadata stored alongside the dispatch.
 
         Returns:
-            The dispatch record as a dict (id, status, rendered_title/body,
-            attempts, etc.).
+            A ``DispatchOut`` (typed). ``.id``, ``.status``, ``.rendered_title``,
+            ``.rendered_body``, ``.attempts`` are populated; ``.idempotency_key``
+            echoes the request value (or is ``None`` if omitted).
 
         Raises:
             ValidationError: Server returned 422; ``.field_path`` and ``.section``
@@ -119,9 +125,9 @@ class NotifierClient:
             body["body_template"] = body_template
         if resolved_key is not None:
             body["idempotency_key"] = resolved_key
-        return await self._json_request(
+        return await self._typed_request(
             "POST", "/api/v1/dispatch", json=body,
-            retry_safe=resolved_key is not None,
+            model=DispatchOut, retry_safe=resolved_key is not None,
         )
 
     # --- internals ---
@@ -136,3 +142,18 @@ class NotifierClient:
         if not response.content:
             return {}
         return response.json()
+
+    async def _typed_request(
+        self, method: str, path: str, *, model: type[T],
+        json: Any = None, retry_safe: bool,
+    ) -> T:
+        """Run an authed request, map errors, and parse into ``model``.
+
+        The single funnel for all typed endpoint methods. ``model.from_dict``
+        must accept the JSON body verbatim.
+        """
+        extensions = {} if retry_safe else {"notifier_no_retry": True}
+        response = await self._http.request(method, path, json=json, extensions=extensions)
+        if response.status_code >= 400:
+            raise error_from_response(response)
+        return model.from_dict(response.json())
