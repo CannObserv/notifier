@@ -135,7 +135,7 @@ class TemplatesAPI:
         self, template_id: str, *, variables: dict | None = None,
     ) -> TemplatePreviewResponse:
         """POST /api/v1/templates/{id}/preview — render with supplied or stored sample variables."""
-        vars_field: TemplatePreviewRequestVariablesType0 | None | Unset
+        vars_field: TemplatePreviewRequestVariablesType0 | Unset
         if variables is not None:
             vars_field = TemplatePreviewRequestVariablesType0.from_dict(variables)
         else:

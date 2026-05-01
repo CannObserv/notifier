@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 import respx
@@ -122,13 +124,15 @@ async def test_templates_delete_not_auto_retried_on_5xx(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_templates_preview_with_variables(fast_retry):
-    respx.post("https://t.local/api/v1/templates/01HT/preview").mock(
+    route = respx.post("https://t.local/api/v1/templates/01HT/preview").mock(
         return_value=httpx.Response(200, json=_PREVIEW_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         result = await c.templates.preview("01HT", variables={"who": "world"})
+    sent = json.loads(route.calls.last.request.content.decode())
+    assert sent.get("variables") == {"who": "world"}
     assert isinstance(result, TemplatePreviewResponse)
     assert result.title == "T"
     assert result.body == "B"
@@ -137,13 +141,15 @@ async def test_templates_preview_with_variables(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_templates_preview_without_variables_uses_sample(fast_retry):
-    respx.post("https://t.local/api/v1/templates/01HT/preview").mock(
+    route = respx.post("https://t.local/api/v1/templates/01HT/preview").mock(
         return_value=httpx.Response(200, json=_PREVIEW_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         result = await c.templates.preview("01HT")
+    sent = json.loads(route.calls.last.request.content.decode())
+    assert "variables" not in sent
     assert isinstance(result, TemplatePreviewResponse)
     assert result.title == "T"
 
