@@ -88,7 +88,11 @@ async def test_templates_update_patches_and_returns_typed(fast_retry):
         result = await c.templates.update("01HT", name="renamed")
     body = route.calls.last.request.read().decode()
     assert "renamed" in body
-    assert "title_template" not in body  # only supplied fields are sent
+    unsent_fields = (
+        "title_template", "body_template", "variables_schema", "sample_variables", "tags"
+    )
+    for unsent in unsent_fields:
+        assert unsent not in body, f"unsupplied field {unsent!r} leaked into PATCH body"
     assert isinstance(result, TemplateOut)
     assert result.name == "renamed"
 
@@ -108,9 +112,10 @@ async def test_templates_delete_returns_none(fast_retry):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_templates_delete_not_auto_retried_on_5xx(fast_retry):
+@pytest.mark.parametrize("status", [500, 502, 503, 504])
+async def test_templates_delete_not_auto_retried_on_5xx(fast_retry, status):
     route = respx.delete("https://t.local/api/v1/templates/01HT").mock(
-        return_value=httpx.Response(503),
+        return_value=httpx.Response(status),
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry

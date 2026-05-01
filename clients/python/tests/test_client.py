@@ -7,6 +7,7 @@ from notifier_client import (
     AuthError,
     DispatchOut,
     NotifierClient,
+    NotifierError,
     RateLimited,
     RetryConfig,
     ValidationError,
@@ -188,3 +189,21 @@ async def test_health_returns_dict(fast_retry):
         result = await c.health()
     assert isinstance(result, dict)
     assert result["status"] == "ok"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_typed_request_empty_body_raises_notifier_error(fast_retry):
+    """200 with empty body on a typed endpoint raises NotifierError (not KeyError)."""
+    respx.post("https://t.local/api/v1/dispatch").mock(
+        return_value=httpx.Response(200, content=b""),
+    )
+    async with NotifierClient(
+        base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
+    ) as c:
+        with pytest.raises(NotifierError) as exc:
+            await c.dispatch(
+                title_template="t", body_template="b",
+                channel_ids=["c"], idempotency_key="k",
+            )
+    assert "DispatchOut" in str(exc.value)

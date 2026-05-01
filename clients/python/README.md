@@ -36,7 +36,7 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
 
 ### Sub-clients
 
-- `client.channels.{list, create, get, update, delete, test}` → `ChannelOut` / `ChannelTestResponse`
+- `client.channels.{list, create, get, update, delete, send_test}` → `ChannelOut` / `ChannelTestResponse`
 - `client.templates.{list, create, get, update, delete, preview}` → `TemplateOut` / `TemplatePreviewResponse`
 - `client.preview(*, title_template, body_template, variables, variables_schema=None)` → `PreviewResponse` (stateless inline render; rendering failures return 200 OK with `.error` populated, no exception)
 - `client.apprise.{list_plugins, get_plugin, assemble}` → `PluginListItem` / `PluginDetail` / `AssembleResponse`

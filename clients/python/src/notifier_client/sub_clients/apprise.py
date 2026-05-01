@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from notifier_client.errors import error_from_response
+from notifier_client.generated.models.assemble_request import AssembleRequest
+from notifier_client.generated.models.assemble_request_tokens import AssembleRequestTokens
+from notifier_client.generated.types import UNSET
 from notifier_client.types import AssembleResponse, PluginDetail, PluginListItem
 
 if TYPE_CHECKING:
@@ -36,10 +39,15 @@ class AppriseAPI:
     async def assemble(
         self, schema: str, *, tokens: dict[str, Any], variant_index: int | None = None,
     ) -> AssembleResponse:
-        """POST /api/v1/apprise/plugins/{schema}/assemble — build a URL from tokens."""
-        body: dict[str, Any] = {"tokens": tokens}
-        if variant_index is not None:
-            body["variant_index"] = variant_index
+        """POST /api/v1/apprise/plugins/{schema}/assemble — build a URL from tokens.
+
+        ``variant_index`` is omitted from the request body when ``None`` (server
+        picks the default variant).
+        """
+        body = AssembleRequest(
+            tokens=AssembleRequestTokens.from_dict(tokens),
+            variant_index=variant_index if variant_index is not None else UNSET,
+        ).to_dict()
         return await self._client._typed_request(
             "POST", f"/api/v1/apprise/plugins/{schema}/assemble",
             model=AssembleResponse, json=body, retry_safe=False,

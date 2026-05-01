@@ -74,7 +74,7 @@ class ChannelsAPI:
         if response.status_code >= 400:
             raise error_from_response(response)
 
-    async def test(self, channel_id: str) -> ChannelTestResponse:
+    async def send_test(self, channel_id: str) -> ChannelTestResponse:
         """POST /api/v1/channels/{id}/test — fire a test notification."""
         return await self._client._typed_request(
             "POST", f"/api/v1/channels/{channel_id}/test",

@@ -16,7 +16,16 @@ from typing import Any, TypeVar
 
 import httpx
 
-from notifier_client.errors import error_from_response
+from notifier_client.errors import NotifierError, error_from_response
+from notifier_client.generated.models.dispatch_request import DispatchRequest
+from notifier_client.generated.models.dispatch_request_metadata import DispatchRequestMetadata
+from notifier_client.generated.models.dispatch_request_variables import DispatchRequestVariables
+from notifier_client.generated.models.preview_request import PreviewRequest
+from notifier_client.generated.models.preview_request_variables import PreviewRequestVariables
+from notifier_client.generated.models.preview_request_variables_schema_type_0 import (
+    PreviewRequestVariablesSchemaType0,
+)
+from notifier_client.generated.types import UNSET
 from notifier_client.idempotency import _AutoIdempotencyKey, resolve_idempotency_key
 from notifier_client.retry import RetryConfig, RetryTransport
 from notifier_client.sub_clients.apprise import AppriseAPI
@@ -118,19 +127,15 @@ class NotifierClient:
             NotifierError: Any other 4xx (e.g. 404 for unknown channel/template).
         """
         resolved_key = resolve_idempotency_key(idempotency_key)
-        body: dict[str, Any] = {
-            "channel_ids": channel_ids,
-            "variables": variables or {},
-            "metadata": metadata or {},
-        }
-        if template_id is not None:
-            body["template_id"] = template_id
-        if title_template is not None:
-            body["title_template"] = title_template
-        if body_template is not None:
-            body["body_template"] = body_template
-        if resolved_key is not None:
-            body["idempotency_key"] = resolved_key
+        body = DispatchRequest(
+            channel_ids=channel_ids,
+            template_id=template_id if template_id is not None else UNSET,
+            title_template=title_template if title_template is not None else UNSET,
+            body_template=body_template if body_template is not None else UNSET,
+            variables=DispatchRequestVariables.from_dict(variables or {}),
+            metadata=DispatchRequestMetadata.from_dict(metadata) if metadata is not None else UNSET,
+            idempotency_key=resolved_key if resolved_key is not None else UNSET,
+        ).to_dict()
         return await self._typed_request(
             "POST", "/api/v1/dispatch", json=body,
             model=DispatchOut, retry_safe=resolved_key is not None,
@@ -150,13 +155,15 @@ class NotifierClient:
         Both paths return HTTP 200; check ``.error is None`` to distinguish.
         No exception is raised for rendering/validation failures.
         """
-        body: dict[str, Any] = {
-            "title_template": title_template,
-            "body_template": body_template,
-            "variables": variables,
-        }
-        if variables_schema is not None:
-            body["variables_schema"] = variables_schema
+        body = PreviewRequest(
+            title_template=title_template,
+            body_template=body_template,
+            variables=PreviewRequestVariables.from_dict(variables),
+            variables_schema=(
+                PreviewRequestVariablesSchemaType0.from_dict(variables_schema)
+                if variables_schema is not None else UNSET
+            ),
+        ).to_dict()
         return await self._typed_request(
             "POST", "/api/v1/preview",
             model=PreviewResponse, json=body, retry_safe=False,
@@ -182,10 +189,17 @@ class NotifierClient:
         """Run an authed request, map errors, and parse into ``model``.
 
         The single funnel for all typed endpoint methods. ``model.from_dict``
-        must accept the JSON body verbatim.
+        must accept the JSON body verbatim. An empty body where a typed model
+        is expected indicates a server contract violation and surfaces as a
+        NotifierError with the model name for diagnostics.
         """
         extensions = {} if retry_safe else {"notifier_no_retry": True}
         response = await self._http.request(method, path, json=json, extensions=extensions)
         if response.status_code >= 400:
             raise error_from_response(response)
-        return model.from_dict(response.json() if response.content else {})
+        if not response.content:
+            raise NotifierError(
+                f"empty response body, expected {model.__name__}",
+                status_code=response.status_code, response=response,
+            )
+        return model.from_dict(response.json())

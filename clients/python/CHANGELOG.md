@@ -7,7 +7,7 @@
 
 ### Added
 - `notifier_client.types` — stable public re-exports of generated models.
-- `client.channels.{list, create, get, update, delete, test}` returning `ChannelOut` / `ChannelTestResponse`.
+- `client.channels.{list, create, get, update, delete, send_test}` returning `ChannelOut` / `ChannelTestResponse`.
 - `client.templates.{list, create, get, update, delete, preview}` returning `TemplateOut` / `TemplatePreviewResponse`.
 - `client.preview()` — stateless inline render returning `PreviewResponse`.
 - `client.apprise.{list_plugins, get_plugin, assemble}` returning `PluginListItem` / `PluginDetail` / `AssembleResponse`.
