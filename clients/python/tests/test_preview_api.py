@@ -29,6 +29,8 @@ async def test_preview_renders_inline(fast_retry):
         )
     body = route.calls.last.request.read().decode()
     assert "hello {{ who }}" in body
+    assert "body {{ who }}" in body
+    assert "world" in body
     assert isinstance(result, PreviewResponse)
     assert result.title == "hello world"
 

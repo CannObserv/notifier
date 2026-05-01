@@ -145,6 +145,8 @@ class NotifierClient:
 
         Returns a PreviewResponse with either ``.title`` + ``.body`` populated
         or ``.error`` + ``.error_section`` set when rendering/validation fails.
+        Both paths return HTTP 200; check ``.error is None`` to distinguish.
+        No exception is raised for rendering/validation failures.
         """
         body: dict[str, Any] = {
             "title_template": title_template,
