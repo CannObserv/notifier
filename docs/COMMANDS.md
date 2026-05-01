@@ -83,6 +83,20 @@ clients/python/scripts/regen.sh
 git diff --exit-code clients/python/src/notifier_client/generated/
 ```
 
+## SDK integration tests
+
+Gated on `TEST_DATABASE_URL`. The fixture creates the schema in that DB,
+spawns a uvicorn on an ephemeral port wired to it, seeds a tenant, and drops
+the schema on teardown. Every subprocess receives `DATABASE_URL=$TEST_DATABASE_URL`,
+so production cannot be polluted.
+
+```bash
+export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+cd clients/python && uv run pytest -m integration
+```
+
+Skips with a message if `TEST_DATABASE_URL` is unset.
+
 ## Generating a tenant + API key (until admin UI exists)
 
 For v0, tenants and API keys are seeded via SQL or a one-off Python script. Example:

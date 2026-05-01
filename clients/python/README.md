@@ -89,3 +89,18 @@ logging.getLogger("httpx").addFilter(RedactingFilter(api_key="nk_..."))
 ## Development
 
 This package is co-located with the notifier server in [CannObserv/notifier](https://github.com/CannObserv/notifier). The `generated/` subdirectory is regenerated from `app.openapi()` — never edit by hand. See [PR #1](https://github.com/CannObserv/notifier/issues/1).
+
+### Integration tests
+
+Integration tests are gated on `TEST_DATABASE_URL`. The fixture creates the
+schema in that DB, spawns a uvicorn subprocess wired to it on an ephemeral
+port, seeds a tenant, and drops the schema on session teardown. Every
+subprocess receives `DATABASE_URL=$TEST_DATABASE_URL`, so production cannot
+be polluted even if `/etc/notifier/.env` is exported into the parent shell.
+
+```bash
+export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+uv run pytest -m integration
+```
+
+Skips with a message if `TEST_DATABASE_URL` is not set.
