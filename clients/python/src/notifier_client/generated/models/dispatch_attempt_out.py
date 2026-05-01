@@ -8,6 +8,7 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from dateutil.parser import isoparse
 
+from ..models.dispatch_attempt_out_status import DispatchAttemptOutStatus
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="DispatchAttemptOut")
@@ -22,7 +23,7 @@ class DispatchAttemptOut:
         channel_id (str):
         reason (str):
         started_at (datetime.datetime):
-        status (str):
+        status (DispatchAttemptOutStatus):
         finished_at (datetime.datetime | None | Unset):
     """
 
@@ -30,7 +31,7 @@ class DispatchAttemptOut:
     channel_id: str
     reason: str
     started_at: datetime.datetime
-    status: str
+    status: DispatchAttemptOutStatus
     finished_at: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -43,7 +44,7 @@ class DispatchAttemptOut:
 
         started_at = self.started_at.isoformat()
 
-        status = self.status
+        status = self.status.value
 
         finished_at: None | str | Unset
         if isinstance(self.finished_at, Unset):
@@ -80,7 +81,7 @@ class DispatchAttemptOut:
 
         started_at = isoparse(d.pop("started_at"))
 
-        status = d.pop("status")
+        status = DispatchAttemptOutStatus(d.pop("status"))
 
         def _parse_finished_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:

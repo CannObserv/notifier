@@ -17,7 +17,10 @@ Find the new name in `clients/python/src/notifier_client/generated/models/`
 from notifier_client.generated.models.assemble_response import AssembleResponse
 from notifier_client.generated.models.channel_out import ChannelOut
 from notifier_client.generated.models.channel_test_response import ChannelTestResponse
+from notifier_client.generated.models.dispatch_attempt_out import DispatchAttemptOut
+from notifier_client.generated.models.dispatch_attempt_out_status import DispatchAttemptOutStatus
 from notifier_client.generated.models.dispatch_out import DispatchOut
+from notifier_client.generated.models.dispatch_out_status import DispatchOutStatus
 from notifier_client.generated.models.plugin_detail import PluginDetail
 from notifier_client.generated.models.plugin_list_item import PluginListItem
 from notifier_client.generated.models.preview_response import PreviewResponse
@@ -28,7 +31,10 @@ __all__ = [
     "AssembleResponse",
     "ChannelOut",
     "ChannelTestResponse",
+    "DispatchAttemptOut",
+    "DispatchAttemptOutStatus",
     "DispatchOut",
+    "DispatchOutStatus",
     "PluginDetail",
     "PluginListItem",
     "PreviewResponse",

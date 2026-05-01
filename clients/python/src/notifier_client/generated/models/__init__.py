@@ -8,8 +8,10 @@ from .channel_out import ChannelOut
 from .channel_test_response import ChannelTestResponse
 from .channel_update import ChannelUpdate
 from .dispatch_attempt_out import DispatchAttemptOut
+from .dispatch_attempt_out_status import DispatchAttemptOutStatus
 from .dispatch_out import DispatchOut
 from .dispatch_out_metadata import DispatchOutMetadata
+from .dispatch_out_status import DispatchOutStatus
 from .dispatch_request import DispatchRequest
 from .dispatch_request_metadata import DispatchRequestMetadata
 from .dispatch_request_variables import DispatchRequestVariables
@@ -48,8 +50,10 @@ __all__ = (
     "ChannelTestResponse",
     "ChannelUpdate",
     "DispatchAttemptOut",
+    "DispatchAttemptOutStatus",
     "DispatchOut",
     "DispatchOutMetadata",
+    "DispatchOutStatus",
     "DispatchRequest",
     "DispatchRequestMetadata",
     "DispatchRequestVariables",

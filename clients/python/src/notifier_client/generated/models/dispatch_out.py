@@ -8,6 +8,8 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 from dateutil.parser import isoparse
 
+from ..models.dispatch_out_status import DispatchOutStatus
+
 if TYPE_CHECKING:
     from ..models.dispatch_attempt_out import DispatchAttemptOut
     from ..models.dispatch_out_metadata import DispatchOutMetadata
@@ -28,7 +30,7 @@ class DispatchOut:
         metadata (DispatchOutMetadata):
         rendered_body (str):
         rendered_title (str):
-        status (str):
+        status (DispatchOutStatus):
         template_id (None | str):
         tenant_id (str):
     """
@@ -40,7 +42,7 @@ class DispatchOut:
     metadata: DispatchOutMetadata
     rendered_body: str
     rendered_title: str
-    status: str
+    status: DispatchOutStatus
     template_id: None | str
     tenant_id: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -64,7 +66,7 @@ class DispatchOut:
 
         rendered_title = self.rendered_title
 
-        status = self.status
+        status = self.status.value
 
         template_id: None | str
         template_id = self.template_id
@@ -120,7 +122,7 @@ class DispatchOut:
 
         rendered_title = d.pop("rendered_title")
 
-        status = d.pop("status")
+        status = DispatchOutStatus(d.pop("status"))
 
         def _parse_template_id(data: object) -> None | str:
             if data is None:

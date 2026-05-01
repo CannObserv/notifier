@@ -26,6 +26,7 @@ from src.api.schemas.dispatch import (
 from src.core.models.channel import Channel
 from src.core.models.dispatch import Dispatch, DispatchAttempt
 from src.core.models.template import Template
+from src.core.notifications.constants import DispatchAttemptStatus, DispatchStatus
 from src.core.notifications.dispatcher import dispatch_to_channel
 from src.core.notifications.render import TemplateRenderError, render_template
 from src.core.notifications.validate import VariablesValidationError, validate_variables
@@ -159,7 +160,7 @@ async def create_dispatch(
         rendered_body=rendered_body,
         variables=body.variables,
         request_metadata=body.metadata,
-        status="failed",  # provisional; updated after attempts
+        status=DispatchStatus.FAILED,  # provisional; updated after attempts
     )
     session.add(dispatch)
     await session.flush()  # populate dispatch.id without releasing the txn
@@ -179,7 +180,7 @@ async def create_dispatch(
             dispatch_id=dispatch.id,
             channel_id=channel.id,
             attempt=1,
-            status="succeeded" if result.success else "failed",
+            status=DispatchAttemptStatus.SUCCEEDED if result.success else DispatchAttemptStatus.FAILED,
             reason=result.reason,
             started_at=started,
             finished_at=finished,
@@ -190,11 +191,11 @@ async def create_dispatch(
             successes += 1
 
     if successes == len(channels):
-        dispatch.status = "succeeded"
+        dispatch.status = DispatchStatus.SUCCEEDED
     elif successes == 0:
-        dispatch.status = "failed"
+        dispatch.status = DispatchStatus.FAILED
     else:
-        dispatch.status = "partial"
+        dispatch.status = DispatchStatus.PARTIAL
 
     await session.commit()
     await session.refresh(dispatch)

@@ -1,7 +1,7 @@
 """Pydantic schemas for the dispatch endpoints."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -37,7 +37,7 @@ class DispatchAttemptOut(BaseModel):
     """Response body fragment representing one channel attempt."""
 
     channel_id: str
-    status: str
+    status: Literal["succeeded", "failed"]
     reason: str
     attempt: int
     started_at: datetime
@@ -53,7 +53,7 @@ class DispatchOut(BaseModel):
     idempotency_key: str | None
     rendered_title: str
     rendered_body: str
-    status: str
+    status: Literal["succeeded", "partial", "failed"]
     metadata: dict[str, Any]
     created_at: datetime
     attempts: list[DispatchAttemptOut]
