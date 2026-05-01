@@ -19,6 +19,7 @@ import httpx
 from notifier_client.errors import error_from_response
 from notifier_client.idempotency import _AutoIdempotencyKey, resolve_idempotency_key
 from notifier_client.retry import RetryConfig, RetryTransport
+from notifier_client.sub_clients.channels import ChannelsAPI
 from notifier_client.types import DispatchOut
 
 T = TypeVar("T")
@@ -45,6 +46,7 @@ class NotifierClient:
             timeout=timeout,
             transport=RetryTransport(httpx.AsyncHTTPTransport(), self._retry_config),
         )
+        self.channels = ChannelsAPI(self)
 
     def __repr__(self) -> str:
         return f"NotifierClient(base_url={self._base_url!r}, api_key={self._mask!r})"
