@@ -16,6 +16,26 @@ TDD required. Red → Green → Refactor. No production code without a failing t
 
 Python ≥3.12, uv, pytest, ruff.
 
+## Code Exploration Policy
+
+SocratiCode is indexed on this repo (`.socraticodecontextartifacts.json` present). Its MCP tools are **deferred** — schemas load only after a `ToolSearch` prefetch. The SessionStart hook prints the prefetch query; run it before exploring.
+
+**Negative rule.** For broad semantic questions ("where is X", "how does Y work", "what depends on Z"), use SocratiCode MCP tools first. Reach for `grep`/`ripgrep` only on exact strings (error messages, log lines, known symbols). Reserve the Explore subagent for path-pattern walks (e.g. "all `*.py` under `src/api/routes/`"), not semantic search.
+
+| Goal | Tool |
+|------|------|
+| Where is X defined / how does Y work / what files touch Z | `codebase_search` |
+| Exact string/regex match (errors, log lines, known symbols) | `grep` / `rg` |
+| Blast radius of changing/deleting a file or function | `codebase_impact` |
+| What does an entry point actually do? | `codebase_flow` |
+| Callers and callees of a function | `codebase_symbol` |
+| Imports/dependents of a file | `codebase_graph_query` |
+| DB schemas, deployment topology, runbook context | `codebase_context` / `codebase_context_search` |
+
+Prefetch query — run via `ToolSearch` at session start:
+
+`select:mcp__plugin_socraticode_socraticode__codebase_search,mcp__plugin_socraticode_socraticode__codebase_symbol,mcp__plugin_socraticode_socraticode__codebase_symbols,mcp__plugin_socraticode_socraticode__codebase_flow,mcp__plugin_socraticode_socraticode__codebase_impact,mcp__plugin_socraticode_socraticode__codebase_graph_query,mcp__plugin_socraticode_socraticode__codebase_graph_circular,mcp__plugin_socraticode_socraticode__codebase_graph_stats,mcp__plugin_socraticode_socraticode__codebase_graph_visualize,mcp__plugin_socraticode_socraticode__codebase_status,mcp__plugin_socraticode_socraticode__codebase_context,mcp__plugin_socraticode_socraticode__codebase_context_search`
+
 ## Project Layout
 
 ```
