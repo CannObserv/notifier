@@ -2,7 +2,13 @@ import httpx
 import pytest
 import respx
 
-from notifier_client import ChannelOut, ChannelTestResponse, NotifierClient, RetryConfig
+from notifier_client import (
+    ChannelOut,
+    ChannelTestResponse,
+    NotifierClient,
+    RetryConfig,
+    ValidationError,
+)
 
 
 @pytest.fixture
@@ -110,7 +116,6 @@ async def test_channels_test_returns_typed(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_channels_create_validation_error(fast_retry):
-    from notifier_client import ValidationError
     respx.post("https://t.local/api/v1/channels").mock(
         return_value=httpx.Response(422, json={"detail": [
             {"loc": ["body", "apprise_url"], "msg": "field required", "type": "missing"}
