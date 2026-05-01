@@ -28,6 +28,9 @@ async def test_apprise_round_trip(notifier_url, tenant_credentials):
         assert isinstance(detail, PluginDetail)
         assert detail.plugin_schema == "jsons"
 
+        # Only verifies URL assembly (string round-trip), not deliverability.
+        # jsons:// is HTTPS-bound; localhost without a cert won't resolve, but
+        # /assemble does no network probing — it just returns the URL string.
         assembled = await c.apprise.assemble("jsons", tokens={"host": "localhost"})
         assert isinstance(assembled, AssembleResponse)
         assert assembled.apprise_url.startswith("jsons://")

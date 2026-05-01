@@ -209,3 +209,31 @@ async def test_typed_request_empty_body_raises_notifier_error(fast_retry):
                 channel_ids=["c"], idempotency_key="k",
             )
     assert "DispatchOut" in str(exc.value)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_dispatch_omits_variables_when_caller_passes_none(fast_retry):
+    """variables=None (or omitted) → wire body has no `variables` key.
+
+    Symmetric with metadata handling: optional dict-bag fields are UNSET
+    when the caller doesn't supply them, not always-sent empty dicts.
+    """
+    route = respx.post("https://t.local/api/v1/dispatch").mock(
+        return_value=httpx.Response(202, json={
+            "id": "01H...", "tenant_id": "t1", "template_id": None,
+            "idempotency_key": "k", "rendered_title": "T", "rendered_body": "B",
+            "status": "succeeded", "metadata": {},
+            "created_at": "2026-04-30T00:00:00Z", "attempts": [],
+        })
+    )
+    async with NotifierClient(
+        base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
+    ) as c:
+        await c.dispatch(
+            title_template="T", body_template="B", channel_ids=["ch1"],
+            idempotency_key="k",
+        )
+    body = route.calls.last.request.read().decode()
+    assert "variables" not in body
+    assert "metadata" not in body  # same omit-on-None contract

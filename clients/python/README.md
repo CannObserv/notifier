@@ -15,7 +15,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for version history.
 ## Usage
 
 ```python
-from notifier_client import AUTO, NotifierClient
+from notifier_client import NotifierClient
 
 async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...") as client:
     ch = await client.channels.create(name="ops", apprise_url="slack://...")

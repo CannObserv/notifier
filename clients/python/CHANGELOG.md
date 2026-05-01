@@ -14,7 +14,9 @@
 - `_typed_request` raises a clean `NotifierError` (not `KeyError`) when a typed endpoint returns 200 with empty body.
 
 ### Changed
+- `client.channels.test()` renamed to `client.channels.send_test()` for clarity (test is an action, not a verification).
 - `dispatch()` now omits `variables` from the request body when caller passes `None` (or omits the kwarg). Previously sent an empty dict; now consistent with how `metadata` is handled.
+- Internal: `dispatch()`, `client.preview()`, `apprise.assemble()` now build request bodies via codegen `*Request` models for consistency with the rest of the SDK. Wire format unchanged for documented endpoints.
 
 ### Unchanged
 - `health()` and `ready()` still return `dict[str, Any]` — server schema is free-form.
