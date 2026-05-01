@@ -7,6 +7,7 @@ from notifier_client import (
     ChannelTestResponse,
     NotifierClient,
     RetryConfig,
+    ServerError,
     ValidationError,
 )
 
@@ -127,3 +128,18 @@ async def test_channels_create_validation_error(fast_retry):
         with pytest.raises(ValidationError) as exc:
             await c.channels.create(name="ops", apprise_url="")
     assert exc.value.field_path == "body.apprise_url"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_channels_delete_not_auto_retried_on_5xx(fast_retry):
+    route = respx.delete("https://t.local/api/v1/channels/01HA").mock(
+        return_value=httpx.Response(503),
+    )
+    async with NotifierClient(
+        base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
+    ) as c:
+        with pytest.raises(ServerError):
+            await c.channels.delete("01HA")
+    # Single attempt — DELETE is not auto-retried.
+    assert route.call_count == 1

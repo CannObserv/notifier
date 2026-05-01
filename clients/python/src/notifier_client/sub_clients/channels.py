@@ -62,9 +62,14 @@ class ChannelsAPI:
         )
 
     async def delete(self, channel_id: str) -> None:
-        """DELETE /api/v1/channels/{id}; 204 on success."""
+        """DELETE /api/v1/channels/{id}; 204 on success.
+
+        Not auto-retried — DELETE is non-idempotent at the resource level
+        (a 5xx may have already deleted the row; retrying would 404).
+        """
         response = await self._client._http.request(
             "DELETE", f"/api/v1/channels/{channel_id}",
+            extensions={"notifier_no_retry": True},
         )
         if response.status_code >= 400:
             raise error_from_response(response)
