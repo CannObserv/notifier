@@ -21,6 +21,9 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
     ch = await client.channels.create(name="ops", apprise_url="slack://...")
     print(ch.id, ch.apprise_url_masked)
 
+    test_result = await client.channels.send_test(ch.id)
+    print("test:", test_result.success, test_result.reason)
+
     tpl = await client.templates.create(
         name="alert", title_template="{{ event }}", body_template="...",
     )

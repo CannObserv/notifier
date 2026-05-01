@@ -10,6 +10,7 @@ from notifier_client import (
     NotifierError,
     RateLimited,
     RetryConfig,
+    ServerError,
     ValidationError,
 )
 
@@ -89,7 +90,7 @@ async def test_dispatch_never_auto_retried_without_idempotency_key(fast_retry):
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
-        with pytest.raises(Exception):    # ServerError
+        with pytest.raises(ServerError):
             await c.dispatch(
                 title_template="T", body_template="B", channel_ids=["ch1"],
                 idempotency_key=None,
@@ -99,6 +100,7 @@ async def test_dispatch_never_auto_retried_without_idempotency_key(fast_retry):
     # And the request body must omit idempotency_key when caller passed None
     body = route.calls.last.request.read().decode()
     assert "idempotency_key" not in body
+    assert "variables" not in body
 
 
 @respx.mock

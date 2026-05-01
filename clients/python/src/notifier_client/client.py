@@ -132,7 +132,9 @@ class NotifierClient:
             template_id=template_id if template_id is not None else UNSET,
             title_template=title_template if title_template is not None else UNSET,
             body_template=body_template if body_template is not None else UNSET,
-            variables=DispatchRequestVariables.from_dict(variables or {}),
+            variables=(
+                DispatchRequestVariables.from_dict(variables) if variables is not None else UNSET
+            ),
             metadata=DispatchRequestMetadata.from_dict(metadata) if metadata is not None else UNSET,
             idempotency_key=resolved_key if resolved_key is not None else UNSET,
         ).to_dict()

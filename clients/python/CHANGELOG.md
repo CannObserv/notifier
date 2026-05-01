@@ -11,6 +11,10 @@
 - `client.templates.{list, create, get, update, delete, preview}` returning `TemplateOut` / `TemplatePreviewResponse`.
 - `client.preview()` — stateless inline render returning `PreviewResponse`.
 - `client.apprise.{list_plugins, get_plugin, assemble}` returning `PluginListItem` / `PluginDetail` / `AssembleResponse`.
+- `_typed_request` raises a clean `NotifierError` (not `KeyError`) when a typed endpoint returns 200 with empty body.
+
+### Changed
+- `dispatch()` now omits `variables` from the request body when caller passes `None` (or omits the kwarg). Previously sent an empty dict; now consistent with how `metadata` is handled.
 
 ### Unchanged
 - `health()` and `ready()` still return `dict[str, Any]` — server schema is free-form.

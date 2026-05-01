@@ -7,6 +7,11 @@ versions; this module insulates consumers from that churn.
 Add a name here only when an endpoint method returns or accepts the type.
 The surface test (``tests/test_types_surface.py``) guards every name listed
 in ``__all__``.
+
+Regen workflow: if `clients/python/scripts/regen.sh` produces a build where
+this file fails to import, the codegen renamed one of the underlying classes.
+Find the new name in `clients/python/src/notifier_client/generated/models/`
+(grep for the docstring) and update the matching import line below.
 """
 
 from notifier_client.generated.models.assemble_response import AssembleResponse

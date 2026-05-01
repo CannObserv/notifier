@@ -1,6 +1,9 @@
-"""Round-trip: apprise.list_plugins → get_plugin → assemble.
+"""Round-trip: apprise.list_plugins → get_plugin("jsons") → assemble.
 
 Exercises the typed apprise sub-client surface against a real notifier process.
+Asserts "jsons" schema is present (Apprise stdlib always ships it — the JSON
+plugin's primary scheme is the TLS variant) and that the assembled URL contains
+the supplied host token.
 """
 
 import pytest
@@ -18,17 +21,14 @@ async def test_apprise_round_trip(notifier_url, tenant_credentials):
         assert plugins
         assert all(isinstance(p, PluginListItem) for p in plugins)
 
-        # Pick a known schema if available; otherwise use the first listed.
         schemas = {p.plugin_schema for p in plugins}
-        target = "json" if "json" in schemas else next(iter(schemas))
+        assert "jsons" in schemas, "Apprise stdlib should expose jsons:// schema"
 
-        detail = await c.apprise.get_plugin(target)
+        detail = await c.apprise.get_plugin("jsons")
         assert isinstance(detail, PluginDetail)
-        assert detail.plugin_schema == target
+        assert detail.plugin_schema == "jsons"
 
-        # Assemble may fail with 422 if required tokens are missing; only
-        # check assemble for "json" which accepts a bare host token.
-        if target == "json":
-            assembled = await c.apprise.assemble(target, tokens={"host": "localhost"})
-            assert isinstance(assembled, AssembleResponse)
-            assert assembled.apprise_url.startswith("json://")
+        assembled = await c.apprise.assemble("jsons", tokens={"host": "localhost"})
+        assert isinstance(assembled, AssembleResponse)
+        assert assembled.apprise_url.startswith("jsons://")
+        assert "localhost" in assembled.apprise_url
