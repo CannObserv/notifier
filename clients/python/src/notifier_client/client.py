@@ -21,7 +21,7 @@ from notifier_client.idempotency import _AutoIdempotencyKey, resolve_idempotency
 from notifier_client.retry import RetryConfig, RetryTransport
 from notifier_client.sub_clients.channels import ChannelsAPI
 from notifier_client.sub_clients.templates import TemplatesAPI
-from notifier_client.types import DispatchOut
+from notifier_client.types import DispatchOut, PreviewResponse
 
 T = TypeVar("T")
 
@@ -132,6 +132,30 @@ class NotifierClient:
         return await self._typed_request(
             "POST", "/api/v1/dispatch", json=body,
             model=DispatchOut, retry_safe=resolved_key is not None,
+        )
+
+    async def preview(
+        self, *,
+        title_template: str,
+        body_template: str,
+        variables: dict[str, Any],
+        variables_schema: dict[str, Any] | None = None,
+    ) -> PreviewResponse:
+        """POST /api/v1/preview — stateless inline render; never dispatches.
+
+        Returns a PreviewResponse with either ``.title`` + ``.body`` populated
+        or ``.error`` + ``.error_section`` set when rendering/validation fails.
+        """
+        body: dict[str, Any] = {
+            "title_template": title_template,
+            "body_template": body_template,
+            "variables": variables,
+        }
+        if variables_schema is not None:
+            body["variables_schema"] = variables_schema
+        return await self._typed_request(
+            "POST", "/api/v1/preview",
+            model=PreviewResponse, json=body, retry_safe=False,
         )
 
     # --- internals ---
