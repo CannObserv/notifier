@@ -180,7 +180,9 @@ async def create_dispatch(
             dispatch_id=dispatch.id,
             channel_id=channel.id,
             attempt=1,
-            status=DispatchAttemptStatus.SUCCEEDED if result.success else DispatchAttemptStatus.FAILED,
+            status=(
+                DispatchAttemptStatus.SUCCEEDED if result.success else DispatchAttemptStatus.FAILED
+            ),
             reason=result.reason,
             started_at=started,
             finished_at=finished,

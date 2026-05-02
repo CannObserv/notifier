@@ -58,7 +58,7 @@ src/core/notifications/dispatcher.py    — `dispatch_to_channel(*, apprise_url_
 src/core/notifications/apprise_builder.py — Plugin catalog introspection + URL assembly: `list_plugins()`, `get_plugin_detail(schema)`, `assemble_url(schema, tokens, variant_index)`; `_build_catalog()` and `_list_plugins_cached()` are `lru_cache`d
 src/core/notifications/render.py        — Jinja2 strict rendering: `render_template(s, variables)` (StrictUndefined; raises on syntax + undefined refs)
 src/core/notifications/validate.py      — JSON Schema variables validation against template schema; raises a typed VariablesValidationError with field path
-src/core/notifications/constants.py     — `APP_URL` ("https://notifier.exe.xyz") used by AppriseAsset branding
+src/core/notifications/constants.py     — `APP_URL` ("https://notifier.exe.xyz") used by AppriseAsset branding; `DispatchStatus` + `DispatchAttemptStatus` StrEnums (canonical server-side status values used in dispatch route and cross-checked against Pydantic schema Literals)
 tests/                       — Mirrors src/ structure; integration tests use real Postgres via TEST_DATABASE_URL
 clients/python/              — `notifier-client` Python SDK; separate `pyproject.toml` + venv (`uv sync` from this dir); `src/notifier_client/generated/` is regenerated from `/openapi.json` via `clients/python/scripts/regen.sh` and must never be hand-edited; CI fails any PR that leaves it stale. Public types in `notifier_client.types`; sub-clients under `client.channels`, `client.templates`, `client.apprise`.
 deploy/                      — Systemd unit + deployment config

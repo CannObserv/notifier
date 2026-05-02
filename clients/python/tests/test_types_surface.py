@@ -66,6 +66,23 @@ def test_dispatch_out_has_expected_fields():
     assert out.attempts == []
 
 
+def test_dispatch_attempt_out_has_expected_fields():
+    out = DispatchAttemptOut.from_dict({
+        "channel_id": "01H", "status": "failed", "reason": "timeout",
+        "attempt": 1, "started_at": "2026-04-30T00:00:00Z",
+    })
+    assert out.status == DispatchAttemptOutStatus.FAILED
+    assert out.status == "failed"  # str equality preserved
+    assert out.channel_id == "01H"
+    assert out.reason == "timeout"
+
+    out2 = DispatchAttemptOut.from_dict({
+        "channel_id": "02H", "status": "succeeded", "reason": "",
+        "attempt": 1, "started_at": "2026-04-30T00:00:00Z",
+    })
+    assert out2.status == DispatchAttemptOutStatus.SUCCEEDED
+
+
 def test_top_level_init_re_exports_types():
     """Common types should also be available as `from notifier_client import ...`."""
     assert hasattr(notifier_client, "ChannelOut")

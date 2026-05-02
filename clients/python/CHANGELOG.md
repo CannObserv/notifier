@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 — 2026-05-02
+
+### Added
+- `DispatchOutStatus` and `DispatchAttemptOutStatus` enums exported from `notifier_client` and `notifier_client.types`. `DispatchOut.status` and `DispatchAttemptOut.status` are now typed as these enums (previously `str`). String equality is preserved — `result.status == "succeeded"` continues to work.
+- `DispatchAttemptOut` exported from `notifier_client` and `notifier_client.types` (was accessible via `DispatchOut.attempts` but not importable directly).
+
 ## 0.2.0 — 2026-05-01
 
 ### Breaking

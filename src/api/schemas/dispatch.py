@@ -37,6 +37,11 @@ class DispatchAttemptOut(BaseModel):
     """Response body fragment representing one channel attempt."""
 
     channel_id: str
+    # Literal instead of DispatchStatus enum: Pydantic emits an inline enum array
+    # in the OpenAPI spec, which openapi-python-client codegen maps to a typed enum
+    # field on the generated model. Using the StrEnum directly would emit a $ref
+    # schema, producing a differently-named generated class and a different wire shape.
+    # tests/core/test_dispatch_constants.py cross-checks these values stay in sync.
     status: Literal["succeeded", "failed"]
     reason: str
     attempt: int
@@ -53,6 +58,7 @@ class DispatchOut(BaseModel):
     idempotency_key: str | None
     rendered_title: str
     rendered_body: str
+    # See DispatchAttemptOut.status comment above for why Literal is used here.
     status: Literal["succeeded", "partial", "failed"]
     metadata: dict[str, Any]
     created_at: datetime

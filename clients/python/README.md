@@ -35,7 +35,20 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
         idempotency_key="evt-1",
     )
     print(result.status, [a.status for a in result.attempts])
+
+    # result.status is DispatchOutStatus; a.status is DispatchAttemptOutStatus.
+    # Both are str subclasses, so string comparison works either way:
+    from notifier_client import DispatchOutStatus, DispatchAttemptOutStatus
+    if result.status == DispatchOutStatus.SUCCEEDED:
+        print("all channels delivered")
+    elif result.status == DispatchOutStatus.PARTIAL:
+        failed = [a for a in result.attempts if a.status == DispatchAttemptOutStatus.FAILED]
+        print(f"{len(failed)} channel(s) failed:", [a.channel_id for a in failed])
 ```
+
+### Working with dispatch results
+
+`result.status` is a `DispatchOutStatus` enum with values `SUCCEEDED`, `PARTIAL`, and `FAILED`. Each `result.attempts[n].status` is a `DispatchAttemptOutStatus` with values `SUCCEEDED` and `FAILED`. Both inherit from `str`, so `result.status == "succeeded"` works alongside the enum form.
 
 ### Sub-clients
 
