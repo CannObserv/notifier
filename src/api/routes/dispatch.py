@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.deps import get_db_session, require_api_key
+from src.api.schemas.types import ULIDStr
 from src.api.schemas.dispatch import (
     DispatchAttemptOut,
     DispatchOut,
@@ -206,7 +207,7 @@ async def create_dispatch(
 
 @router.get("/{dispatch_id}", response_model=DispatchOut)
 async def get_dispatch(
-    dispatch_id: str,
+    dispatch_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> DispatchOut:

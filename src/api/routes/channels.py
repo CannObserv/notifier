@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db_session, require_api_key
+from src.api.schemas.types import ULIDStr
 from src.api.schemas.channel import (
     ChannelCreate,
     ChannelOut,
@@ -88,7 +89,7 @@ async def create_channel(
 
 @router.get("/{channel_id}", response_model=ChannelOut)
 async def get_channel(
-    channel_id: str,
+    channel_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> ChannelOut:
@@ -98,7 +99,7 @@ async def get_channel(
 
 @router.patch("/{channel_id}", response_model=ChannelOut)
 async def update_channel(
-    channel_id: str,
+    channel_id: ULIDStr,
     body: ChannelUpdate,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
@@ -117,7 +118,7 @@ async def update_channel(
 
 @router.delete("/{channel_id}", status_code=204)
 async def delete_channel(
-    channel_id: str,
+    channel_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> None:
@@ -129,7 +130,7 @@ async def delete_channel(
 
 @router.post("/{channel_id}/test", response_model=ChannelTestResponse)
 async def test_channel(
-    channel_id: str,
+    channel_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> ChannelTestResponse:

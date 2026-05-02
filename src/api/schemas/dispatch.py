@@ -5,6 +5,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from src.api.schemas.types import ULIDStr
+
 
 class DispatchRequest(BaseModel):
     """Request body for POST /dispatch.
@@ -14,11 +16,11 @@ class DispatchRequest(BaseModel):
     if both are provided (useful for stage rollouts of new wording).
     """
 
-    template_id: str | None = None
+    template_id: ULIDStr | None = None
     title_template: str | None = None
     body_template: str | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
-    channel_ids: list[str] = Field(min_length=1)
+    channel_ids: list[ULIDStr] = Field(min_length=1)
     idempotency_key: str | None = Field(default=None, max_length=200)
     metadata: dict[str, Any] = Field(default_factory=dict)
 

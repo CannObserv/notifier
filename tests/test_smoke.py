@@ -149,3 +149,70 @@ async def test_preview_endpoint_reports_undefined(client, api_key):
     body = response.json()
     assert body["error_section"] == "body"
     assert body["title"] is None
+
+
+async def test_dispatch_malformed_channel_id_returns_422(client, api_key):
+    """Malformed (non-ULID) channel_id in body produces 422 with field path."""
+    raw_key, _ = api_key
+    headers = {"X-API-Key": raw_key}
+    response = await client.post(
+        "/api/v1/dispatch",
+        headers=headers,
+        json={
+            "title_template": "hello",
+            "body_template": "body",
+            "variables": {},
+            "channel_ids": ["not-a-valid-ulid"],
+        },
+    )
+    assert response.status_code == 422
+    locs = [str(e.get("loc", [])) for e in response.json()["detail"]]
+    assert any("channel_ids" in loc for loc in locs)
+
+
+async def test_dispatch_malformed_template_id_returns_422(client, api_key):
+    """Malformed (non-ULID) template_id in body produces 422 with field path."""
+    raw_key, _ = api_key
+    headers = {"X-API-Key": raw_key}
+    response = await client.post(
+        "/api/v1/dispatch",
+        headers=headers,
+        json={
+            "template_id": "550e8400-e29b-41d4-a716-446655440000",
+            "variables": {},
+            "channel_ids": ["00000000000000000000000000"],
+        },
+    )
+    assert response.status_code == 422
+    locs = [str(e.get("loc", [])) for e in response.json()["detail"]]
+    assert any("template_id" in loc for loc in locs)
+
+
+async def test_channel_malformed_path_param_returns_422(client, api_key):
+    """GET /channels/<bad-id> returns 422, not 404."""
+    raw_key, _ = api_key
+    response = await client.get(
+        "/api/v1/channels/not-a-valid-ulid",
+        headers={"X-API-Key": raw_key},
+    )
+    assert response.status_code == 422
+
+
+async def test_template_malformed_path_param_returns_422(client, api_key):
+    """GET /templates/<bad-id> returns 422, not 404."""
+    raw_key, _ = api_key
+    response = await client.get(
+        "/api/v1/templates/not-a-valid-ulid",
+        headers={"X-API-Key": raw_key},
+    )
+    assert response.status_code == 422
+
+
+async def test_dispatch_log_malformed_path_param_returns_422(client, api_key):
+    """GET /dispatch/<bad-id> returns 422, not 404."""
+    raw_key, _ = api_key
+    response = await client.get(
+        "/api/v1/dispatch/not-a-valid-ulid",
+        headers={"X-API-Key": raw_key},
+    )
+    assert response.status_code == 422

@@ -40,4 +40,4 @@ async def require_api_key(
         raise HTTPException(status_code=401, detail="Invalid API key")
     api_key.last_used_at = datetime.now(UTC)
     await session.commit()
-    return api_key.tenant_id
+    return str(api_key.tenant_id)

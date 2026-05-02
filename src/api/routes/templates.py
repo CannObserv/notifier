@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db_session, require_api_key
+from src.api.schemas.types import ULIDStr
 from src.api.schemas.template import (
     TemplateCreate,
     TemplateOut,
@@ -89,7 +90,7 @@ async def create_template(
 
 @router.get("/{template_id}", response_model=TemplateOut)
 async def get_template(
-    template_id: str,
+    template_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> TemplateOut:
@@ -99,7 +100,7 @@ async def get_template(
 
 @router.patch("/{template_id}", response_model=TemplateOut)
 async def update_template(
-    template_id: str,
+    template_id: ULIDStr,
     body: TemplateUpdate,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
@@ -119,7 +120,7 @@ async def update_template(
 
 @router.delete("/{template_id}", status_code=204)
 async def delete_template(
-    template_id: str,
+    template_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> None:
@@ -131,7 +132,7 @@ async def delete_template(
 
 @router.post("/{template_id}/preview", response_model=TemplatePreviewResponse)
 async def preview_template(
-    template_id: str,
+    template_id: ULIDStr,
     body: TemplatePreviewRequest,
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
