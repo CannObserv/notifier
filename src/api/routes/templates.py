@@ -8,7 +8,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db_session, require_api_key
-from src.api.schemas.types import ULIDStr
 from src.api.schemas.template import (
     TemplateCreate,
     TemplateOut,
@@ -16,6 +15,7 @@ from src.api.schemas.template import (
     TemplatePreviewResponse,
     TemplateUpdate,
 )
+from src.api.schemas.types import ULIDStr
 from src.core.models.template import Template
 from src.core.notifications.render import TemplateRenderError, render_template
 from src.core.notifications.validate import VariablesValidationError, validate_variables

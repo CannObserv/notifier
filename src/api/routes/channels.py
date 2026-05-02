@@ -5,13 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db_session, require_api_key
-from src.api.schemas.types import ULIDStr
 from src.api.schemas.channel import (
     ChannelCreate,
     ChannelOut,
     ChannelTestResponse,
     ChannelUpdate,
 )
+from src.api.schemas.types import ULIDStr
 from src.core.crypto import decrypt_apprise_url, encrypt_apprise_url
 from src.core.models.channel import Channel
 from src.core.notifications.dispatcher import dispatch_to_channel

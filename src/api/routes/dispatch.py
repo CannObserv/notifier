@@ -18,12 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.api.deps import get_db_session, require_api_key
-from src.api.schemas.types import ULIDStr
 from src.api.schemas.dispatch import (
     DispatchAttemptOut,
     DispatchOut,
     DispatchRequest,
 )
+from src.api.schemas.types import ULIDStr
 from src.core.models.channel import Channel
 from src.core.models.dispatch import Dispatch, DispatchAttempt
 from src.core.models.template import Template

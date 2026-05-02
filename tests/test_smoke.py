@@ -189,7 +189,7 @@ async def test_dispatch_malformed_template_id_returns_422(client, api_key):
 
 
 async def test_channel_malformed_path_param_returns_422(client, api_key):
-    """GET /channels/<bad-id> returns 422, not 404."""
+    """Any verb on /channels/<bad-id> returns 422 — ULIDStr covers GET/PATCH/DELETE/test."""
     raw_key, _ = api_key
     response = await client.get(
         "/api/v1/channels/not-a-valid-ulid",
@@ -199,7 +199,7 @@ async def test_channel_malformed_path_param_returns_422(client, api_key):
 
 
 async def test_template_malformed_path_param_returns_422(client, api_key):
-    """GET /templates/<bad-id> returns 422, not 404."""
+    """Any verb on /templates/<bad-id> returns 422 — ULIDStr covers GET/PATCH/DELETE/preview."""
     raw_key, _ = api_key
     response = await client.get(
         "/api/v1/templates/not-a-valid-ulid",
@@ -209,7 +209,7 @@ async def test_template_malformed_path_param_returns_422(client, api_key):
 
 
 async def test_dispatch_log_malformed_path_param_returns_422(client, api_key):
-    """GET /dispatch/<bad-id> returns 422, not 404."""
+    """GET /dispatch/<bad-id> returns 422 — ULIDStr annotation on dispatch_id path param."""
     raw_key, _ = api_key
     response = await client.get(
         "/api/v1/dispatch/not-a-valid-ulid",

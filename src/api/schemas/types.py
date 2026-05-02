@@ -6,9 +6,12 @@ from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema, core_schema
 from ulid import ULID
+from ulid import base32 as _ulid_base32
 
-# Crockford base32 alphabet used by ULID (no I, L, O, U)
-_ULID_PATTERN = "^[0-9A-HJKMNP-TV-Z]{26}$"
+# Derived from ulid.base32.ENCODE — the library's canonical Crockford alphabet.
+# Keeping this in sync with the runtime validator (ULID.from_str) is intentional:
+# both point at the same source of truth so they cannot diverge.
+_ULID_PATTERN = f"^[{_ulid_base32.ENCODE}]{{26}}$"
 
 
 class ULIDStr(str):
@@ -39,6 +42,6 @@ class ULIDStr(str):
         s = str(value).upper()
         try:
             ULID.from_str(s)
-        except Exception:
+        except ValueError:
             raise ValueError(f"invalid ULID: {value!r}")
         return cls(s)
