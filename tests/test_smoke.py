@@ -293,3 +293,4 @@ async def test_inline_dispatch_with_auto_idempotency(client, api_key):
     assert d2["created_at"] == d1["created_at"]
     assert d2["rendered_title"] == "Hello World"
     assert d2["rendered_body"] == "Body for World"
+    assert d2["attempts"] == d1["attempts"]
