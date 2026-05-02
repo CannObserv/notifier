@@ -9,9 +9,10 @@ from ulid import ULID
 from ulid import base32 as _ulid_base32
 
 # Derived from ulid.base32.ENCODE — the library's canonical Crockford alphabet.
-# Keeping this in sync with the runtime validator (ULID.from_str) is intentional:
-# both point at the same source of truth so they cannot diverge.
-_ULID_PATTERN = f"^[{_ulid_base32.ENCODE}]{{26}}$"
+# Letters included in both cases: the runtime normalises lowercase → uppercase before
+# parsing, so the OpenAPI pattern and the runtime validator accept the same input space.
+_ULID_ALPHA = "".join(c for c in _ulid_base32.ENCODE if c.isalpha())
+_ULID_PATTERN = f"^[{_ulid_base32.ENCODE}{_ULID_ALPHA.lower()}]{{26}}$"
 
 
 class ULIDStr(str):

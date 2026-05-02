@@ -216,3 +216,45 @@ async def test_dispatch_log_malformed_path_param_returns_422(client, api_key):
         headers={"X-API-Key": raw_key},
     )
     assert response.status_code == 422
+
+
+async def test_channel_malformed_patch_param_returns_422(client, api_key):
+    """PATCH /channels/<bad-id> returns 422 — ULIDStr annotation shared across all verbs."""
+    raw_key, _ = api_key
+    response = await client.patch(
+        "/api/v1/channels/not-a-valid-ulid",
+        headers={"X-API-Key": raw_key},
+        json={"name": "x"},
+    )
+    assert response.status_code == 422
+
+
+async def test_channel_malformed_delete_param_returns_422(client, api_key):
+    """DELETE /channels/<bad-id> returns 422 — ULIDStr annotation shared across all verbs."""
+    raw_key, _ = api_key
+    response = await client.delete(
+        "/api/v1/channels/not-a-valid-ulid",
+        headers={"X-API-Key": raw_key},
+    )
+    assert response.status_code == 422
+
+
+async def test_template_malformed_patch_param_returns_422(client, api_key):
+    """PATCH /templates/<bad-id> returns 422 — ULIDStr annotation shared across all verbs."""
+    raw_key, _ = api_key
+    response = await client.patch(
+        "/api/v1/templates/not-a-valid-ulid",
+        headers={"X-API-Key": raw_key},
+        json={"name": "x"},
+    )
+    assert response.status_code == 422
+
+
+async def test_template_malformed_delete_param_returns_422(client, api_key):
+    """DELETE /templates/<bad-id> returns 422 — ULIDStr annotation shared across all verbs."""
+    raw_key, _ = api_key
+    response = await client.delete(
+        "/api/v1/templates/not-a-valid-ulid",
+        headers={"X-API-Key": raw_key},
+    )
+    assert response.status_code == 422

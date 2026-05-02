@@ -1,9 +1,11 @@
 """Unit tests for the ULIDStr Pydantic validator."""
 
+import re
+
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from src.api.schemas.types import ULIDStr
+from src.api.schemas.types import _ULID_PATTERN, ULIDStr
 
 
 def test_valid_ulid_passes():
@@ -84,3 +86,8 @@ def test_pydantic_model_list_validates_each_element():
 
     with pytest.raises(ValidationError):
         M(ids=["01H5K3G8V4HCQ2DXFE5FJNWQER", "not-a-ulid"])
+
+
+def test_ulid_pattern_matches_lowercase():
+    """_ULID_PATTERN accepts lowercase Crockford chars — matching the runtime normalisation."""
+    assert re.match(_ULID_PATTERN, "01h5k3g8v4hcq2dxfe5fjnwqer")

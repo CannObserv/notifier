@@ -2,6 +2,8 @@ import json
 import subprocess
 import sys
 
+from src.api.schemas.types import _ULID_PATTERN
+
 
 def test_dump_openapi_emits_known_paths():
     result = subprocess.run(
@@ -15,3 +17,12 @@ def test_dump_openapi_emits_known_paths():
     assert "/ready" in paths
     assert "/api/v1/dispatch" in paths
     assert "/api/v1/templates" in paths
+
+
+def test_dump_openapi_ulid_pattern_in_spec():
+    """ULIDStr fields emit the ULID regex pattern in the OpenAPI spec."""
+    result = subprocess.run(
+        [sys.executable, "scripts/dump_openapi.py"],
+        capture_output=True, text=True, check=True,
+    )
+    assert _ULID_PATTERN in result.stdout
