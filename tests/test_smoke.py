@@ -309,7 +309,7 @@ async def test_delete_channel_with_dispatch_attempts_returns_409(client, api_key
     assert ch.status_code == 201
     channel_id = ch.json()["id"]
 
-    await client.post(
+    dispatch_response = await client.post(
         "/api/v1/dispatch",
         headers=headers,
         json={
@@ -319,6 +319,7 @@ async def test_delete_channel_with_dispatch_attempts_returns_409(client, api_key
             "channel_ids": [channel_id],
         },
     )
+    assert dispatch_response.status_code == 202, dispatch_response.text
 
     response = await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
     assert response.status_code == 409

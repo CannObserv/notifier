@@ -5,9 +5,9 @@ channel uses a json:// Apprise URL — no external delivery, just confirms the
 plumbing.
 
 Note: ``DispatchAttempt.channel_id`` has ``ondelete="RESTRICT"`` at the DB
-level, so a channel with recorded attempts cannot be deleted.  The test
-therefore creates two channels: one used for dispatch (left in place after the
-test) and one to verify delete (no dispatches through it).
+level, so deleting a channel with recorded attempts returns 409 Conflict.
+The test uses two channels — one for dispatch (left in place), one for
+the delete assertion (no attempts) — to keep teardown unconditional.
 """
 
 import uuid
