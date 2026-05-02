@@ -258,3 +258,38 @@ async def test_template_malformed_delete_param_returns_422(client, api_key):
         headers={"X-API-Key": raw_key},
     )
     assert response.status_code == 422
+
+
+async def test_inline_dispatch_with_auto_idempotency(client, api_key):
+    """Second inline dispatch with the same idempotency_key replays the original."""
+    raw_key, _ = api_key
+    headers = {"X-API-Key": raw_key}
+
+    ch = await client.post(
+        "/api/v1/channels",
+        headers=headers,
+        json={"name": "idem-channel", "apprise_url": "json://example.com"},
+    )
+    assert ch.status_code == 201
+    channel_id = ch.json()["id"]
+
+    payload = {
+        "title_template": "Hello {{ name }}",
+        "body_template": "Body for {{ name }}",
+        "variables": {"name": "World"},
+        "channel_ids": [channel_id],
+        "idempotency_key": "smoke-idem-001",
+    }
+
+    r1 = await client.post("/api/v1/dispatch", headers=headers, json=payload)
+    assert r1.status_code == 202
+    d1 = r1.json()
+
+    r2 = await client.post("/api/v1/dispatch", headers=headers, json=payload)
+    assert r2.status_code == 202
+    d2 = r2.json()
+
+    assert d2["id"] == d1["id"]
+    assert d2["created_at"] == d1["created_at"]
+    assert d2["rendered_title"] == "Hello World"
+    assert d2["rendered_body"] == "Body for World"
