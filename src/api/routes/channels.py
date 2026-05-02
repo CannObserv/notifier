@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db_session, require_api_key
@@ -125,7 +126,14 @@ async def delete_channel(
     """Delete a channel. Fails if dispatch attempts still reference it."""
     channel = await _load_owned(session, channel_id, tenant_id)
     await session.delete(channel)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Channel cannot be deleted while dispatch attempts reference it.",
+        ) from exc
 
 
 @router.post("/{channel_id}/test", response_model=ChannelTestResponse)

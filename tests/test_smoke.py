@@ -294,3 +294,49 @@ async def test_inline_dispatch_with_auto_idempotency(client, api_key):
     assert d2["rendered_title"] == "Hello World"
     assert d2["rendered_body"] == "Body for World"
     assert d2["attempts"] == d1["attempts"]
+
+
+async def test_delete_channel_with_dispatch_attempts_returns_409(client, api_key):
+    """DELETE a channel that has dispatch attempts must return 409, not 500."""
+    raw_key, _ = api_key
+    headers = {"X-API-Key": raw_key}
+
+    ch = await client.post(
+        "/api/v1/channels",
+        headers=headers,
+        json={"name": "busy-channel", "apprise_url": "json://example.com"},
+    )
+    assert ch.status_code == 201
+    channel_id = ch.json()["id"]
+
+    await client.post(
+        "/api/v1/dispatch",
+        headers=headers,
+        json={
+            "title_template": "t",
+            "body_template": "b",
+            "variables": {},
+            "channel_ids": [channel_id],
+        },
+    )
+
+    response = await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+    assert response.status_code == 409
+    assert "dispatch" in response.json()["detail"].lower()
+
+
+async def test_delete_channel_without_attempts_returns_204(client, api_key):
+    """DELETE a channel with no dispatch attempts still returns 204."""
+    raw_key, _ = api_key
+    headers = {"X-API-Key": raw_key}
+
+    ch = await client.post(
+        "/api/v1/channels",
+        headers=headers,
+        json={"name": "idle-channel", "apprise_url": "json://example.com"},
+    )
+    assert ch.status_code == 201
+    channel_id = ch.json()["id"]
+
+    response = await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+    assert response.status_code == 204
