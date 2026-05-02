@@ -5,7 +5,7 @@ Async Python SDK for the [notifier](https://github.com/CannObserv/notifier) serv
 ## Install
 
 ```bash
-uv add "notifier-client @ git+ssh://git@github.com/CannObserv/notifier.git@v0.2.0#subdirectory=clients/python"
+uv add "notifier-client @ git+ssh://git@github.com/CannObserv/notifier.git@v0.2.1#subdirectory=clients/python"
 ```
 
 Versions are pinned 1:1 with the notifier server. SDK `0.x.y` ⇔ notifier `0.x.y`.
