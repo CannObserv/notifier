@@ -10,6 +10,7 @@ from apprise import AppriseAsset, NotifyFormat, NotifyType
 from src.core.crypto import decrypt_apprise_url
 from src.core.logging import get_logger
 from src.core.notifications.constants import APP_URL
+from src.core.notifications.html_render import markdown_to_email_html
 
 logger = get_logger(__name__)
 
@@ -80,14 +81,25 @@ async def dispatch_to_channel(
             success=False, reason="Invalid Apprise URL: check your channel configuration"
         )
 
+    # Per-channel format negotiation: HTML-native plugins (mailto, sendgrid, etc.)
+    # get a Markdown→HTML rewrite with colored diff fences; everything else
+    # receives the source Markdown unchanged.
+    plugin_format = getattr(ap.servers[0], "notify_format", NotifyFormat.MARKDOWN)
+    if plugin_format == NotifyFormat.HTML:
+        send_body = markdown_to_email_html(body)
+        send_format = NotifyFormat.HTML
+    else:
+        send_body = body
+        send_format = NotifyFormat.MARKDOWN
+
     messages: list[str] = []
     token = _capture_ctx.set(messages)
     try:
         result = await ap.async_notify(
-            body=body,
+            body=send_body,
             title=title,
             notify_type=notify_type,
-            body_format=NotifyFormat.MARKDOWN,
+            body_format=send_format,
         )
     finally:
         _capture_ctx.reset(token)
