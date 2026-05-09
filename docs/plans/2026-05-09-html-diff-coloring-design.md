@@ -67,6 +67,10 @@ exposes its native format. Reading it is exact, version-agnostic, and free.
 Scheme-string allowlists would drift; per-channel format hints stored on
 `Channel` would require a migration plus consumer-visible API surface.
 
+Concrete API: `ap.servers[0].notify_format` — `servers` is a property, not a
+method. The dispatcher uses `getattr(..., "notify_format", NotifyFormat.MARKDOWN)`
+so a hypothetical future plugin lacking the attribute falls back to Markdown.
+
 ### Logging: source Markdown in `Dispatch.rendered_body`
 
 Rejected the alternative of moving "rendered body" to `DispatchAttempt` (per

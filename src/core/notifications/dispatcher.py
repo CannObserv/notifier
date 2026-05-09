@@ -91,6 +91,7 @@ async def dispatch_to_channel(
     else:
         send_body = body
         send_format = NotifyFormat.MARKDOWN
+    logger.debug("dispatching with body_format=%s", send_format.value)
 
     messages: list[str] = []
     token = _capture_ctx.set(messages)

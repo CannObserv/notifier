@@ -63,11 +63,13 @@ class _DiffAwareRenderer(mistune.HTMLRenderer):
     """HTML renderer that swaps ```diff fenced blocks for styled output."""
 
     def block_code(self, code: str, info: str | None = None) -> str:
-        if info and info.strip().split(None, 1)[0] == "diff":
+        if info and info.strip().split(None, 1)[0].lower() == "diff":
             return _render_diff_block(code)
         return super().block_code(code, info)
 
 
+# mistune.Markdown is safe to share across calls — no per-call mutable state on
+# the parser/renderer for this configuration.
 _render_markdown = mistune.create_markdown(renderer=_DiffAwareRenderer(escape=True))
 
 
@@ -77,9 +79,4 @@ def markdown_to_email_html(body: str) -> str:
     Suitable for dispatching with ``Apprise.notify(body_format=NotifyFormat.HTML)``
     on plugins whose ``notify_format`` is ``HTML`` (e.g. ``mailto://``).
     """
-    result = _render_markdown(body)
-    # mistune may return a tuple (html, state) under some configurations; the
-    # default factory returns a str. Normalize defensively.
-    if isinstance(result, tuple):
-        return result[0]
-    return result
+    return _render_markdown(body)

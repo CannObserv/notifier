@@ -80,6 +80,22 @@ def test_multiple_diff_fences_each_get_styled():
     assert "- second" in html
 
 
+def test_empty_diff_fence_renders_empty_styled_pre():
+    """Empty ```diff fence body still renders as a styled <pre> shell."""
+    html = markdown_to_email_html("```diff\n```\n")
+    assert "<pre" in html
+    assert "white-space:pre" in html
+    # No line spans since there are no lines.
+    assert "<span" not in html
+
+
+def test_diff_fence_info_match_is_case_insensitive():
+    """A consumer emitting ```Diff (or ```DIFF) still gets diff styling."""
+    html = markdown_to_email_html("```Diff\n+ added\n```\n")
+    assert "background:#e6ffec" in html
+    assert "+ added" in html
+
+
 # --- non-diff fences --------------------------------------------------------
 
 
