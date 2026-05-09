@@ -147,6 +147,9 @@ export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
 # Run tests
 uv run pytest
 
+# Run a subset of tests (skip the coverage gate, which measures all of src/)
+uv run pytest --no-cov tests/core/test_utils.py
+
 # Run integration tests (requires PostgreSQL)
 uv run pytest -m integration
 
