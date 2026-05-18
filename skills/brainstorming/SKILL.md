@@ -10,7 +10,7 @@ metadata:
   override-reason: "Project-specific conventions: docs/plans/ path, #<n> [type]: desc commit convention, writing-plans is optional not mandatory; invokes using-git-worktrees after design approval for any multi-step implementation; FastAPI stack context"
 ---
 
-# Brainstorming Ideas Into Designs — watcher
+# Brainstorming Ideas Into Designs — notifier
 
 Help turn ideas into fully formed designs and specs through natural collaborative dialogue. Understand the project context, ask clarifying questions, propose approaches, present a design for approval, and save it.
 
