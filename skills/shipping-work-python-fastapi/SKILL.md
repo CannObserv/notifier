@@ -75,13 +75,13 @@ bash scripts/check-status.sh
 If uncommitted changes exist, commit them following the project convention. Check AGENTS.md for project-specific overrides. notifier's commit format:
 
 ```
-#<number> type: <description>       # with GH issue (no brackets)
-type: <description>                 # without GH issue
+#<number> [type]: <description>       # with GH issue
+[type]: <description>                 # without GH issue
 ```
 
-Common `type` values: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
+Common `[type]` values: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
 
-Multiple issues: `#19, #20 type: <description>`
+Multiple issues: `#19, #20 [type]: <description>`
 
 ### Step 2.5 — Worktree-aware merge (if applicable)
 

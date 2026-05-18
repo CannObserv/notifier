@@ -28,4 +28,4 @@ To add a new external skill repo: follow the `managing-skills` skill.
 
 ## Available Skills
 
-Same set as `watcher`. Local overrides are copied from watcher with project-specific paths/conventions adapted (commit format, ports, service name). See `skills/` for current overrides.
+See the Skills Inventory table in [AGENTS.md](../AGENTS.md#skills-inventory) for the current list, sources, and override notes.
