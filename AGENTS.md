@@ -170,6 +170,25 @@ Full reference: `docs/COMMANDS.md`
 
 Skills in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code). Reference: `docs/SKILLS.md`
 
+### Skills Inventory
+
+| Skill | Source | Notes |
+|---|---|---|
+| `brainstorming` | Local override (obra-superpowers) | Project-specific conventions |
+| `dispatching-parallel-agents` | obra-superpowers symlink | |
+| `managing-skills` | gregoryfoster-skills symlink | |
+| `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
+| `reviewing-architecture` | gregoryfoster-skills symlink | |
+| `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
+| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills) | Loads `/etc/notifier/.env` before delegating |
+| `subagent-driven-development` | obra-superpowers symlink | |
+| `systematic-debugging` | obra-superpowers symlink | |
+| `test-driven-development` | obra-superpowers symlink | |
+| `using-git-worktrees` | gregoryfoster-skills symlink | |
+| `verification-before-completion` | obra-superpowers symlink | |
+| `writing-plans` | gregoryfoster-skills symlink | |
+| `writing-skills` | obra-superpowers symlink | |
+
 ## Conventions
 
 **Commit Messages:**
