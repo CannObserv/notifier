@@ -28,6 +28,4 @@ async def ready(session: AsyncSession = Depends(get_db_session)) -> JSONResponse
         await session.execute(text("SELECT 1"))
         return JSONResponse(status_code=200, content={"status": "ready", "db": True})
     except SQLAlchemyError:
-        return JSONResponse(
-            status_code=503, content={"status": "not_ready", "db": False}
-        )
+        return JSONResponse(status_code=503, content={"status": "not_ready", "db": False})

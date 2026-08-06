@@ -12,7 +12,7 @@ def test_none_returns_none():
 def test_auto_generates_ulid():
     key = resolve_idempotency_key(AUTO)
     assert isinstance(key, str)
-    assert len(key) == 26    # ULID canonical form
+    assert len(key) == 26  # ULID canonical form
 
 
 def test_auto_generates_unique():

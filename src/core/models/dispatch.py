@@ -16,9 +16,7 @@ class Dispatch(Base):
 
     __tablename__ = "dispatches"
     __table_args__ = (
-        UniqueConstraint(
-            "tenant_id", "idempotency_key", name="uq_dispatches_tenant_idempotency"
-        ),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_dispatches_tenant_idempotency"),
         Index("ix_dispatches_tenant_created", "tenant_id", "created_at"),
     )
 
@@ -74,6 +72,4 @@ class DispatchAttempt(Base):
         default=lambda: datetime.now(UTC),
         server_default=func.now(),
     )
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

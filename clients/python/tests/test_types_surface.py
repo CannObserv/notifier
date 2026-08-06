@@ -25,9 +25,18 @@ from notifier_client.types import (
 
 def test_public_type_names_importable():
     # Each must be a class, not a module
-    for cls in (AssembleResponse, ChannelOut, ChannelTestResponse, DispatchAttemptOut,
-                DispatchOut, PluginDetail, PluginListItem, PreviewResponse, TemplateOut,
-                TemplatePreviewResponse):
+    for cls in (
+        AssembleResponse,
+        ChannelOut,
+        ChannelTestResponse,
+        DispatchAttemptOut,
+        DispatchOut,
+        PluginDetail,
+        PluginListItem,
+        PreviewResponse,
+        TemplateOut,
+        TemplatePreviewResponse,
+    ):
         assert isinstance(cls, type)
         assert hasattr(cls, "from_dict")
         assert hasattr(cls, "to_dict")
@@ -42,24 +51,37 @@ def test_dispatch_status_enums_importable():
 
 
 def test_channel_out_has_expected_fields():
-    out = ChannelOut.from_dict({
-        "id": "01H", "tenant_id": "t1", "name": "n",
-        "apprise_url_masked": "m", "channel_hint": None,
-        "created_at": "2026-04-30T00:00:00Z",
-        "updated_at": "2026-04-30T00:00:00Z",
-    })
+    out = ChannelOut.from_dict(
+        {
+            "id": "01H",
+            "tenant_id": "t1",
+            "name": "n",
+            "apprise_url_masked": "m",
+            "channel_hint": None,
+            "created_at": "2026-04-30T00:00:00Z",
+            "updated_at": "2026-04-30T00:00:00Z",
+        }
+    )
     assert out.id == "01H"
     assert out.tenant_id == "t1"
     assert out.name == "n"
 
 
 def test_dispatch_out_has_expected_fields():
-    out = DispatchOut.from_dict({
-        "id": "01H", "tenant_id": "t1", "template_id": None,
-        "idempotency_key": None, "rendered_title": "T", "rendered_body": "B",
-        "status": "succeeded", "metadata": {}, "attempts": [],
-        "created_at": "2026-04-30T00:00:00Z",
-    })
+    out = DispatchOut.from_dict(
+        {
+            "id": "01H",
+            "tenant_id": "t1",
+            "template_id": None,
+            "idempotency_key": None,
+            "rendered_title": "T",
+            "rendered_body": "B",
+            "status": "succeeded",
+            "metadata": {},
+            "attempts": [],
+            "created_at": "2026-04-30T00:00:00Z",
+        }
+    )
     assert out.id == "01H"
     assert out.status == DispatchOutStatus.SUCCEEDED
     assert out.status == "succeeded"  # str(Enum) equality preserved
@@ -67,19 +89,29 @@ def test_dispatch_out_has_expected_fields():
 
 
 def test_dispatch_attempt_out_has_expected_fields():
-    out = DispatchAttemptOut.from_dict({
-        "channel_id": "01H", "status": "failed", "reason": "timeout",
-        "attempt": 1, "started_at": "2026-04-30T00:00:00Z",
-    })
+    out = DispatchAttemptOut.from_dict(
+        {
+            "channel_id": "01H",
+            "status": "failed",
+            "reason": "timeout",
+            "attempt": 1,
+            "started_at": "2026-04-30T00:00:00Z",
+        }
+    )
     assert out.status == DispatchAttemptOutStatus.FAILED
     assert out.status == "failed"  # str equality preserved
     assert out.channel_id == "01H"
     assert out.reason == "timeout"
 
-    out2 = DispatchAttemptOut.from_dict({
-        "channel_id": "02H", "status": "succeeded", "reason": "",
-        "attempt": 1, "started_at": "2026-04-30T00:00:00Z",
-    })
+    out2 = DispatchAttemptOut.from_dict(
+        {
+            "channel_id": "02H",
+            "status": "succeeded",
+            "reason": "",
+            "attempt": 1,
+            "started_at": "2026-04-30T00:00:00Z",
+        }
+    )
     assert out2.status == DispatchAttemptOutStatus.SUCCEEDED
 
 

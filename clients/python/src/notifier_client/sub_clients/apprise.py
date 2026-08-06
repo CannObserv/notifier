@@ -23,7 +23,8 @@ class AppriseAPI:
     async def list_plugins(self) -> list[PluginListItem]:
         """GET /api/v1/apprise/plugins — plugin catalog."""
         response = await self._client._http.request(
-            "GET", "/api/v1/apprise/plugins",
+            "GET",
+            "/api/v1/apprise/plugins",
         )
         if response.status_code >= 400:
             raise error_from_response(response)
@@ -32,12 +33,18 @@ class AppriseAPI:
     async def get_plugin(self, schema: str) -> PluginDetail:
         """GET /api/v1/apprise/plugins/{schema} — full plugin detail."""
         return await self._client._typed_request(
-            "GET", f"/api/v1/apprise/plugins/{schema}",
-            model=PluginDetail, retry_safe=True,
+            "GET",
+            f"/api/v1/apprise/plugins/{schema}",
+            model=PluginDetail,
+            retry_safe=True,
         )
 
     async def assemble(
-        self, schema: str, *, tokens: dict[str, Any], variant_index: int | None = None,
+        self,
+        schema: str,
+        *,
+        tokens: dict[str, Any],
+        variant_index: int | None = None,
     ) -> AssembleResponse:
         """POST /api/v1/apprise/plugins/{schema}/assemble — build a URL from tokens.
 
@@ -49,6 +56,9 @@ class AppriseAPI:
             variant_index=variant_index if variant_index is not None else UNSET,
         ).to_dict()
         return await self._client._typed_request(
-            "POST", f"/api/v1/apprise/plugins/{schema}/assemble",
-            model=AssembleResponse, json=body, retry_safe=False,
+            "POST",
+            f"/api/v1/apprise/plugins/{schema}/assemble",
+            model=AssembleResponse,
+            json=body,
+            retry_safe=False,
         )

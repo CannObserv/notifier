@@ -28,37 +28,55 @@ class ChannelsAPI:
         return [ChannelOut.from_dict(item) for item in response.json()]
 
     async def create(
-        self, *, name: str, apprise_url: str,
+        self,
+        *,
+        name: str,
+        apprise_url: str,
         channel_hint: str | None | Unset = UNSET,
     ) -> ChannelOut:
         """POST /api/v1/channels — store a new channel; URL is encrypted at rest."""
         body = ChannelCreate(
-            name=name, apprise_url=apprise_url, channel_hint=channel_hint,
+            name=name,
+            apprise_url=apprise_url,
+            channel_hint=channel_hint,
         ).to_dict()
         return await self._client._typed_request(
-            "POST", "/api/v1/channels", model=ChannelOut, json=body, retry_safe=False,
+            "POST",
+            "/api/v1/channels",
+            model=ChannelOut,
+            json=body,
+            retry_safe=False,
         )
 
     async def get(self, channel_id: str) -> ChannelOut:
         """GET /api/v1/channels/{id}."""
         return await self._client._typed_request(
-            "GET", f"/api/v1/channels/{channel_id}",
-            model=ChannelOut, retry_safe=True,
+            "GET",
+            f"/api/v1/channels/{channel_id}",
+            model=ChannelOut,
+            retry_safe=True,
         )
 
     async def update(
-        self, channel_id: str, *,
+        self,
+        channel_id: str,
+        *,
         name: str | Unset = UNSET,
         apprise_url: str | Unset = UNSET,
         channel_hint: str | None | Unset = UNSET,
     ) -> ChannelOut:
         """PATCH /api/v1/channels/{id} — partial update; only supplied fields are sent."""
         body = ChannelUpdate(
-            name=name, apprise_url=apprise_url, channel_hint=channel_hint,
+            name=name,
+            apprise_url=apprise_url,
+            channel_hint=channel_hint,
         ).to_dict()
         return await self._client._typed_request(
-            "PATCH", f"/api/v1/channels/{channel_id}",
-            model=ChannelOut, json=body, retry_safe=False,
+            "PATCH",
+            f"/api/v1/channels/{channel_id}",
+            model=ChannelOut,
+            json=body,
+            retry_safe=False,
         )
 
     async def delete(self, channel_id: str) -> None:
@@ -68,7 +86,8 @@ class ChannelsAPI:
         (a 5xx may have already deleted the row; retrying would 404).
         """
         response = await self._client._http.request(
-            "DELETE", f"/api/v1/channels/{channel_id}",
+            "DELETE",
+            f"/api/v1/channels/{channel_id}",
             extensions={"notifier_no_retry": True},
         )
         if response.status_code >= 400:
@@ -77,6 +96,8 @@ class ChannelsAPI:
     async def send_test(self, channel_id: str) -> ChannelTestResponse:
         """POST /api/v1/channels/{id}/test — fire a test notification."""
         return await self._client._typed_request(
-            "POST", f"/api/v1/channels/{channel_id}/test",
-            model=ChannelTestResponse, retry_safe=False,
+            "POST",
+            f"/api/v1/channels/{channel_id}/test",
+            model=ChannelTestResponse,
+            retry_safe=False,
         )

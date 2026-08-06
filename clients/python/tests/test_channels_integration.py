@@ -26,14 +26,16 @@ async def test_channel_round_trip(notifier_url, tenant_credentials):
     async with NotifierClient(base_url=notifier_url, api_key=api_key) as c:
         # 1. Create dispatch channel
         ch = await c.channels.create(
-            name=f"round-trip-dispatch-{suffix}", apprise_url="json://localhost",
+            name=f"round-trip-dispatch-{suffix}",
+            apprise_url="json://localhost",
         )
         assert ch.id
         assert "round-trip-dispatch" in ch.name
 
         # 2. Create a separate channel to verify delete (no dispatches through it)
         ch_del = await c.channels.create(
-            name=f"round-trip-delete-{suffix}", apprise_url="json://localhost",
+            name=f"round-trip-delete-{suffix}",
+            apprise_url="json://localhost",
         )
         assert ch_del.id
 
@@ -46,7 +48,8 @@ async def test_channel_round_trip(notifier_url, tenant_credentials):
 
             # 4. Dispatch through dispatch channel
             result = await c.dispatch(
-                title_template="t", body_template="b",
+                title_template="t",
+                body_template="b",
                 channel_ids=[ch.id],
                 idempotency_key=f"round-trip-{suffix}",
             )

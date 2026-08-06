@@ -67,8 +67,12 @@ class NotifierClient:
     async def __aenter__(self) -> NotifierClient:
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException] | None,
-                        exc: BaseException | None, tb: TracebackType | None) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         await self.aclose()
 
     async def aclose(self) -> None:
@@ -139,12 +143,16 @@ class NotifierClient:
             idempotency_key=resolved_key if resolved_key is not None else UNSET,
         ).to_dict()
         return await self._typed_request(
-            "POST", "/api/v1/dispatch", json=body,
-            model=DispatchOut, retry_safe=resolved_key is not None,
+            "POST",
+            "/api/v1/dispatch",
+            json=body,
+            model=DispatchOut,
+            retry_safe=resolved_key is not None,
         )
 
     async def preview(
-        self, *,
+        self,
+        *,
         title_template: str,
         body_template: str,
         variables: dict[str, Any],
@@ -163,18 +171,27 @@ class NotifierClient:
             variables=PreviewRequestVariables.from_dict(variables),
             variables_schema=(
                 PreviewRequestVariablesSchemaType0.from_dict(variables_schema)
-                if variables_schema is not None else UNSET
+                if variables_schema is not None
+                else UNSET
             ),
         ).to_dict()
         return await self._typed_request(
-            "POST", "/api/v1/preview",
-            model=PreviewResponse, json=body, retry_safe=False,
+            "POST",
+            "/api/v1/preview",
+            model=PreviewResponse,
+            json=body,
+            retry_safe=False,
         )
 
     # --- internals ---
 
     async def _json_request(
-        self, method: str, path: str, *, json: Any = None, retry_safe: bool,
+        self,
+        method: str,
+        path: str,
+        *,
+        json: Any = None,
+        retry_safe: bool,
     ) -> dict[str, Any]:
         extensions = {} if retry_safe else {"notifier_no_retry": True}
         response = await self._http.request(method, path, json=json, extensions=extensions)
@@ -185,8 +202,13 @@ class NotifierClient:
         return response.json()
 
     async def _typed_request(
-        self, method: str, path: str, *, model: type[T],
-        json: Any = None, retry_safe: bool,
+        self,
+        method: str,
+        path: str,
+        *,
+        model: type[T],
+        json: Any = None,
+        retry_safe: bool,
     ) -> T:
         """Run an authed request, map errors, and parse into ``model``.
 
@@ -202,6 +224,7 @@ class NotifierClient:
         if not response.content:
             raise NotifierError(
                 f"empty response body, expected {model.__name__}",
-                status_code=response.status_code, response=response,
+                status_code=response.status_code,
+                response=response,
             )
         return model.from_dict(response.json())

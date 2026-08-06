@@ -26,12 +26,8 @@ class DispatchRequest(BaseModel):
 
     @model_validator(mode="after")
     def _check_template_source(self) -> "DispatchRequest":
-        if self.template_id is None and (
-            self.title_template is None or self.body_template is None
-        ):
-            raise ValueError(
-                "either template_id or both title_template+body_template are required"
-            )
+        if self.template_id is None and (self.title_template is None or self.body_template is None):
+            raise ValueError("either template_id or both title_template+body_template are required")
         return self
 
 

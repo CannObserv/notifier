@@ -65,9 +65,7 @@ async def _load_owned_channels(
     session: AsyncSession, channel_ids: list[str], tenant_id: str
 ) -> list[Channel]:
     result = await session.execute(
-        select(Channel).where(
-            Channel.id.in_(channel_ids), Channel.tenant_id == tenant_id
-        )
+        select(Channel).where(Channel.id.in_(channel_ids), Channel.tenant_id == tenant_id)
     )
     channels = list(result.scalars().all())
     found_ids = {str(c.id) for c in channels}
@@ -80,9 +78,7 @@ async def _load_owned_channels(
     return channels
 
 
-async def _load_owned_template(
-    session: AsyncSession, template_id: str, tenant_id: str
-) -> Template:
+async def _load_owned_template(session: AsyncSession, template_id: str, tenant_id: str) -> Template:
     result = await session.execute(
         select(Template).where(Template.id == template_id, Template.tenant_id == tenant_id)
     )
@@ -92,9 +88,7 @@ async def _load_owned_template(
     return template
 
 
-async def _attempts_for(
-    session: AsyncSession, dispatch_id: str
-) -> list[DispatchAttempt]:
+async def _attempts_for(session: AsyncSession, dispatch_id: str) -> list[DispatchAttempt]:
     result = await session.execute(
         select(DispatchAttempt)
         .where(DispatchAttempt.dispatch_id == dispatch_id)

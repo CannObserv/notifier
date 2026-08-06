@@ -20,7 +20,7 @@ def test_parse_http_date():
     raw = format_datetime(future, usegmt=True)
     parsed = parse_retry_after(raw)
     assert parsed is not None
-    assert 55 <= parsed <= 65    # tolerate clock skew + test timing
+    assert 55 <= parsed <= 65  # tolerate clock skew + test timing
 
 
 def test_parse_past_http_date_returns_zero():

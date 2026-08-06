@@ -45,9 +45,7 @@ def _to_out(c: Channel) -> ChannelOut:
     )
 
 
-async def _load_owned(
-    session: AsyncSession, channel_id: str, tenant_id: str
-) -> Channel:
+async def _load_owned(session: AsyncSession, channel_id: str, tenant_id: str) -> Channel:
     result = await session.execute(
         select(Channel).where(Channel.id == channel_id, Channel.tenant_id == tenant_id)
     )

@@ -38,9 +38,7 @@ def _to_out(t: Template) -> TemplateOut:
     )
 
 
-async def _load_owned(
-    session: AsyncSession, template_id: str, tenant_id: str
-) -> Template:
+async def _load_owned(session: AsyncSession, template_id: str, tenant_id: str) -> Template:
     result = await session.execute(
         select(Template).where(Template.id == template_id, Template.tenant_id == tenant_id)
     )

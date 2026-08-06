@@ -99,7 +99,9 @@ async def test_apprise_assemble_omits_variant_index_when_none(fast_retry):
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
-        await c.apprise.assemble("slack", tokens={"webhook_url": "https://hooks.slack.com/T000/B000/XXX"})
+        await c.apprise.assemble(
+            "slack", tokens={"webhook_url": "https://hooks.slack.com/T000/B000/XXX"}
+        )
     sent = json.loads(route.calls.last.request.content)
     assert "variant_index" not in sent
 
@@ -108,9 +110,18 @@ async def test_apprise_assemble_omits_variant_index_when_none(fast_retry):
 @pytest.mark.asyncio
 async def test_apprise_assemble_validation_error(fast_retry):
     respx.post("https://t.local/api/v1/apprise/plugins/slack/assemble").mock(
-        return_value=httpx.Response(422, json={"detail": [
-            {"loc": ["body", "tokens", "webhook_url"], "msg": "field required", "type": "missing"}
-        ]})
+        return_value=httpx.Response(
+            422,
+            json={
+                "detail": [
+                    {
+                        "loc": ["body", "tokens", "webhook_url"],
+                        "msg": "field required",
+                        "type": "missing",
+                    }
+                ]
+            },
+        )
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry

@@ -31,9 +31,7 @@ async def test_html_native_channel_renders_html_body(captured_notify):
     encrypted = encrypt_apprise_url("mailto://user:pass@example.com")
     body = "```diff\n+ added\n- removed\n```\n"
 
-    result = await dispatch_to_channel(
-        apprise_url_encrypted=encrypted, title="t", body=body
-    )
+    result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body=body)
 
     assert result.success is True
     captured_notify.assert_awaited_once()
@@ -50,9 +48,7 @@ async def test_non_html_channel_dispatches_markdown_unchanged(captured_notify):
     encrypted = encrypt_apprise_url("json://example.com")
     body = "```diff\n+ added\n```\n"
 
-    result = await dispatch_to_channel(
-        apprise_url_encrypted=encrypted, title="t", body=body
-    )
+    result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body=body)
 
     assert result.success is True
     captured_notify.assert_awaited_once()
@@ -81,9 +77,7 @@ async def test_invalid_apprise_url_returns_failure_without_notify(captured_notif
     """add() failing must short-circuit before any notify call."""
     encrypted = encrypt_apprise_url("not-a-real-scheme://oops")
 
-    result = await dispatch_to_channel(
-        apprise_url_encrypted=encrypted, title="t", body="b"
-    )
+    result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
 
     assert result.success is False
     captured_notify.assert_not_awaited()

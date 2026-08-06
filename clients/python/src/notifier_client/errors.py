@@ -16,8 +16,13 @@ from notifier_client.retry_after import parse_retry_after
 class NotifierError(Exception):
     """Base class for all notifier-client errors."""
 
-    def __init__(self, message: str, *, status_code: int | None = None,
-                 response: httpx.Response | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        response: httpx.Response | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.response = response
@@ -35,8 +40,9 @@ class ValidationError(NotifierError):
     ``field_path`` is dot-joined when notifier returns a list-style ``loc``.
     """
 
-    def __init__(self, message: str, *, section: str | None = None,
-                 field_path: str | None = None, **kwargs) -> None:
+    def __init__(
+        self, message: str, *, section: str | None = None, field_path: str | None = None, **kwargs
+    ) -> None:
         super().__init__(message, **kwargs)
         self.section = section
         self.field_path = field_path
@@ -64,23 +70,30 @@ def error_from_response(response: httpx.Response) -> NotifierError:
     detail = body.get("detail") if isinstance(body, dict) else None
 
     if status in (401, 403):
-        return AuthError(_message(detail, default="authentication failed"),
-                         status_code=status, response=response)
+        return AuthError(
+            _message(detail, default="authentication failed"), status_code=status, response=response
+        )
     if status == 422:
         section, field_path, msg = _parse_validation_detail(detail)
-        return ValidationError(msg, section=section, field_path=field_path,
-                               status_code=status, response=response)
+        return ValidationError(
+            msg, section=section, field_path=field_path, status_code=status, response=response
+        )
     if status == 429:
         return RateLimited(
             _message(detail, default="rate limited"),
             retry_after_seconds=parse_retry_after(response.headers.get("Retry-After")),
-            status_code=status, response=response,
+            status_code=status,
+            response=response,
         )
     if 500 <= status < 600:
-        return ServerError(_message(detail, default=f"server error {status}"),
-                           status_code=status, response=response)
-    return NotifierError(_message(detail, default=f"http {status}"),
-                         status_code=status, response=response)
+        return ServerError(
+            _message(detail, default=f"server error {status}"),
+            status_code=status,
+            response=response,
+        )
+    return NotifierError(
+        _message(detail, default=f"http {status}"), status_code=status, response=response
+    )
 
 
 def _message(detail, *, default: str) -> str:

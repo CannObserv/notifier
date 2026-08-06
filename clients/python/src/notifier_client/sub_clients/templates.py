@@ -73,14 +73,20 @@ class TemplatesAPI:
             tags=tags,
         ).to_dict()
         return await self._client._typed_request(
-            "POST", "/api/v1/templates", model=TemplateOut, json=body, retry_safe=False,
+            "POST",
+            "/api/v1/templates",
+            model=TemplateOut,
+            json=body,
+            retry_safe=False,
         )
 
     async def get(self, template_id: str) -> TemplateOut:
         """GET /api/v1/templates/{id}."""
         return await self._client._typed_request(
-            "GET", f"/api/v1/templates/{template_id}",
-            model=TemplateOut, retry_safe=True,
+            "GET",
+            f"/api/v1/templates/{template_id}",
+            model=TemplateOut,
+            retry_safe=True,
         )
 
     async def update(
@@ -114,8 +120,11 @@ class TemplatesAPI:
             tags=tags,
         ).to_dict()
         return await self._client._typed_request(
-            "PATCH", f"/api/v1/templates/{template_id}",
-            model=TemplateOut, json=body, retry_safe=False,
+            "PATCH",
+            f"/api/v1/templates/{template_id}",
+            model=TemplateOut,
+            json=body,
+            retry_safe=False,
         )
 
     async def delete(self, template_id: str) -> None:
@@ -125,14 +134,18 @@ class TemplatesAPI:
         (a 5xx may have already deleted the row; retrying would 404).
         """
         response = await self._client._http.request(
-            "DELETE", f"/api/v1/templates/{template_id}",
+            "DELETE",
+            f"/api/v1/templates/{template_id}",
             extensions={"notifier_no_retry": True},
         )
         if response.status_code >= 400:
             raise error_from_response(response)
 
     async def preview(
-        self, template_id: str, *, variables: dict | None = None,
+        self,
+        template_id: str,
+        *,
+        variables: dict | None = None,
     ) -> TemplatePreviewResponse:
         """POST /api/v1/templates/{id}/preview — render with supplied or stored sample variables."""
         vars_field: TemplatePreviewRequestVariablesType0 | Unset
@@ -142,6 +155,9 @@ class TemplatesAPI:
             vars_field = UNSET
         body = TemplatePreviewRequest(variables=vars_field).to_dict()
         return await self._client._typed_request(
-            "POST", f"/api/v1/templates/{template_id}/preview",
-            model=TemplatePreviewResponse, json=body, retry_safe=False,
+            "POST",
+            f"/api/v1/templates/{template_id}/preview",
+            model=TemplatePreviewResponse,
+            json=body,
+            retry_safe=False,
         )

@@ -31,7 +31,7 @@ class RedactingFilter(logging.Filter):
         if isinstance(record.msg, str) and self._api_key in record.msg:
             record.msg = record.msg.replace(self._api_key, self._mask)
         if record.args:
-            record.args = tuple(self._scrub(a) for a in record.args)   # type: ignore[assignment]
+            record.args = tuple(self._scrub(a) for a in record.args)  # type: ignore[assignment]
         return True
 
     def _scrub(self, value):

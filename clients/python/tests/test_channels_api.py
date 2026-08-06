@@ -18,8 +18,11 @@ def fast_retry():
 
 
 _CHANNEL_BODY = {
-    "id": "01HA", "tenant_id": "t1", "name": "ops",
-    "apprise_url_masked": "slack://***", "channel_hint": "slack",
+    "id": "01HA",
+    "tenant_id": "t1",
+    "name": "ops",
+    "apprise_url_masked": "slack://***",
+    "channel_hint": "slack",
     "created_at": "2026-04-30T00:00:00Z",
     "updated_at": "2026-04-30T00:00:00Z",
 }
@@ -50,7 +53,9 @@ async def test_channels_create_sends_body_and_returns_typed(fast_retry):
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         result = await c.channels.create(
-            name="ops", apprise_url="slack://hook/AAA/BBB", channel_hint="slack",
+            name="ops",
+            apprise_url="slack://hook/AAA/BBB",
+            channel_hint="slack",
         )
     body = route.calls.last.request.read().decode()
     assert "slack://hook/AAA/BBB" in body
@@ -90,9 +95,7 @@ async def test_channels_update_patches_and_returns_typed(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_channels_delete_returns_none(fast_retry):
-    respx.delete("https://t.local/api/v1/channels/01HA").mock(
-        return_value=httpx.Response(204)
-    )
+    respx.delete("https://t.local/api/v1/channels/01HA").mock(return_value=httpx.Response(204))
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
@@ -118,9 +121,14 @@ async def test_channels_send_test_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_channels_create_validation_error(fast_retry):
     respx.post("https://t.local/api/v1/channels").mock(
-        return_value=httpx.Response(422, json={"detail": [
-            {"loc": ["body", "apprise_url"], "msg": "field required", "type": "missing"}
-        ]})
+        return_value=httpx.Response(
+            422,
+            json={
+                "detail": [
+                    {"loc": ["body", "apprise_url"], "msg": "field required", "type": "missing"}
+                ]
+            },
+        )
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry

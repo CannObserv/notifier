@@ -37,18 +37,29 @@ async def test_health_round_trip(fast_retry):
 @pytest.mark.asyncio
 async def test_dispatch_sends_x_api_key_header_and_returns_typed(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(202, json={
-            "id": "01HABCDEFGHJKMNPQRSTVWXYZ0", "tenant_id": "t1",
-            "template_id": None, "idempotency_key": "k",
-            "rendered_title": "T", "rendered_body": "B", "status": "succeeded",
-            "metadata": {}, "created_at": "2026-04-30T00:00:00Z", "attempts": [],
-        })
+        return_value=httpx.Response(
+            202,
+            json={
+                "id": "01HABCDEFGHJKMNPQRSTVWXYZ0",
+                "tenant_id": "t1",
+                "template_id": None,
+                "idempotency_key": "k",
+                "rendered_title": "T",
+                "rendered_body": "B",
+                "status": "succeeded",
+                "metadata": {},
+                "created_at": "2026-04-30T00:00:00Z",
+                "attempts": [],
+            },
+        )
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_secret", retry_config=fast_retry
     ) as c:
         result = await c.dispatch(
-            title_template="T", body_template="B", channel_ids=["ch1"],
+            title_template="T",
+            body_template="B",
+            channel_ids=["ch1"],
             idempotency_key="k",
         )
     assert route.calls.last.request.headers["X-API-Key"] == "nk_secret"
@@ -61,17 +72,29 @@ async def test_dispatch_sends_x_api_key_header_and_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_dispatch_with_auto_idempotency_generates_ulid(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(202, json={
-            "id": "01H...", "tenant_id": "t1", "template_id": None, "idempotency_key": "auto",
-            "rendered_title": "T", "rendered_body": "B", "status": "succeeded",
-            "metadata": {}, "created_at": "2026-04-30T00:00:00Z", "attempts": [],
-        })
+        return_value=httpx.Response(
+            202,
+            json={
+                "id": "01H...",
+                "tenant_id": "t1",
+                "template_id": None,
+                "idempotency_key": "auto",
+                "rendered_title": "T",
+                "rendered_body": "B",
+                "status": "succeeded",
+                "metadata": {},
+                "created_at": "2026-04-30T00:00:00Z",
+                "attempts": [],
+            },
+        )
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         result = await c.dispatch(
-            title_template="T", body_template="B", channel_ids=["ch1"],
+            title_template="T",
+            body_template="B",
+            channel_ids=["ch1"],
             idempotency_key=AUTO,
         )
     assert isinstance(result, DispatchOut)
@@ -92,7 +115,9 @@ async def test_dispatch_never_auto_retried_without_idempotency_key(fast_retry):
     ) as c:
         with pytest.raises(ServerError):
             await c.dispatch(
-                title_template="T", body_template="B", channel_ids=["ch1"],
+                title_template="T",
+                body_template="B",
+                channel_ids=["ch1"],
                 idempotency_key=None,
             )
     # Should have been called exactly once — no retries on POST /dispatch without idempotency_key
@@ -106,19 +131,33 @@ async def test_dispatch_never_auto_retried_without_idempotency_key(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_dispatch_retried_with_idempotency_key(fast_retry):
-    route = respx.post("https://t.local/api/v1/dispatch").mock(side_effect=[
-        httpx.Response(503),
-        httpx.Response(202, json={
-            "id": "01H...", "tenant_id": "t1", "template_id": None, "idempotency_key": "k",
-            "rendered_title": "T", "rendered_body": "B", "status": "succeeded",
-            "metadata": {}, "created_at": "2026-04-30T00:00:00Z", "attempts": [],
-        }),
-    ])
+    route = respx.post("https://t.local/api/v1/dispatch").mock(
+        side_effect=[
+            httpx.Response(503),
+            httpx.Response(
+                202,
+                json={
+                    "id": "01H...",
+                    "tenant_id": "t1",
+                    "template_id": None,
+                    "idempotency_key": "k",
+                    "rendered_title": "T",
+                    "rendered_body": "B",
+                    "status": "succeeded",
+                    "metadata": {},
+                    "created_at": "2026-04-30T00:00:00Z",
+                    "attempts": [],
+                },
+            ),
+        ]
+    )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         result = await c.dispatch(
-            title_template="T", body_template="B", channel_ids=["ch1"],
+            title_template="T",
+            body_template="B",
+            channel_ids=["ch1"],
             idempotency_key="k",
         )
     assert isinstance(result, DispatchOut)
@@ -129,16 +168,25 @@ async def test_dispatch_retried_with_idempotency_key(fast_retry):
 @pytest.mark.asyncio
 async def test_validation_error_with_field_path(fast_retry):
     respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(422, json={"detail": {
-            "section": "variables", "path": "strain", "message": "required",
-        }})
+        return_value=httpx.Response(
+            422,
+            json={
+                "detail": {
+                    "section": "variables",
+                    "path": "strain",
+                    "message": "required",
+                }
+            },
+        )
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         with pytest.raises(ValidationError) as exc:
             await c.dispatch(
-                title_template="T", body_template="B", channel_ids=["ch1"],
+                title_template="T",
+                body_template="B",
+                channel_ids=["ch1"],
                 idempotency_key="k",
             )
     assert exc.value.field_path == "strain"
@@ -205,8 +253,10 @@ async def test_typed_request_empty_body_raises_notifier_error(fast_retry):
     ) as c:
         with pytest.raises(NotifierError) as exc:
             await c.dispatch(
-                title_template="t", body_template="b",
-                channel_ids=["c"], idempotency_key="k",
+                title_template="t",
+                body_template="b",
+                channel_ids=["c"],
+                idempotency_key="k",
             )
     assert "DispatchOut" in str(exc.value)
 
@@ -220,18 +270,29 @@ async def test_dispatch_omits_variables_when_caller_passes_none(fast_retry):
     when the caller doesn't supply them, not always-sent empty dicts.
     """
     route = respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(202, json={
-            "id": "01H...", "tenant_id": "t1", "template_id": None,
-            "idempotency_key": "k", "rendered_title": "T", "rendered_body": "B",
-            "status": "succeeded", "metadata": {},
-            "created_at": "2026-04-30T00:00:00Z", "attempts": [],
-        })
+        return_value=httpx.Response(
+            202,
+            json={
+                "id": "01H...",
+                "tenant_id": "t1",
+                "template_id": None,
+                "idempotency_key": "k",
+                "rendered_title": "T",
+                "rendered_body": "B",
+                "status": "succeeded",
+                "metadata": {},
+                "created_at": "2026-04-30T00:00:00Z",
+                "attempts": [],
+            },
+        )
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         await c.dispatch(
-            title_template="T", body_template="B", channel_ids=["ch1"],
+            title_template="T",
+            body_template="B",
+            channel_ids=["ch1"],
             idempotency_key="k",
         )
     body = route.calls.last.request.read().decode()

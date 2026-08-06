@@ -20,9 +20,14 @@ def fast_retry():
 
 
 _TEMPLATE_BODY = {
-    "id": "01HT", "tenant_id": "t1", "name": "alert",
-    "title_template": "T", "body_template": "B",
-    "variables_schema": None, "sample_variables": None, "tags": None,
+    "id": "01HT",
+    "tenant_id": "t1",
+    "name": "alert",
+    "title_template": "T",
+    "body_template": "B",
+    "variables_schema": None,
+    "sample_variables": None,
+    "tags": None,
     "created_at": "2026-04-30T00:00:00Z",
     "updated_at": "2026-04-30T00:00:00Z",
 }
@@ -54,7 +59,9 @@ async def test_templates_create_sends_body_and_returns_typed(fast_retry):
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
         result = await c.templates.create(
-            name="alert", title_template="T", body_template="B",
+            name="alert",
+            title_template="T",
+            body_template="B",
         )
     body = route.calls.last.request.read().decode()
     assert "alert" in body
@@ -89,7 +96,11 @@ async def test_templates_update_patches_and_returns_typed(fast_retry):
     body = route.calls.last.request.read().decode()
     assert "renamed" in body
     unsent_fields = (
-        "title_template", "body_template", "variables_schema", "sample_variables", "tags"
+        "title_template",
+        "body_template",
+        "variables_schema",
+        "sample_variables",
+        "tags",
     )
     for unsent in unsent_fields:
         assert unsent not in body, f"unsupplied field {unsent!r} leaked into PATCH body"
@@ -100,9 +111,7 @@ async def test_templates_update_patches_and_returns_typed(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_templates_delete_returns_none(fast_retry):
-    respx.delete("https://t.local/api/v1/templates/01HT").mock(
-        return_value=httpx.Response(204)
-    )
+    respx.delete("https://t.local/api/v1/templates/01HT").mock(return_value=httpx.Response(204))
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
@@ -163,9 +172,14 @@ async def test_templates_preview_without_variables_uses_sample(fast_retry):
 @pytest.mark.asyncio
 async def test_templates_create_validation_error(fast_retry):
     respx.post("https://t.local/api/v1/templates").mock(
-        return_value=httpx.Response(422, json={"detail": [
-            {"loc": ["body", "title_template"], "msg": "field required", "type": "missing"}
-        ]})
+        return_value=httpx.Response(
+            422,
+            json={
+                "detail": [
+                    {"loc": ["body", "title_template"], "msg": "field required", "type": "missing"}
+                ]
+            },
+        )
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry

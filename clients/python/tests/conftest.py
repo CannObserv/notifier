@@ -83,7 +83,11 @@ def _run_schema(action: Literal["create_all", "drop_all"], env: dict[str, str]) 
     try:
         subprocess.run(
             ["uv", "run", "python", "-c", _SCHEMA_SCRIPT, action],
-            cwd=REPO_ROOT, env=env, check=True, capture_output=True, text=True,
+            cwd=REPO_ROOT,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
             timeout=SCHEMA_TIMEOUT_SECONDS,
         )
     except subprocess.CalledProcessError as exc:
@@ -136,11 +140,19 @@ def notifier_url(_server_env, _test_db_schema):
         try:
             proc = subprocess.Popen(
                 [
-                    "uv", "run", "uvicorn", "src.api.main:app",
-                    "--host", "127.0.0.1", "--port", str(port),
+                    "uv",
+                    "run",
+                    "uvicorn",
+                    "src.api.main:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
                 ],
-                cwd=REPO_ROOT, env=_server_env,
-                stdout=subprocess.DEVNULL, stderr=stderr_fd,
+                cwd=REPO_ROOT,
+                env=_server_env,
+                stdout=subprocess.DEVNULL,
+                stderr=stderr_fd,
             )
         finally:
             os.close(stderr_fd)
@@ -154,9 +166,12 @@ def notifier_url(_server_env, _test_db_schema):
                         f"--- stderr ---\n{_read_stderr(stderr_path)}"
                     )
                 try:
-                    if httpx.get(
-                        f"{base}/health", timeout=HEALTH_PROBE_TIMEOUT_SECONDS
-                    ).status_code == 200:
+                    if (
+                        httpx.get(
+                            f"{base}/health", timeout=HEALTH_PROBE_TIMEOUT_SECONDS
+                        ).status_code
+                        == 200
+                    ):
                         break
                 except httpx.HTTPError:
                     pass
@@ -191,8 +206,12 @@ def tenant_credentials(_server_env, _test_db_schema) -> tuple[str, str]:
     try:
         result = subprocess.run(
             ["uv", "run", "python", "scripts/seed_tenant.py", "sdk-integration", "smoke"],
-            capture_output=True, text=True, check=True,
-            cwd=REPO_ROOT, env=_server_env, timeout=SEED_TIMEOUT_SECONDS,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=REPO_ROOT,
+            env=_server_env,
+            timeout=SEED_TIMEOUT_SECONDS,
         )
     except subprocess.CalledProcessError as exc:
         pytest.fail(f"seed_tenant.py failed:\n{exc.stderr or exc.stdout or exc}")

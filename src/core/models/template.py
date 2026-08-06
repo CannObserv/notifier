@@ -17,9 +17,7 @@ class Template(Base, TimestampMixin):
     """
 
     __tablename__ = "templates"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "name", name="uq_templates_tenant_name"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_templates_tenant_name"),)
 
     id: Mapped[str] = mapped_column(ULIDType, primary_key=True, default=generate_ulid)
     tenant_id: Mapped[str] = mapped_column(
