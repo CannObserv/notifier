@@ -14,12 +14,16 @@ repos:
         name: ruff check
         entry: uv run ruff check .
         language: system
-        types_or: [python, pyi]
+        # Both hooks are repo-wide (pass_filenames: false), so this pattern is
+        # purely a trigger. It must include pyproject.toml: a `[tool.ruff]`
+        # change invalidates the formatting of the whole tree, so that is the
+        # one commit that most needs a re-check.
+        files: '(\.pyi?$|(^|/)pyproject\.toml$)'
         pass_filenames: false
 
       - id: ruff-format
         name: ruff format --check
         entry: uv run ruff format --check .
         language: system
-        types_or: [python, pyi]
+        files: '(\.pyi?$|(^|/)pyproject\.toml$)'
         pass_filenames: false

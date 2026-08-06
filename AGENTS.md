@@ -161,8 +161,9 @@ uv run ruff check .
 uv run ruff format .
 uv run ruff format --check .
 
-# Run every gate the way pre-commit does (also installed as a git hook)
+# Run every gate the way pre-commit does
 uv run pre-commit run --all-files
+uv run pre-commit install            # once per clone — installs it as a git hook
 
 # Database migrations
 uv run alembic upgrade head          # apply all migrations
