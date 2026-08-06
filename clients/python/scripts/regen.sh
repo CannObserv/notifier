@@ -20,5 +20,10 @@ uv run openapi-python-client generate \
     --output-path "${GEN_DIR}" \
     --overwrite
 
-uv run ruff format "${GEN_DIR}" || true   # cosmetic; don't fail regen on format diffs
+# No ruff format pass here on purpose. openapi-python-client's output is
+# already format-clean, and `generated/` is excluded from every ruff run
+# (`extend-exclude` in clients/python/pyproject.toml), so formatting it here
+# would couple the committed tree to the ruff version: a formatter bump would
+# rewrite these files and surface in CI as a misleading "SDK generated/ is
+# stale" failure. Keep this script a pure function of the OpenAPI spec.
 echo "Regenerated: ${GEN_DIR}"
