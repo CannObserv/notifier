@@ -41,8 +41,8 @@ skills-vendor/               — Git submodules for external skill repos (gregor
 .socraticodecontextartifacts.json — SocratiCode context artifacts catalog (DB schema, deployment, runbook, systemd unit) for semantic search beyond raw code
 ```
 
-`docs/` also holds this file, `ARCHITECTURE.md` — added after the tree above was
-written, which is why the tree's own `docs/` line does not name it.
+The current reference-doc index is [AGENTS.md § Detail Docs](../AGENTS.md#detail-docs);
+the `docs/` entry above predates this file.
 
 **Environment files** (not in the repo tree):
 - `/etc/notifier/.env` — Production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); outside repo, persistent

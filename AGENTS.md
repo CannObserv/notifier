@@ -38,7 +38,7 @@ Prefetch query — run via `ToolSearch` at session start:
 
 ## Project Layout
 
-Two packages, one boundary: `src/api/` is transport (routes, Pydantic schemas, auth deps) and `src/core/` is domain logic (models, crypto, Apprise dispatch, Jinja rendering). Core never imports api. Tests mirror `src/` exactly.
+Two packages, one boundary: `src/api/` is transport (routes, Pydantic schemas, auth deps) and `src/core/` is domain logic (models, crypto, Apprise dispatch, Jinja rendering). Core never imports api.
 
 `/api/v1/` is versioned and auth-guarded; `/health` and `/ready` are root-level and unauthenticated. `clients/python/src/notifier_client/generated/` is generated from `/openapi.json` — never hand-edit it; CI fails a stale PR.
 
@@ -146,7 +146,7 @@ Full reference: `docs/COMMANDS.md`
 
 Skills in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code). Reference: `docs/SKILLS.md`
 
-16 skills vendored, including `curating-context` (pinned at v1.2 — wave-A control arm). Local overrides in `skills/` shadow the vendor copy. Full inventory with sources and override notes: [docs/SKILLS.md](docs/SKILLS.md#skills-inventory).
+16 skills: 14 vendored, 2 local overrides in `skills/` that shadow the vendor copy. `curating-context` is pinned at v1.2 — wave-A control arm. Sources and override notes: [§ Skills Inventory](docs/SKILLS.md#skills-inventory).
 
 ## Conventions
 
@@ -189,7 +189,7 @@ The service is consumer-agnostic. Resist these temptations:
 
 ## Detail Docs
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every file under `src/`, `clients/`, and `scripts/` is responsible for
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for, including `tests/`, `deploy/`, and the skill trees
 - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
 - [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendored submodule repos and refresh procedure, full skills inventory
