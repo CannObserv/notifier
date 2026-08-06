@@ -16,7 +16,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/skills-submodule-update.sh"
+            "command": "bash .skills/doctor.sh",
+            "timeout": 60
           }
         ]
       }
