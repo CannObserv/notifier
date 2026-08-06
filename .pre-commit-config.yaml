@@ -1,0 +1,25 @@
+# Local hooks only. Every entry shells out to `uv run`, so the hooks use the
+# exact tool versions pinned in uv.lock — the same ruff that pre-ship.sh and
+# the review gate use. No pinned hook revs to drift out of sync, and no network
+# needed to bootstrap a clone.
+#
+# Both hooks are read-only: they report violations rather than rewriting files
+# mid-commit. Fix with `uv run ruff format .` / `uv run ruff check --fix .`.
+#
+# Install once per clone: uv run pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check .
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff format --check
+        entry: uv run ruff format --check .
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false

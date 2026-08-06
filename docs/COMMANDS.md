@@ -65,7 +65,25 @@ uv run pytest                          # default: -m 'not integration'
 uv run pytest -m integration           # integration tests (require live DB)
 uv run pytest --no-cov                 # skip coverage
 uv run ruff check .                    # lint
+uv run ruff format .                   # format
+uv run ruff format --check .           # format gate (as run by pre-ship.sh)
 ```
+
+## Lint & format gates
+
+`ruff check` and `ruff format --check` both gate shipping (`pre-ship.sh` runs
+them before pytest) and are wired into pre-commit, so a plain `git commit`
+enforces them locally:
+
+```bash
+uv run pre-commit install              # one-time, per clone
+uv run pre-commit run --all-files      # run both gates over the whole repo
+git commit --no-verify                 # escape hatch — gates still fail at ship time
+```
+
+The hooks shell out to `uv run ruff`, so they use the exact ruff pinned in
+`uv.lock` — the same binary `pre-ship.sh` and CI use. No version skew.
+
 
 ## Generating a Fernet key
 

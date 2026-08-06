@@ -157,6 +157,13 @@ uv run pytest -m integration
 # Run linter
 uv run ruff check .
 
+# Format (both gates below run at ship/review time — `--check` is the gate)
+uv run ruff format .
+uv run ruff format --check .
+
+# Run every gate the way pre-commit does (also installed as a git hook)
+uv run pre-commit run --all-files
+
 # Database migrations
 uv run alembic upgrade head          # apply all migrations
 uv run alembic revision --autogenerate -m "description"  # generate new migration
