@@ -51,7 +51,8 @@ src/api/schemas/types.py     — Shared Pydantic field types: `ULIDStr` (26-char
 src/core/                    — Shared domain logic
 src/core/models/             — SQLAlchemy models: Tenant, ApiKey [hashed; key_hash=SHA-256, key_prefix=first 8 chars], Channel [apprise_url encrypted], Template [title_template, body_template, variables_schema JSONB, sample_variables JSONB, tags ARRAY], Dispatch [variables JSONB, metadata JSONB, status, idempotency_key (unique with tenant_id)], DispatchAttempt [keyed by (dispatch_id, channel_id), attempt int, status, reason]
 src/core/database.py         — Async engine + session factory; reads DATABASE_URL
-src/core/logging.py          — `configure_logging()` (entry points only) + `get_logger(__name__)`
+src/core/logging.py          — `build_json_formatter()` (single formatter definition: `{timestamp, level, logger, message}`) + `ColorMessageFilter` (strips uvicorn's ANSI `color_message` extra) + `configure_logging()` (entry points only) + `get_logger(__name__)`
+src/core/log_config.json     — uvicorn dictConfig passed via `--log-config`; routes `uvicorn`/`uvicorn.access`/`uvicorn.error` through `build_json_formatter` so uvicorn lines and app logs share one JSON schema
 src/core/utils.py            — `format_utc_iso(dt)` ISO 8601 with Z suffix
 src/core/crypto.py           — Fernet encryption for Apprise URLs at rest; requires `NOTIFIER_SECRET_KEY` env var; `encrypt_apprise_url` / `decrypt_apprise_url`
 src/core/notifications/      — Apprise dispatch path + plugin catalog + Jinja rendering
@@ -105,7 +106,7 @@ Watcher (the first consumer) co-locates on this VM during v0; both services run 
 
 ```bash
 export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
-uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload
+uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
 ```
 
 **After finishing work:** Always restart the systemd service to pick up changes merged to main:
@@ -161,7 +162,7 @@ uv run alembic upgrade head          # apply all migrations
 uv run alembic revision --autogenerate -m "description"  # generate new migration
 
 # FastAPI dev server (port 9001 — port 9000 belongs to systemd)
-uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload
+uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
 ```
 
 Full reference: `docs/COMMANDS.md`

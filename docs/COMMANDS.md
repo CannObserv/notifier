@@ -47,7 +47,7 @@ sudo systemctl daemon-reload && sudo systemctl restart notifier
 ```bash
 # Dev server — use port 9001 so the systemd service stays up
 export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
-uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload
+uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
 ```
 
 ## Migrations
