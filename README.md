@@ -14,4 +14,4 @@ uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config
 
 Live service runs on port 9000 via systemd; dev server uses 9001.
 
-See `AGENTS.md` for conventions and `docs/COMMANDS.md` for the full command reference.
+See `AGENTS.md` for conventions, `docs/ARCHITECTURE.md` for the per-module layout, and `docs/COMMANDS.md` for the full command reference.

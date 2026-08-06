@@ -28,8 +28,27 @@ Submodule freshness auto-enforced by the `SessionStart` hook in `.claude/setting
 
 The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
+`curating-context` installs a second hook: a `PostToolUse` write guard (`.claude/hooks/context-budget-guard.sh`) that warns when an edit pushes `AGENTS.md` past 6,000 tokens or a live reference doc past 10,000 (`.skills/context-budget`, `.skills/context-doc-budget`). It never blocks and stays silent when an edit reduces the count; it logs to `.git/context-budget.log`. Remove with `bash skills/curating-context/scripts/install-guard.sh --uninstall`. That path resolves through the vendor submodule, so on a checkout where submodules are uninitialized — a fresh clone, a new worktree, a shallow CI clone — it fails, and so does the guard itself. Run `bash .skills/doctor.sh` first: it is a real file for exactly this reason and heals the chain.
+
 To add a new external skill repo: follow the `managing-skills` skill.
 
-## Available Skills
+## Skills Inventory
 
-See the Skills Inventory table in [AGENTS.md](../AGENTS.md#skills-inventory) for the current list, sources, and override notes.
+| Skill | Source | Notes |
+|---|---|---|
+| `brainstorming` | Local override (obra-superpowers) | Project-specific conventions |
+| `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Pinned at v1.2 — wave-A control arm; do not bump the vendored pointer past it until the wave-B comparison resolves |
+| `dispatching-parallel-agents` | obra-superpowers symlink | |
+| `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |
+| `managing-skills` | gregoryfoster-skills symlink | |
+| `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
+| `reviewing-architecture` | gregoryfoster-skills symlink | |
+| `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
+| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills) | Loads `/etc/notifier/.env` before delegating |
+| `subagent-driven-development` | obra-superpowers symlink | |
+| `systematic-debugging` | obra-superpowers symlink | |
+| `test-driven-development` | obra-superpowers symlink | |
+| `using-git-worktrees` | gregoryfoster-skills symlink | |
+| `verification-before-completion` | obra-superpowers symlink | |
+| `writing-plans` | gregoryfoster-skills symlink | |
+| `writing-skills` | obra-superpowers symlink | |
