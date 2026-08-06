@@ -6,6 +6,7 @@ Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templa
 
 ```bash
 uv sync
+uv run pre-commit install   # once per clone — gates commits on ruff check + format
 export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
 uv run alembic upgrade head
 uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
