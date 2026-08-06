@@ -22,7 +22,11 @@ Local overrides in `skills/` automatically shadow vendor skills in both systems.
 
 Init after cloning: `git submodule update --init --recursive`
 
-Submodule freshness auto-enforced by `UserPromptSubmit` hook in `.claude/settings.json`. Force-refresh: `git submodule update --remote --merge skills-vendor/gregoryfoster-skills skills-vendor/obra-superpowers`
+Submodule freshness auto-enforced by the `SessionStart` hook in `.claude/settings.json` (`.claude/hooks/skills-submodule-update.sh` → the vendored `managing-skills` script). Runs once per UTC day, on `main` only; stages just `skills-vendor/` and `.skills/doctor.sh`, and logs to `.git/skills-update.log`. Force-refresh: `git submodule update --remote --merge -- skills-vendor/`
+
+`.skills/doctor.sh` (a real file, not a symlink — it diagnoses broken vendor symlinks) is installed and re-synced by that hook, and re-syncs itself on every run. Check the symlink chain by hand with `bash .skills/doctor.sh`.
+
+The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
 To add a new external skill repo: follow the `managing-skills` skill.
 
