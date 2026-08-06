@@ -177,6 +177,7 @@ Skills in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code). Refere
 |---|---|---|
 | `brainstorming` | Local override (obra-superpowers) | Project-specific conventions |
 | `dispatching-parallel-agents` | obra-superpowers symlink | |
+| `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |
 | `managing-skills` | gregoryfoster-skills symlink | |
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
