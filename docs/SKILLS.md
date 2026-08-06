@@ -28,7 +28,7 @@ Submodule freshness auto-enforced by the `SessionStart` hook in `.claude/setting
 
 The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
-`curating-context` installs a second hook: a `PostToolUse` write guard (`.claude/hooks/context-budget-guard.sh`) that warns when an edit pushes `AGENTS.md` past 6,000 tokens or a live reference doc past 10,000 (`.skills/context-budget`, `.skills/context-doc-budget`). It never blocks and stays silent when an edit reduces the count; it logs to `.git/context-budget.log`. Remove with `bash skills/curating-context/scripts/install-guard.sh --uninstall`.
+`curating-context` installs a second hook: a `PostToolUse` write guard (`.claude/hooks/context-budget-guard.sh`) that warns when an edit pushes `AGENTS.md` past 6,000 tokens or a live reference doc past 10,000 (`.skills/context-budget`, `.skills/context-doc-budget`). It never blocks and stays silent when an edit reduces the count; it logs to `.git/context-budget.log`. Remove with `bash skills/curating-context/scripts/install-guard.sh --uninstall`. That path resolves through the vendor submodule, so on a checkout where submodules are uninitialized — a fresh clone, a new worktree, a shallow CI clone — it fails, and so does the guard itself. Run `bash .skills/doctor.sh` first: it is a real file for exactly this reason and heals the chain.
 
 To add a new external skill repo: follow the `managing-skills` skill.
 
