@@ -1,0 +1,11 @@
+# Exclude vendored skill trees from the semantic index.
+#
+# Vendored skill prose is not this repo's code: indexing it inflates embedding
+# time and lets skill content outrank notifier's own source in codebase_search
+# results. Layered on top of SocratiCode's built-in defaults + .gitignore.
+#
+# skills/ is deliberately NOT excluded — it holds this repo's first-party skill
+# overrides (brainstorming, shipping-work-python-fastapi). Its other entries are
+# symlinks into skills-vendor/, which is excluded below.
+skills-vendor/
+.claude/skills/
