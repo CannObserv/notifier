@@ -22,15 +22,9 @@ Local overrides in `skills/` automatically shadow vendor skills in both systems.
 
 Init after cloning: `git submodule update --init --recursive`
 
-**The auto-refresh is paused.** `curating-context` is held at v1.2 (wave-A control arm), and the refresh hook — `.claude/hooks/skills-submodule-update.sh`, which runs `git submodule update --remote --merge -- skills-vendor/` once per UTC day on `main` and auto-commits the result — would move that pointer and silently end the hold. `git`'s own `submodule.<name>.update = none` cannot pin it either: `--merge` overrides that setting (see [gregoryfoster/skills#100](https://github.com/gregoryfoster/skills/issues/100)), so there is no per-submodule pin available today and the whole hook has to stand down.
+Submodule freshness auto-enforced by the `SessionStart` hook in `.claude/settings.json` (`.claude/hooks/skills-submodule-update.sh` → the vendored `managing-skills` script). Runs once per UTC day, on `main` only; stages just `skills-vendor/` and `.skills/doctor.sh`, and logs to `.git/skills-update.log`. Force-refresh: `git submodule update --remote --merge -- skills-vendor/`
 
-The script is still committed, so re-enabling once wave B resolves is one `SessionStart` entry in `.claude/settings.json`:
-
-```json
-{ "matcher": ".*", "hooks": [{ "type": "command", "command": "bash .claude/hooks/skills-submodule-update.sh" }] }
-```
-
-In its place that entry runs `bash .skills/doctor.sh`, which repairs with `--init --recursive` and never `--remote`. That keeps a fresh clone or new worktree populated — and keeps the write-guard symlink below resolving — without being able to move a pinned pointer. Manual refresh, when the hold lifts: `git submodule update --remote --merge -- skills-vendor/`
+A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and branch: it repairs with `--init --recursive` and never `--remote`, so fresh clones and new worktrees stay populated — and the write-guard symlink below keeps resolving — without moving the pointer. (The auto-refresh was paused 2026-08-06 → 2026-08-14 to hold `curating-context` at v1.2 as the wave-A control arm — #16; wave B resolved and the hold was lifted in #20. `submodule.<name>.update = none` cannot express such a pin: `--merge` overrides it, see [gregoryfoster/skills#100](https://github.com/gregoryfoster/skills/issues/100).)
 
 `.skills/doctor.sh` (a real file, not a symlink — it diagnoses broken vendor symlinks) is installed and re-synced by that hook, and re-syncs itself on every run. Check the symlink chain by hand with `bash .skills/doctor.sh`.
 
@@ -45,7 +39,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | Skill | Source | Notes |
 |---|---|---|
 | `brainstorming` | Local override (obra-superpowers) | Project-specific conventions |
-| `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Pinned at v1.2 — wave-A control arm; do not bump the vendored pointer past it until the wave-B comparison resolves |
+| `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Tracks the vendored pointer; the wave-A hold at v1.2 was lifted 2026-08-14 (#20) |
 | `dispatching-parallel-agents` | obra-superpowers symlink | |
 | `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |
 | `managing-skills` | gregoryfoster-skills symlink | |

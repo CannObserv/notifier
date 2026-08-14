@@ -146,7 +146,7 @@ Full reference: `docs/COMMANDS.md`
 
 Skills in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code). Reference: `docs/SKILLS.md`
 
-Vendored skills plus local overrides in `skills/` that shadow the vendor copy. `curating-context` is pinned at v1.2 — wave-A control arm. Inventory, sources, and override notes: [§ Skills Inventory](docs/SKILLS.md#skills-inventory).
+Vendored skills plus local overrides in `skills/` that shadow the vendor copy. Inventory, sources, and override notes: [§ Skills Inventory](docs/SKILLS.md#skills-inventory).
 
 ## Conventions
 
