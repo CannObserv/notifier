@@ -16,25 +16,28 @@ TDD required. Red → Green → Refactor. No production code without a failing t
 
 Python ≥3.12, uv, pytest, ruff.
 
+<!-- BEGIN socraticode-policy -->
 ## Code Exploration Policy
 
-SocratiCode is indexed on this repo (`.socraticodecontextartifacts.json` present). Its MCP tools are **deferred** — schemas load only after a `ToolSearch` prefetch. The SessionStart hook prints the prefetch query; run it before exploring.
+SocratiCode is the preferred semantic-search tool here once indexed (local
+Qdrant store + on-disk graph; manifest `.socraticodecontextartifacts.json`).
+Its MCP tools are **deferred** — schemas load only after the `ToolSearch`
+prefetch that `.claude/hooks/socraticode-reminder.sh` prints each session.
 
-**Negative rule.** For broad semantic questions ("where is X", "how does Y work", "what depends on Z"), use SocratiCode MCP tools first. Reach for `grep`/`ripgrep` only on exact strings (error messages, log lines, known symbols). Reserve the Explore subagent for path-pattern walks (e.g. "all `*.py` under `src/api/routes/`"), not semantic search.
+**Negative rule.** Use SocratiCode MCP tools first for semantic questions
+("where is X", "how does Y work", "what depends on Z"). Reach for `grep`/`rg`
+only on exact strings (error messages, log lines, known symbols). Reserve the
+Explore subagent for path-pattern walks (`*.py` under `src/api/routes/`), not
+semantic search.
 
 | Goal | Tool |
 |------|------|
-| Where is X defined / how does Y work / what files touch Z | `codebase_search` |
-| Exact string/regex match (errors, log lines, known symbols) | `grep` / `rg` |
-| Blast radius of changing/deleting a file or function | `codebase_impact` |
-| What does an entry point actually do? | `codebase_flow` |
-| Callers and callees of a function | `codebase_symbol` |
-| Imports/dependents of a file | `codebase_graph_query` |
-| DB schemas, deployment topology, runbook context | `codebase_context` / `codebase_context_search` |
+| Where is X defined / how does Y work / what touches Z | `codebase_search` |
+| Exact string or regex (errors, log lines, known symbols) | `grep` / `rg` |
+| Imports/dependents of a file · blast radius of a change | `codebase_graph_query` / `codebase_impact` |
 
-Prefetch query — run via `ToolSearch` at session start:
-
-`select:mcp__plugin_socraticode_socraticode__codebase_search,mcp__plugin_socraticode_socraticode__codebase_symbol,mcp__plugin_socraticode_socraticode__codebase_symbols,mcp__plugin_socraticode_socraticode__codebase_flow,mcp__plugin_socraticode_socraticode__codebase_impact,mcp__plugin_socraticode_socraticode__codebase_graph_query,mcp__plugin_socraticode_socraticode__codebase_graph_circular,mcp__plugin_socraticode_socraticode__codebase_graph_stats,mcp__plugin_socraticode_socraticode__codebase_graph_visualize,mcp__plugin_socraticode_socraticode__codebase_status,mcp__plugin_socraticode_socraticode__codebase_context,mcp__plugin_socraticode_socraticode__codebase_context_search`
+Full tool table, prefetch query, per-tool guidance: [`docs/SOCRATICODE.md`](docs/SOCRATICODE.md).
+<!-- END socraticode-policy -->
 
 ## Project Layout
 
@@ -192,4 +195,5 @@ The service is consumer-agnostic. Resist these temptations:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for, including `tests/`, `deploy/`, and the skill trees
 - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
+- [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — full SocratiCode tool table, the `ToolSearch` prefetch query, per-tool notes, graph-health guidance, and this repo's measured yield
 - [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendored submodule repos and refresh procedure, full skills inventory

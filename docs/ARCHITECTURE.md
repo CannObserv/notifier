@@ -33,7 +33,7 @@ src/core/notifications/constants.py     — `APP_URL` ("https://notifier.exe.xyz
 tests/                       — Mirrors src/ structure; integration tests use real Postgres via TEST_DATABASE_URL
 clients/python/              — `notifier-client` Python SDK; separate `pyproject.toml` + venv (`uv sync` from this dir); `src/notifier_client/generated/` is regenerated from `/openapi.json` via `clients/python/scripts/regen.sh` and must never be hand-edited; CI fails any PR that leaves it stale. Public types in `notifier_client.types`; sub-clients under `client.channels`, `client.templates`, `client.apprise`.
 deploy/                      — Systemd unit + deployment config
-docs/                        — Reference docs (COMMANDS, DEPLOYMENT, SKILLS); `docs/plans/` holds implementation plans
+docs/                        — Reference docs (COMMANDS, DEPLOYMENT, SKILLS, SOCRATICODE); `docs/plans/` holds implementation plans
 scripts/                     — Helper scripts: `seed_tenant.py` (provision tenant + API key), `dump_openapi.py` (dump app.openapi() JSON for SDK regen)
 skills/                      — Agent skills: committed local overrides + symlinks → skills-vendor/
 skills-vendor/               — Git submodules for external skill repos (gregoryfoster-skills, obra-superpowers)
