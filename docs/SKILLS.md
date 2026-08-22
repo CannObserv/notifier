@@ -30,6 +30,8 @@ A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and
 
 The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
+`init-socraticode` installs its own `SessionStart` entry: `.claude/hooks/socraticode-health.sh`, a symlink into the vendor tree wired by `managing-skills`' shared `install-hook.sh` (`--hook socraticode-health.sh --skill init-socraticode --marker socraticode-health --copy-fallback`; add `--check` to verify without writing). It reports and never repairs — a stopped container, a FAILED last index operation, a degraded graph yield, and since [gregoryfoster/skills#214](https://github.com/gregoryfoster/skills/issues/214) a context artifact declared in `.socraticodecontextartifacts.json` but never indexed, named in the finding. Silent when clean, at most one report per UTC day per project (`.git/socraticode-health.lock` / `.log`), exits 0 on every path. The entry carries an explicit `"timeout": 90` — above the hook's own 60 s driver ceiling (`HEALTH_TIMEOUT_MS`), so a slow check is not killed mid-run; the installer writes its entry from a canonical template with no timeout, so re-add it after any re-run. Force a run with `SOCRATICODE_HEALTH_FORCE=1 bash .claude/hooks/socraticode-health.sh`.
+
 `curating-context` installs a second hook: a `PostToolUse` write guard (`.claude/hooks/context-budget-guard.sh`) that warns when an edit pushes `AGENTS.md` past 6,000 tokens or a live reference doc past 10,000 (`.skills/context-budget`, `.skills/context-doc-budget`). It never blocks and stays silent when an edit reduces the count; it logs to `.git/context-budget.log`. Remove with `bash skills/curating-context/scripts/install-guard.sh --uninstall`. That path resolves through the vendor submodule, so on a checkout where submodules are uninitialized — a fresh clone, a new worktree, a shallow CI clone — it fails, and so does the guard itself. Run `bash .skills/doctor.sh` first: it is a real file for exactly this reason and heals the chain.
 
 To add a new external skill repo: follow the `managing-skills` skill.
@@ -42,6 +44,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Tracks the vendored pointer; the wave-A hold at v1.2 was lifted 2026-08-14 (#20) |
 | `dispatching-parallel-agents` | obra-superpowers symlink | |
 | `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |
+| `init-socraticode` | gregoryfoster-skills symlink | Installs/audits SocratiCode: preflight, policy, the prefetch + once-per-day health hooks, context-artifact manifest, index. Vendors the health hook this repo wires (#21) |
 | `managing-skills` | gregoryfoster-skills symlink | |
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
