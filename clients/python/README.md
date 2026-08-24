@@ -134,7 +134,7 @@ subprocess receives `DATABASE_URL=$TEST_DATABASE_URL`, so production cannot
 be polluted even if `/etc/notifier/.env` is exported into the parent shell.
 
 ```bash
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 uv run pytest -m integration
 ```
 

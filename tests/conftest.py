@@ -18,8 +18,14 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 if not TEST_DATABASE_URL:
     raise RuntimeError(
         "TEST_DATABASE_URL environment variable is not set. "
-        "Load env: export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)"
+        "Load env: set -a; . /etc/notifier/.env; . .env; set +a"
     )
+
+# Pin DATABASE_URL at the test database for the whole session, before any
+# fixture runs. Without this, a pytest run in a shell that sourced
+# /etc/notifier/.env leaves DATABASE_URL pointing at production for any code
+# that reads it directly (issue #22; archiver hit this as archiver#157).
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 # Ensure crypto has a key in test env even when /etc/notifier/.env is not loaded.
 os.environ.setdefault("NOTIFIER_SECRET_KEY", Fernet.generate_key().decode())

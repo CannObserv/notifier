@@ -67,17 +67,25 @@ Watcher (the first consumer) co-locates on this VM during v0; both services run 
 | Situation | Action |
 |---|---|
 | Code committed to main | `sudo systemctl restart notifier` |
-| Testing a worktree/branch | `uv run uvicorn ... --port 9001 --reload` |
+| Testing a worktree/branch | `./scripts/dev_server.sh` (port 9001, dev DB) |
 | Debugging the live service | `sudo journalctl -u notifier -f` |
 | After editing `deploy/notifier.service` | `sudo systemctl daemon-reload && sudo systemctl restart notifier` |
 | After DB model changes | `uv run alembic upgrade head` then restart |
 
-**Dev server workflow:** Run on port 9001 so the live service stays up. Load env first:
+**Dev server workflow:** Use the launch script. It loads secrets, swaps
+`DATABASE_URL` for `DEV_DATABASE_URL`, runs the production-database guard, and
+only then starts uvicorn on 9001 so the live service stays up:
 
 ```bash
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
-uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
+./scripts/dev_server.sh
 ```
+
+Never hand-run uvicorn. The old recipe sourced `/etc/notifier/.env` — which
+sets `DATABASE_URL` to **production** — so the "dev" server on 9001 shared one
+database with the live service on 9000 (issue #22). `src/core/db_safety.py`
+now refuses any database whose name does not end in `_test` or `_dev`; the
+production opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the systemd unit and
+must never be added to an env file.
 
 **After finishing work:** Always restart the systemd service to pick up changes merged to main:
 
@@ -90,19 +98,28 @@ sudo systemctl restart notifier
 Two env files, loaded in order (later values override):
 
 1. **`/etc/notifier/.env`** — production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`). Survives repo resets and worktree switches. Managed manually on the VM.
-2. **`.env`** (repo root, git-ignored) — dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`). Never commit.
+2. **`.env`** (repo root, git-ignored) — dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`, `DEV_DATABASE_URL`). Never commit.
 
-The systemd service loads both automatically. For shell commands:
+The systemd service loads both automatically. For shell commands, source them
+— do not word-split them through `xargs`, which corrupts any value containing
+spaces or quotes:
 
 ```bash
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 ```
+
+**This leaves `DATABASE_URL` pointing at production.** That is correct for
+`alembic upgrade head` and for `systemctl`, and wrong for everything else. Use
+`./scripts/dev_server.sh` for a server; `pytest` pins `DATABASE_URL` to the
+test database itself.
 
 Currently defined:
 - `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)
 - `PROCRASTINATE_DATABASE_URL` — (optional) libpq-style DSN for procrastinate; reserved for future async dispatch worker
 - `GH_TOKEN` — GitHub personal access token (in `.env`)
-- `TEST_DATABASE_URL` — PostgreSQL connection string for test database (in `.env`)
+- `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
+- `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it
+- `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only** to let a process open the production database; see `src/core/db_safety.py`
 - `BUILD_ID` — (optional) git SHA for observability; defaults to `"dev"`
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 
@@ -112,8 +129,9 @@ Currently defined:
 # Install dependencies
 uv sync
 
-# Load environment (required before running server, migrations, or gh)
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+# Load environment (required before migrations or gh). Leaves DATABASE_URL
+# pointing at production — intended for alembic and systemctl, nothing else.
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 
 # Run tests
 uv run pytest
@@ -139,8 +157,8 @@ uv run pre-commit install            # once per clone — installs it as a git h
 uv run alembic upgrade head          # apply all migrations
 uv run alembic revision --autogenerate -m "description"  # generate new migration
 
-# FastAPI dev server (port 9001 — port 9000 belongs to systemd)
-uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
+# FastAPI dev server (port 9001, dev DB, guarded — never hand-run uvicorn)
+./scripts/dev_server.sh
 ```
 
 Full reference: `docs/COMMANDS.md`

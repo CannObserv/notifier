@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from src.core.db_safety import assert_safe_database_url
 from src.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,17 +19,22 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
 def get_database_url() -> str:
-    """Read DATABASE_URL from the environment.
+    """Read and guard DATABASE_URL from the environment.
 
     Raises RuntimeError if not set — requires explicit configuration via
     /etc/notifier/.env (production) or repo .env (development).
+
+    Raises ProductionDatabaseError if the URL names the production database
+    without an explicit NOTIFIER_ALLOW_PROD_DB=1 opt-in. This is the single
+    chokepoint every connection path crosses; see src/core/db_safety.py.
     """
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError(
             "DATABASE_URL environment variable is not set. "
-            "Load env: export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)"
+            "Load env: set -a; . /etc/notifier/.env; . .env; set +a"
         )
+    assert_safe_database_url(url)
     return url
 
 

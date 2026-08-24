@@ -18,12 +18,14 @@ sudo chmod 640 /etc/notifier/.env
 sudo -u postgres psql -c "CREATE USER notifier WITH PASSWORD 'notifier';"
 sudo -u postgres psql -c "CREATE DATABASE notifier OWNER notifier;"
 sudo -u postgres psql -c "CREATE DATABASE notifier_test OWNER notifier;"
+sudo -u postgres psql -c "CREATE DATABASE notifier_dev OWNER notifier;"
 
 # Install dependencies + apply migrations
 cd /home/exedev/notifier
 uv sync
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 uv run alembic upgrade head
+DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head   # dev DB, if configured
 
 # Install systemd unit
 sudo cp deploy/notifier.service /etc/systemd/system/
@@ -31,14 +33,26 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now notifier
 ```
 
+## Production database opt-in
+
+`deploy/notifier.service` carries `Environment=NOTIFIER_ALLOW_PROD_DB=1`. This
+is what lets the live service open the production database past the guard in
+`src/core/db_safety.py`. **Keep it in the unit.** Both `EnvironmentFile=`
+paths on that unit — `/etc/notifier/.env` and the repo `.env` — are sourced by
+humans and agents in ordinary shells; a flag placed in either would be
+inherited by every one of them and would re-open the hole the guard closes
+(issue #22).
+
 ## Routine ops
 
 ```bash
 # Restart after code merge
 sudo systemctl restart notifier
 
-# Apply pending migrations then restart
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+# Apply pending migrations then restart. alembic/env.py reads DATABASE_URL
+# directly and is deliberately exempt from the db_safety guard — production is
+# the correct target here.
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 uv run alembic upgrade head && sudo systemctl restart notifier
 
 # Logs

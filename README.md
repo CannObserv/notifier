@@ -7,11 +7,18 @@ Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templa
 ```bash
 uv sync
 uv run pre-commit install   # once per clone — gates commits on ruff check + format
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+
+# Load secrets, then apply migrations. This leaves DATABASE_URL pointing at
+# production, which is what alembic wants here — main is the deployed code.
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 uv run alembic upgrade head
-uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
+
+# Dev server: guarded, port 9001, runs against DEV_DATABASE_URL (notifier_dev)
+./scripts/dev_server.sh
 ```
 
-Live service runs on port 9000 via systemd; dev server uses 9001.
+Live service runs on port 9000 via systemd; dev server uses 9001. Never
+hand-run uvicorn — `scripts/dev_server.sh` exists because the old recipe
+pointed the dev server at the production database (issue #22).
 
 See `AGENTS.md` for conventions, `docs/ARCHITECTURE.md` for the per-module layout, and `docs/COMMANDS.md` for the full command reference.

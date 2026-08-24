@@ -15,14 +15,30 @@ Two env files, loaded in order:
 # Production secrets (DATABASE_URL, NOTIFIER_SECRET_KEY) — persistent, survives repo resets
 /etc/notifier/.env
 
-# Dev/agent secrets (GH_TOKEN, TEST_DATABASE_URL) — repo root, git-ignored
+# Dev/agent secrets (GH_TOKEN, TEST_DATABASE_URL, DEV_DATABASE_URL) — repo root, git-ignored
 .env
 
-# Load both for shell commands
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+# Load both for shell commands. Source them; do not word-split through xargs,
+# which corrupts values containing spaces or quotes.
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 ```
 
 The systemd service loads both automatically (see `deploy/notifier.service`).
+
+**Loading these leaves `DATABASE_URL` pointing at production.** That is the
+intended target for `alembic upgrade head` — on this single-VM setup `main`
+*is* the deployed code — and wrong for everything else:
+
+| Want | Use | Database |
+|---|---|---|
+| Dev server | `./scripts/dev_server.sh` | `notifier_dev` |
+| Tests | `uv run pytest` | `notifier_test` (pinned by `tests/conftest.py`) |
+| Migrations | `uv run alembic upgrade head` | production, deliberately |
+
+`src/core/db_safety.py` refuses any database whose name does not end in
+`_test` or `_dev`. The opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in
+`deploy/notifier.service` and must never be added to an env file — every
+process that sources the file would inherit it.
 
 ## Service Management
 
@@ -45,9 +61,18 @@ sudo systemctl daemon-reload && sudo systemctl restart notifier
 ## Development
 
 ```bash
-# Dev server — use port 9001 so the systemd service stays up
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
-uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9001 --reload --log-config src/core/log_config.json
+# Dev server — port 9001 so the systemd service stays up. Loads secrets, swaps
+# DATABASE_URL for DEV_DATABASE_URL, runs the production guard, then starts
+# uvicorn. Never hand-run uvicorn; see issue #22.
+./scripts/dev_server.sh
+```
+
+First-time setup of the dev database:
+
+```bash
+sudo -u postgres psql -c "CREATE DATABASE notifier_dev OWNER notifier;"
+echo 'DEV_DATABASE_URL=postgresql+asyncpg://notifier:PASSWORD@localhost:5432/notifier_dev' >> .env
+DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head
 ```
 
 ## Migrations
@@ -109,7 +134,7 @@ the schema on teardown. Every subprocess receives `DATABASE_URL=$TEST_DATABASE_U
 so production cannot be polluted.
 
 ```bash
-export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 cd clients/python && uv run pytest -m integration
 ```
 

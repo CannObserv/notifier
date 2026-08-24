@@ -1,8 +1,17 @@
 """One-off helper to create a tenant + API key.
 
-Usage:
-    export $(cat /etc/notifier/.env .env 2>/dev/null | xargs)
-    uv run python scripts/seed_tenant.py <tenant_name> <key_label>
+Usage (dev database):
+    set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+    DATABASE_URL="$DEV_DATABASE_URL" uv run python scripts/seed_tenant.py <tenant_name> <key_label>
+
+Usage (production — deliberate, opt-in):
+    set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+    NOTIFIER_ALLOW_PROD_DB=1 uv run python scripts/seed_tenant.py <tenant_name> <key_label>
+
+This script opens a connection through ``src.core.database``, so the guard in
+``src/core/db_safety.py`` applies: seeding production requires the explicit
+opt-in above. Pass it on the command line for the single invocation — never
+add it to an env file.
 
 Prints ``tenant_id`` and the raw API key. **The raw key is shown ONCE** — store
 it in the consumer's secrets immediately. Only the SHA-256 hash is persisted.

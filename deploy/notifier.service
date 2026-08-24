@@ -13,6 +13,12 @@ ExecStartPre=+/bin/bash -c 'mkdir -p /run/notifier && chown exedev:exedev /run/n
 # Write current git SHA to a runtime env file before starting
 ExecStartPre=/bin/bash -c 'echo BUILD_ID=$(git rev-parse --short HEAD) > /run/notifier/build-id'
 
+# The production database opt-in for src/core/db_safety.py. This MUST stay in
+# the unit and never move into an EnvironmentFile below — anything in those
+# files is inherited by every shell that sources them, which would re-open the
+# hole for exactly the hand-run servers the guard targets (issue #22).
+Environment=NOTIFIER_ALLOW_PROD_DB=1
+
 # Load BUILD_ID, then system secrets, then optional repo-local overrides
 EnvironmentFile=-/run/notifier/build-id
 EnvironmentFile=/etc/notifier/.env

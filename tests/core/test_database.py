@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.core import database
+from src.core import database, db_safety
 
 
 @pytest.fixture(autouse=True)
@@ -15,13 +15,17 @@ def _reset_engine():
 
 @pytest.fixture
 def _db_url(monkeypatch):
-    """Set a syntactically valid DATABASE_URL — does not actually connect."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u@h/d")
+    """Set a syntactically valid non-production DATABASE_URL.
+
+    Does not actually connect. The ``_test`` suffix matters — the
+    db_safety guard in get_database_url() refuses production names.
+    """
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u@h/d_test")
 
 
 def test_get_database_url_reads_env(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://x@y/z")
-    assert database.get_database_url() == "postgresql+asyncpg://x@y/z"
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://x@y/z_test")
+    assert database.get_database_url() == "postgresql+asyncpg://x@y/z_test"
 
 
 def test_get_database_url_raises_when_unset(monkeypatch):
@@ -56,3 +60,17 @@ def test_reset_engine_releases_session_factory(_db_url):
     database.reset_engine()
     f2 = database.get_session_factory()
     assert f1 is not f2
+
+
+def test_get_database_url_refuses_production(monkeypatch):
+    """The guard sits on the one chokepoint every connection path crosses."""
+    monkeypatch.delenv(db_safety.ALLOW_PROD_ENV_VAR, raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u@h/notifier")
+    with pytest.raises(db_safety.ProductionDatabaseError):
+        database.get_database_url()
+
+
+def test_get_database_url_allows_production_with_flag(monkeypatch):
+    monkeypatch.setenv(db_safety.ALLOW_PROD_ENV_VAR, "1")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u@h/notifier")
+    assert database.get_database_url() == "postgresql+asyncpg://u@h/notifier"
