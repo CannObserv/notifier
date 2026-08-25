@@ -13,7 +13,7 @@ src/api/routes/channels.py   — CRUD + test for channels; Apprise URL encrypted
 src/api/routes/dispatch.py   — `POST /dispatch` (renders, validates, dispatches, logs); `GET /dispatch/{id}`; `GET /dispatch?event_type=&since=&limit=` log query
 src/api/routes/preview.py    — Stateless `POST /preview` that takes inline templates + variables, returns rendered title/body or per-section error
 src/api/routes/apprise_plugins.py — `GET /apprise/plugins`, `GET /apprise/plugins/{schema}`, `POST /apprise/plugins/{schema}/assemble`
-src/api/routes/health.py     — `/health` (liveness) and `/ready` (DB) — root-level, not versioned
+src/api/routes/health.py     — `/health` (liveness) and `/ready` (DB) — root-level, not versioned. `_resolve_build_id()` reports the serving commit, treating a blank `BUILD_ID` as unstamped: the units write it via `echo BUILD_ID=$(git rev-parse …)`, which succeeds with an empty value when git fails
 src/api/deps.py              — FastAPI deps: `get_db_session`, `require_api_key` (X-API-Key → tenant_id as `str`; 403 absent, 401 invalid)
 src/api/schemas/types.py     — Shared Pydantic field types: `ULIDStr` (26-char Crockford base32, normalised to uppercase; use on all `*_id` path params and request-body ID fields; invalid input → 422 with field path)
 src/core/                    — Shared domain logic

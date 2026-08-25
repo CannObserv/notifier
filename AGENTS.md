@@ -143,7 +143,7 @@ Currently defined:
 - `NOTIFIER_DEV_RELOAD` — `0` disables uvicorn's reloader in `scripts/dev_server.sh`; set in `deploy/notifier-dev.service` only, defaults to on for a hand-run server
 - `DEV_TENANT_API_KEY` — API key for the `dev` tenant in `notifier_dev` (in `.env`); marked `development`, so production refuses it
 - `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only** to let a process open the production database; see `src/core/db_safety.py`
-- `BUILD_ID` — (optional) git SHA for observability; defaults to `"dev"`
+- `BUILD_ID` — (optional) git SHA reported by `/health`; blank or unset both fall back to `"dev"`. Each systemd unit stamps its own file (`/run/notifier/build-id`, `/run/notifier/build-id-dev`) from `git rev-parse` at start
 - `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 
