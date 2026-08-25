@@ -64,6 +64,24 @@ def is_non_production(name: str) -> bool:
     return name.endswith(NON_PRODUCTION_SUFFIXES)
 
 
+def serving_production() -> bool:
+    """True when this process is serving the production database.
+
+    Fails safe: an unset or unparseable ``DATABASE_URL`` is treated as
+    production, so a misconfigured process refuses development credentials
+    rather than accepting them. Deliberately ignores
+    ``NOTIFIER_ALLOW_PROD_DB`` — that flag permits *opening* production, it
+    does not reclassify a dev database as one.
+    """
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return True
+    try:
+        return not is_non_production(database_name(url))
+    except ValueError:
+        return True
+
+
 def assert_safe_database_url(url: str) -> None:
     """Raise :class:`ProductionDatabaseError` unless *url* is safe to open.
 

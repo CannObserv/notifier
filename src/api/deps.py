@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_session_factory
+from src.core.db_safety import serving_production
 from src.core.models.api_key import ApiKey
 
 
@@ -28,8 +29,10 @@ async def require_api_key(
 ) -> str:
     """Validate X-API-Key header; return ``tenant_id`` on success.
 
-    Raises 403 when the header is absent and 401 when the key is invalid or
-    not found. Updates ``last_used_at`` on each successful authentication.
+    Raises 403 when the header is absent, 401 when the key is invalid or not
+    found, and 403 when a ``development`` key is presented to a production
+    deployment. Updates ``last_used_at`` on each successful authentication —
+    a refused key is never stamped, because it was never used.
     """
     if raw_key is None:
         raise HTTPException(status_code=403, detail="Not authenticated")
@@ -38,6 +41,15 @@ async def require_api_key(
     api_key = result.scalar_one_or_none()
     if api_key is None:
         raise HTTPException(status_code=401, detail="Invalid API key")
+    if api_key.environment != "production" and serving_production():
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"This is a production deployment; the supplied key is marked "
+                f"'{api_key.environment}'. Point non-production traffic at a "
+                f"non-production notifier."
+            ),
+        )
     api_key.last_used_at = datetime.now(UTC)
     await session.commit()
     return str(api_key.tenant_id)
