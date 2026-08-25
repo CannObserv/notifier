@@ -79,7 +79,30 @@ asyncio.run(main(sys.argv[1]))
 """
 
 
+#: The DATABASE_URL the uvicorn subprocess is currently serving, or None when
+#: no server is up. _run_schema refuses to rebuild *that* database; any other
+#: one is fair game, which is what the error-path tests exercise.
+_served_database_url: str | None = None
+
+
 def _run_schema(action: Literal["create_all", "drop_all"], env: dict[str, str]) -> None:
+    """Build or tear down the schema in ``env``'s DATABASE_URL.
+
+    Refuses to run while the server fixture is up. A ``drop_all`` mid-session
+    wipes the tables *and* the seeded tenant out from under the running
+    subprocess, and the only symptom is an unrelated test getting a 500 three
+    steps later (issue #23). Failing here names the cause instead.
+
+    The session fixtures are unaffected: ``_heal_test_db`` runs before the
+    server starts, and ``_test_db_schema``'s teardown runs after it stops,
+    because ``notifier_url`` depends on it and teardown is reverse order.
+    """
+    if _served_database_url is not None and env.get("DATABASE_URL") == _served_database_url:
+        raise RuntimeError(
+            f"refusing to run schema {action} while the server is running — "
+            f"it serves this same database, and rebuilding it mid-session "
+            f"destroys the schema and the seeded tenant (issue #23)"
+        )
     try:
         subprocess.run(
             ["uv", "run", "python", "-c", _SCHEMA_SCRIPT, action],
@@ -134,6 +157,7 @@ def notifier_url(_server_env, _test_db_schema):
     error messages on early exit or readiness timeout, without risking the
     pipe-buffer deadlock that ``stderr=PIPE`` would create.
     """
+    global _served_database_url
     port = _free_port()
     stderr_fd, stderr_path = tempfile.mkstemp(prefix="uvicorn-", suffix=".log")
     try:
@@ -181,7 +205,13 @@ def notifier_url(_server_env, _test_db_schema):
                     f"uvicorn did not become ready within {UVICORN_READY_TIMEOUT_SECONDS}s\n"
                     f"--- stderr ---\n{_read_stderr(stderr_path)}"
                 )
-            yield base
+            _served_database_url = _server_env["DATABASE_URL"]
+            try:
+                yield base
+            finally:
+                # Cleared before _test_db_schema's teardown drop_all, which
+                # runs after this fixture because notifier_url depends on it.
+                _served_database_url = None
         finally:
             proc.terminate()
             try:

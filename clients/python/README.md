@@ -133,6 +133,12 @@ port, seeds a tenant, and drops the schema on session teardown. Every
 subprocess receives `DATABASE_URL=$TEST_DATABASE_URL`, so production cannot
 be polluted even if `/etc/notifier/.env` is exported into the parent shell.
 
+While that server is up, `_run_schema` refuses to rebuild the database it is
+serving. Dropping it mid-session wipes the schema *and* the seeded tenant out
+from under the subprocess, and the only symptom is an unrelated test getting a
+500 several steps later (issue #23). Error-path tests point at a different
+database, which the guard allows.
+
 ```bash
 . ../../scripts/load_env.sh
 uv run pytest -m integration
