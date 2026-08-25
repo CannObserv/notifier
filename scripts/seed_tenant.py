@@ -1,12 +1,12 @@
 """One-off helper to create a tenant + API key.
 
-Usage (dev database):
-    set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+Usage (dev database — served by notifier-dev.service on :9001):
+    . scripts/load_env.sh
     DATABASE_URL="$DEV_DATABASE_URL" \
         uv run python scripts/seed_tenant.py <name> <label> [environment]
 
 Usage (production — deliberate, opt-in):
-    set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+    . scripts/load_env.sh
     NOTIFIER_ALLOW_PROD_DB=1 \
         uv run python scripts/seed_tenant.py <name> <label> [environment]
 

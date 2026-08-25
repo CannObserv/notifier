@@ -53,10 +53,20 @@ Per-module inventory: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 | Service | Framework | Port | Managed by |
 |---|---|---|---|
-| API (live) | FastAPI | 9000 | `systemctl` (`notifier.service`) |
-| API (dev) | FastAPI | 9001 | manual uvicorn |
+| API (live) | FastAPI | 9000 | `systemctl` (`notifier.service`), production DB |
+| API (dev) | FastAPI | 9001 | `systemctl` (`notifier-dev.service`), `notifier_dev` |
 
-The exe.dev proxy transparently forwards ports 3000–9999. Dev server on 9001 is accessible at `https://notifier.exe.xyz:9001/`.
+Both ports are always-on. **9001 is the development endpoint consumers point
+at** — it accepts `development`-marked API keys, which 9000 refuses (#24).
+`./scripts/dev_server.sh` is still the way to run a worktree or branch by hand;
+stop the dev unit first so the two do not fight over the port.
+
+Co-located consumers reach the dev endpoint at `http://localhost:9001`. The
+exe.dev proxy also forwards ports 3000–9999 as
+`https://<vmname>.exe.xyz:<port>/` — **the VM is named `watcher`**, not
+`notifier` (notifier is the co-located service, not the host), so the browser
+URL is `https://watcher.exe.xyz:9001/`. The proxy is not reachable from inside
+the VM; test locally with `curl http://127.0.0.1:9001/health`.
 
 Watcher (the first consumer) co-locates on this VM during v0; both services run side by side. Watcher's API on port 8000, notifier's on 9000.
 
@@ -66,19 +76,30 @@ Watcher (the first consumer) co-locates on this VM during v0; both services run 
 
 | Situation | Action |
 |---|---|
-| Code committed to main | `sudo systemctl restart notifier` |
-| Testing a worktree/branch | `./scripts/dev_server.sh` (port 9001, dev DB) |
+| Code committed to main | `sudo systemctl restart notifier notifier-dev` |
+| Testing a worktree/branch | `sudo systemctl stop notifier-dev` then `./scripts/dev_server.sh` |
 | Debugging the live service | `sudo journalctl -u notifier -f` |
-| After editing `deploy/notifier.service` | `sudo systemctl daemon-reload && sudo systemctl restart notifier` |
-| After DB model changes | `uv run alembic upgrade head` then restart |
+| Debugging the dev endpoint | `sudo journalctl -u notifier-dev -f` |
+| After editing either unit in `deploy/` | `sudo systemctl daemon-reload && sudo systemctl restart notifier notifier-dev` |
+| After DB model changes | `uv run alembic upgrade head`, then the same against `DEV_DATABASE_URL`, then restart both |
 
-**Dev server workflow:** Use the launch script. It loads secrets, swaps
-`DATABASE_URL` for `DEV_DATABASE_URL`, runs the production-database guard, and
-only then starts uvicorn on 9001 so the live service stays up:
+**Dev server workflow:** One launch path serves both the unit and the hand-run
+case. `scripts/dev_server.sh` loads secrets, swaps `DATABASE_URL` for
+`DEV_DATABASE_URL`, runs the production-database guard, checks the dev
+database is migrated, and only then starts uvicorn on 9001 so the live service
+stays up:
 
 ```bash
-./scripts/dev_server.sh
+sudo systemctl stop notifier-dev   # the unit owns 9001; take it first
+./scripts/dev_server.sh            # foreground, --reload on
+sudo systemctl start notifier-dev  # hand it back
 ```
+
+`deploy/notifier-dev.service` runs that same script with
+`NOTIFIER_DEV_RELOAD=0`. Under systemd the reloader is wrong twice over: an
+edit mid-request drops a consumer's connection, and a syntax error on `main`
+leaves the reloader wedged and *running*, so `Restart=on-failure` never fires
+and the endpoint is silently dead.
 
 Never hand-run uvicorn. The old recipe sourced `/etc/notifier/.env` — which
 sets `DATABASE_URL` to **production** — so the "dev" server on 9001 shared one
@@ -118,7 +139,8 @@ Currently defined:
 - `PROCRASTINATE_DATABASE_URL` — (optional) libpq-style DSN for procrastinate; reserved for future async dispatch worker. **Not covered by the `db_safety` guard** — it opens a database by a path that crosses no chokepoint. Route it through `assert_safe_database_url` when the worker lands.
 - `GH_TOKEN` — GitHub personal access token (in `.env`)
 - `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
-- `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it
+- `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it, so `notifier-dev.service` does too
+- `NOTIFIER_DEV_RELOAD` — `0` disables uvicorn's reloader in `scripts/dev_server.sh`; set in `deploy/notifier-dev.service` only, defaults to on for a hand-run server
 - `DEV_TENANT_API_KEY` — API key for the `dev` tenant in `notifier_dev` (in `.env`); marked `development`, so production refuses it
 - `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only** to let a process open the production database; see `src/core/db_safety.py`
 - `BUILD_ID` — (optional) git SHA for observability; defaults to `"dev"`
@@ -158,8 +180,9 @@ uv run pre-commit install            # once per clone — installs it as a git h
 uv run alembic upgrade head          # apply all migrations
 uv run alembic revision --autogenerate -m "description"  # generate new migration
 
-# FastAPI dev server (port 9001, dev DB, guarded — never hand-run uvicorn)
-./scripts/dev_server.sh
+# FastAPI dev server by hand (port 9001, dev DB, guarded — never hand-run
+# uvicorn). Stop notifier-dev.service first; it holds the port.
+sudo systemctl stop notifier-dev && ./scripts/dev_server.sh
 ```
 
 Full reference: `docs/COMMANDS.md`

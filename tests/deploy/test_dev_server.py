@@ -116,3 +116,57 @@ def test_dev_server_refuses_when_no_dev_database_is_configured():
     )
     assert result.returncode != 0
     assert "DEV_DATABASE_URL" in result.stdout + result.stderr
+
+
+def _fake_uv_path(tmp_path):
+    """A `uv` that echoes its arguments instead of running anything.
+
+    Lets the launch path be exercised end to end — guard call, migration
+    check, final uvicorn line — with no database and no server. The migration
+    check only asks whether `alembic current` printed anything, so echoing
+    satisfies it.
+    """
+    fake = tmp_path / "uv"
+    fake.write_text('#!/usr/bin/env bash\necho "uv $*"\n')
+    fake.chmod(0o755)
+    return tmp_path
+
+
+def _run_dev_server(tmp_path, **overrides):
+    env = {
+        **os.environ,
+        "NOTIFIER_DEV_SERVER_SKIP_ENV_FILES": "1",
+        "DEV_DATABASE_URL": "postgresql+asyncpg://u@h/notifier_dev",
+        "NOTIFIER_SECRET_KEY": "unused",
+        "PATH": f"{_fake_uv_path(tmp_path)}:{os.environ['PATH']}",
+        **overrides,
+    }
+    env.pop("NOTIFIER_ALLOW_PROD_DB", None)
+    result = subprocess.run(
+        [str(DEV_SERVER)], cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=60
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    uvicorn_line = next(line for line in result.stdout.splitlines() if "uvicorn" in line)
+    return uvicorn_line
+
+
+def test_dev_server_reloads_by_default(tmp_path):
+    """The hand-run server is an editing loop; keep --reload there."""
+    assert "--reload" in _run_dev_server(tmp_path)
+
+
+def test_dev_server_reload_can_be_switched_off(tmp_path):
+    """deploy/notifier-dev.service sets this (#24).
+
+    Under systemd the reloader is wrong twice over: an edit mid-request drops
+    a consumer's connection, and a syntax error on main leaves the reloader
+    wedged and *running*, so Restart=on-failure never fires and the endpoint
+    is silently dead.
+    """
+    assert "--reload" not in _run_dev_server(tmp_path, NOTIFIER_DEV_RELOAD="0")
+
+
+def test_dev_server_still_guards_when_the_reloader_is_off(tmp_path):
+    """The toggle must not become a way around the checks."""
+    line = _run_dev_server(tmp_path, NOTIFIER_DEV_RELOAD="0")
+    assert "--port 9001" in line

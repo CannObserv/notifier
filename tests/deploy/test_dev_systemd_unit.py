@@ -1,0 +1,87 @@
+"""Drift tests for deploy/notifier-dev.service — the persistent dev endpoint.
+
+The dev unit is the mirror image of the production one. `notifier.service`
+must carry the production opt-in; this unit must never carry it. Watcher's
+non-production processes point here (watcher#278 step 2), and the whole value
+of a `development`-marked key is that it cannot reach production — a unit that
+inherited the opt-in would quietly undo that.
+
+It also must not spell out its own uvicorn line. `scripts/dev_server.sh`
+already unsets the opt-in, swaps in DEV_DATABASE_URL, delegates the URL check
+to src.core.db_safety, and refuses an unmigrated database (#23). A second
+ExecStart spelling is a second code path that can drift out from under all
+four checks.
+"""
+
+from pathlib import Path
+
+from src.core import db_safety
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEV_UNIT = REPO_ROOT / "deploy" / "notifier-dev.service"
+PROD_UNIT = REPO_ROOT / "deploy" / "notifier.service"
+
+
+def directives(unit: Path) -> str:
+    """The lines systemd acts on, with comments and blanks dropped.
+
+    The absence checks below are about what the unit *does*, and this unit
+    explains at length why it omits the production opt-in and why ExecStart is
+    not a uvicorn line. Matching raw text would make those comments fail the
+    tests they document.
+    """
+    return "\n".join(
+        line
+        for line in unit.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+
+
+def test_dev_unit_exists():
+    assert DEV_UNIT.is_file()
+
+
+def test_dev_unit_never_carries_the_production_opt_in():
+    """The mirror of test_unit_sets_the_production_opt_in_flag."""
+    assert db_safety.ALLOW_PROD_ENV_VAR not in directives(DEV_UNIT), (
+        "the production opt-in belongs to notifier.service alone; on this "
+        "unit it would let the dev endpoint open the production database"
+    )
+
+
+def test_dev_unit_launches_through_the_guarded_script():
+    """Not a hand-rolled uvicorn line — that bypasses every guard in #22/#23."""
+    body = directives(DEV_UNIT)
+    assert "scripts/dev_server.sh" in body
+    assert "uvicorn" not in body
+
+
+def test_dev_unit_does_not_pin_a_database_url():
+    """DATABASE_URL is derived from DEV_DATABASE_URL by the script, once."""
+    assert "Environment=DATABASE_URL" not in directives(DEV_UNIT)
+
+
+def test_dev_unit_disables_the_reloader():
+    """A wedged reloader keeps running, so Restart=on-failure never fires."""
+    assert "Environment=NOTIFIER_DEV_RELOAD=0" in directives(DEV_UNIT)
+
+
+def test_dev_unit_stays_off_the_production_port():
+    assert "9000" not in directives(DEV_UNIT)
+
+
+def test_dev_unit_bounds_its_restart_loop():
+    """An unmigrated dev DB exits non-zero by design; don't loop on it forever."""
+    body = directives(DEV_UNIT)
+    assert "StartLimitBurst=" in body
+    assert "Restart=on-failure" in body
+
+
+def test_dev_unit_starts_at_boot():
+    """Persistent means persistent — it must survive a VM reboot (#24)."""
+    assert "WantedBy=multi-user.target" in directives(DEV_UNIT)
+
+
+def test_the_two_units_do_not_collide_on_a_port():
+    assert "--port 9000" in directives(PROD_UNIT)
+    assert "9001" not in directives(PROD_UNIT)

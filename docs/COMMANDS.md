@@ -31,7 +31,8 @@ intended target for `alembic upgrade head` — on this single-VM setup `main`
 
 | Want | Use | Database |
 |---|---|---|
-| Dev server | `./scripts/dev_server.sh` | `notifier_dev` |
+| Dev endpoint (:9001) | `sudo systemctl restart notifier-dev` | `notifier_dev` |
+| Dev server by hand | `./scripts/dev_server.sh` | `notifier_dev` |
 | Tests | `uv run pytest` | `notifier_test` (pinned by `tests/conftest.py`) |
 | Migrations | `uv run alembic upgrade head` | production, deliberately |
 
@@ -54,17 +55,41 @@ sudo systemctl status notifier
 # Follow logs
 sudo journalctl -u notifier -f
 
-# Reload systemd after editing deploy/notifier.service
-sudo systemctl daemon-reload && sudo systemctl restart notifier
+# Reload systemd after editing either unit in deploy/
+sudo systemctl daemon-reload && sudo systemctl restart notifier notifier-dev
+```
+
+The dev endpoint on 9001 is a second unit, `notifier-dev.service`, serving
+`notifier_dev`. It is the base URL consumers point their non-production
+processes at (#24) — 9000 refuses `development`-marked keys.
+
+```bash
+sudo systemctl restart notifier-dev
+sudo systemctl status notifier-dev
+sudo journalctl -u notifier-dev -f
+curl http://127.0.0.1:9001/health
+```
+
+It launches `scripts/dev_server.sh`, so it inherits every guard that script
+carries: the production opt-in is unset, `DATABASE_URL` comes from
+`DEV_DATABASE_URL`, the URL check is `src.core.db_safety`, and an unmigrated
+dev database refuses to start rather than 500 on every request (#23). If the
+unit will not come up, that last one is the usual reason — the journal names
+it:
+
+```bash
+DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head
 ```
 
 ## Development
 
 ```bash
-# Dev server — port 9001 so the systemd service stays up. Loads secrets, swaps
-# DATABASE_URL for DEV_DATABASE_URL, runs the production guard, then starts
-# uvicorn. Never hand-run uvicorn; see issue #22.
+# Dev server by hand — same script the notifier-dev unit runs, with --reload
+# on. The unit holds port 9001, so stop it first and hand it back after.
+# Never hand-run uvicorn; see issue #22.
+sudo systemctl stop notifier-dev
 ./scripts/dev_server.sh
+sudo systemctl start notifier-dev
 ```
 
 First-time setup of the dev database:
@@ -151,7 +176,7 @@ database guard can see that vector (issue #22, finding 3).
 ```bash
 . scripts/load_env.sh
 
-# Dev tenant, on the dev database
+# Dev tenant, on the dev database (served by notifier-dev.service on :9001)
 DATABASE_URL="$DEV_DATABASE_URL" \
   uv run python scripts/seed_tenant.py acme acme-dev development
 
@@ -164,4 +189,21 @@ Prints `tenant_id`, `raw_key`, and `environment`. **The raw key is shown
 once** — only its SHA-256 hash is stored.
 
 This VM already has a `dev` tenant with a `development` key in `notifier_dev`;
-the key is in the repo `.env` as `DEV_TENANT_API_KEY`.
+the key is in the repo `.env` as `DEV_TENANT_API_KEY`. It also has a `watcher`
+tenant there, minted for watcher's non-production processes (watcher#278 step
+2); that key lives in watcher's own `.env` as `WATCHER_DEV_NOTIFIER_API_KEY`,
+not in this repo.
+
+**Hand a consumer both halves, never just the key:** base URL
+`http://localhost:9001` for anything co-located on this VM, and a key minted
+`development`. The pair only works together — a development key against
+`http://localhost:9000` is rejected, which is the point.
+
+### Dev channels are sink channels by construction
+
+`notifier_dev` is a separate database from `notifier`, so the production Slack
+and Mailgun channel rows do not exist in it. A dev dispatch has nothing real
+to reach unless someone deliberately seeds a live Apprise URL into the dev
+database. Do not "helpfully" copy production channels across — that recreates
+the exact failure watcher#278 documents, where ~1289 fixture notifications
+were delivered to real recipients.

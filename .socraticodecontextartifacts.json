@@ -22,8 +22,8 @@
     },
     {
       "name": "systemd-unit",
-      "path": "./deploy/notifier.service",
-      "description": "systemd unit file for the notifier service \u2014 User, ExecStart command, EnvironmentFile sources, restart policy. Authoritative for production runtime config."
+      "path": "./deploy",
+      "description": "systemd units for the notifier service \u2014 notifier.service (production, port 9000) and notifier-dev.service (dev endpoint, port 9001, notifier_dev). User, ExecStart command, EnvironmentFile sources, restart policy, and which unit carries the production-database opt-in. Authoritative for runtime config."
     }
   ]
 }

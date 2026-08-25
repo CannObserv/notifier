@@ -62,8 +62,18 @@ MSG
   exit 1
 fi
 
+# --reload is right for a hand-run server and wrong for a service. Under
+# systemd an edit mid-request drops a consumer's connection, and a syntax
+# error on main leaves the reloader wedged and *running* — so
+# Restart=on-failure never fires and the endpoint is silently dead.
+# deploy/notifier-dev.service sets NOTIFIER_DEV_RELOAD=0 (issue #24).
+reload_args=()
+if [[ "${NOTIFIER_DEV_RELOAD:-1}" == "1" ]]; then
+  reload_args=(--reload)
+fi
+
 exec uv run uvicorn src.api.main:app \
   --host 0.0.0.0 \
   --port 9001 \
-  --reload \
+  "${reload_args[@]}" \
   --log-config src/core/log_config.json

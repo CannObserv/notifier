@@ -1,0 +1,39 @@
+[Unit]
+Description=Notifier (dev) — non-production API on port 9001
+After=network.target postgresql.service
+
+# The launch script exits non-zero by design when notifier_dev is unreachable
+# or unmigrated (#23). Without a bound that becomes a 5-second restart loop in
+# the journal forever; five tries then stop, so the failure is visible.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=exedev
+WorkingDirectory=/home/exedev/notifier
+
+# Deliberately NO NOTIFIER_ALLOW_PROD_DB here. The production opt-in belongs
+# to notifier.service alone. Watcher's non-production processes point at this
+# endpoint (watcher#278 step 2); the entire value of a development-marked key
+# is that it cannot reach production, and inheriting the opt-in would undo it.
+# tests/deploy/test_dev_systemd_unit.py asserts this stays absent.
+Environment=NOTIFIER_DEV_RELOAD=0
+
+# No EnvironmentFile= lines: the script sources /etc/notifier/.env and the
+# repo .env itself, then overrides DATABASE_URL with DEV_DATABASE_URL. Loading
+# them here too would just re-import the production DATABASE_URL one layer
+# earlier for no gain.
+#
+# ExecStart is the guarded script, never a hand-rolled uvicorn line. The
+# script unsets the production opt-in, swaps in DEV_DATABASE_URL, delegates
+# the URL check to src.core.db_safety, and refuses an unmigrated database.
+# A second uvicorn spelling here would be a second code path that can drift
+# out from under all four checks (issues #22, #23, #24).
+ExecStart=/home/exedev/notifier/scripts/dev_server.sh
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
