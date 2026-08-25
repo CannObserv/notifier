@@ -41,6 +41,10 @@ async def require_api_key(
     api_key = result.scalar_one_or_none()
     if api_key is None:
         raise HTTPException(status_code=401, detail="Invalid API key")
+    # serving_production() classifies from DATABASE_URL in the environment,
+    # while `session` comes from the engine memoized at first use. Today those
+    # can only diverge under monkeypatch; if in-process URL swapping ever
+    # becomes real, classify from the engine's URL instead.
     if api_key.environment != "production" and serving_production():
         raise HTTPException(
             status_code=403,

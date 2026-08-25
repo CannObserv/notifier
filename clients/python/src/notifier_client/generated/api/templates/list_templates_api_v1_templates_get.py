@@ -5,6 +5,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.auth_error_detail import AuthErrorDetail
 from ...models.template_out import TemplateOut
 from ...types import Response
 
@@ -21,7 +22,7 @@ def _get_kwargs() -> dict[str, Any]:
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> list[TemplateOut] | None:
+) -> AuthErrorDetail | list[TemplateOut] | None:
     if response.status_code == 200:
         response_200 = []
         _response_200 = response.json()
@@ -32,6 +33,16 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 401:
+        response_401 = AuthErrorDetail.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 403:
+        response_403 = AuthErrorDetail.from_dict(response.json())
+
+        return response_403
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -40,7 +51,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[list[TemplateOut]]:
+) -> Response[AuthErrorDetail | list[TemplateOut]]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -52,7 +63,7 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient,
-) -> Response[list[TemplateOut]]:
+) -> Response[AuthErrorDetail | list[TemplateOut]]:
     """List Templates
 
      List all templates owned by the calling tenant.
@@ -62,7 +73,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[list[TemplateOut]]
+        Response[AuthErrorDetail | list[TemplateOut]]
     """
 
     kwargs = _get_kwargs()
@@ -77,7 +88,7 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient,
-) -> list[TemplateOut] | None:
+) -> AuthErrorDetail | list[TemplateOut] | None:
     """List Templates
 
      List all templates owned by the calling tenant.
@@ -87,7 +98,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        list[TemplateOut]
+        AuthErrorDetail | list[TemplateOut]
     """
 
     return sync_detailed(
@@ -98,7 +109,7 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
-) -> Response[list[TemplateOut]]:
+) -> Response[AuthErrorDetail | list[TemplateOut]]:
     """List Templates
 
      List all templates owned by the calling tenant.
@@ -108,7 +119,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[list[TemplateOut]]
+        Response[AuthErrorDetail | list[TemplateOut]]
     """
 
     kwargs = _get_kwargs()
@@ -121,7 +132,7 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient,
-) -> list[TemplateOut] | None:
+) -> AuthErrorDetail | list[TemplateOut] | None:
     """List Templates
 
      List all templates owned by the calling tenant.
@@ -131,7 +142,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        list[TemplateOut]
+        AuthErrorDetail | list[TemplateOut]
     """
 
     return (

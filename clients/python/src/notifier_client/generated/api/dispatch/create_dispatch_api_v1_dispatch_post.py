@@ -5,6 +5,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.auth_error_detail import AuthErrorDetail
 from ...models.dispatch_out import DispatchOut
 from ...models.dispatch_request import DispatchRequest
 from ...models.http_validation_error import HTTPValidationError
@@ -32,11 +33,21 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> DispatchOut | HTTPValidationError | None:
+) -> AuthErrorDetail | DispatchOut | HTTPValidationError | None:
     if response.status_code == 202:
         response_202 = DispatchOut.from_dict(response.json())
 
         return response_202
+
+    if response.status_code == 401:
+        response_401 = AuthErrorDetail.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 403:
+        response_403 = AuthErrorDetail.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
@@ -51,7 +62,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[DispatchOut | HTTPValidationError]:
+) -> Response[AuthErrorDetail | DispatchOut | HTTPValidationError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -64,7 +75,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient,
     body: DispatchRequest,
-) -> Response[DispatchOut | HTTPValidationError]:
+) -> Response[AuthErrorDetail | DispatchOut | HTTPValidationError]:
     """Create Dispatch
 
      Render, validate, dispatch, and log. Returns 202 with the dispatch record.
@@ -81,7 +92,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[DispatchOut | HTTPValidationError]
+        Response[AuthErrorDetail | DispatchOut | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
@@ -99,7 +110,7 @@ def sync(
     *,
     client: AuthenticatedClient,
     body: DispatchRequest,
-) -> DispatchOut | HTTPValidationError | None:
+) -> AuthErrorDetail | DispatchOut | HTTPValidationError | None:
     """Create Dispatch
 
      Render, validate, dispatch, and log. Returns 202 with the dispatch record.
@@ -116,7 +127,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        DispatchOut | HTTPValidationError
+        AuthErrorDetail | DispatchOut | HTTPValidationError
     """
 
     return sync_detailed(
@@ -129,7 +140,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
     body: DispatchRequest,
-) -> Response[DispatchOut | HTTPValidationError]:
+) -> Response[AuthErrorDetail | DispatchOut | HTTPValidationError]:
     """Create Dispatch
 
      Render, validate, dispatch, and log. Returns 202 with the dispatch record.
@@ -146,7 +157,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[DispatchOut | HTTPValidationError]
+        Response[AuthErrorDetail | DispatchOut | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
@@ -162,7 +173,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient,
     body: DispatchRequest,
-) -> DispatchOut | HTTPValidationError | None:
+) -> AuthErrorDetail | DispatchOut | HTTPValidationError | None:
     """Create Dispatch
 
      Render, validate, dispatch, and log. Returns 202 with the dispatch record.
@@ -179,7 +190,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        DispatchOut | HTTPValidationError
+        AuthErrorDetail | DispatchOut | HTTPValidationError
     """
 
     return (

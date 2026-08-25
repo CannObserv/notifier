@@ -3,6 +3,7 @@
 from .assemble_request import AssembleRequest
 from .assemble_request_tokens import AssembleRequestTokens
 from .assemble_response import AssembleResponse
+from .auth_error_detail import AuthErrorDetail
 from .channel_create import ChannelCreate
 from .channel_out import ChannelOut
 from .channel_test_response import ChannelTestResponse
@@ -45,6 +46,7 @@ __all__ = (
     "AssembleRequest",
     "AssembleRequestTokens",
     "AssembleResponse",
+    "AuthErrorDetail",
     "ChannelCreate",
     "ChannelOut",
     "ChannelTestResponse",

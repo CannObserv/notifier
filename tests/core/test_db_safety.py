@@ -86,6 +86,20 @@ def test_unparseable_url_fails_closed(monkeypatch):
         db_safety.assert_safe_database_url("notifier_test")
 
 
+def test_missing_scheme_message_points_at_the_form_not_the_content(monkeypatch):
+    """``notifier_test`` is a non-production *name*; only the scheme is missing.
+
+    Refusing is right, but the message must not misdirect toward the URL's
+    content when the defect is its form.
+    """
+    monkeypatch.delenv(db_safety.ALLOW_PROD_ENV_VAR, raising=False)
+    with pytest.raises(db_safety.ProductionDatabaseError) as exc:
+        db_safety.assert_safe_database_url("notifier_test")
+    message = str(exc.value)
+    assert "postgresql+asyncpg://" in message
+    assert "unreadable" not in message.lower()
+
+
 def test_error_message_does_not_leak_credentials(monkeypatch):
     monkeypatch.delenv(db_safety.ALLOW_PROD_ENV_VAR, raising=False)
     with pytest.raises(db_safety.ProductionDatabaseError) as exc:

@@ -48,11 +48,9 @@ def database_name(url: str) -> str:
     Fails closed — raises :class:`ValueError` on any URL it cannot read,
     rather than returning a name the caller might treat as non-production.
     """
-    if "://" not in url:
-        raise ValueError(f"not a database URL (no scheme): {_redact(url)}")
+    if "://" not in url or not urlsplit(url).scheme:
+        raise ValueError(f"no scheme — expected postgresql+asyncpg://HOST/NAME, got {_redact(url)}")
     parts = urlsplit(url)
-    if not parts.scheme:
-        raise ValueError(f"not a database URL (no scheme): {_redact(url)}")
     name = parts.path.lstrip("/")
     if not name or "/" in name:
         raise ValueError(f"database URL has no database name: {_redact(url)}")
@@ -95,9 +93,9 @@ def assert_safe_database_url(url: str) -> None:
         name = database_name(url)
     except ValueError as exc:
         raise ProductionDatabaseError(
-            f"Refusing to open an unreadable DATABASE_URL: {exc}. "
-            f"Set {ALLOW_PROD_ENV_VAR}=1 only if this is a deliberate "
-            f"production operation."
+            f"Refusing to open DATABASE_URL: {exc}. A URL this guard cannot "
+            f"parse is treated as production. Set {ALLOW_PROD_ENV_VAR}=1 only "
+            f"if this is a deliberate production operation."
         ) from exc
     if is_non_production(name):
         return

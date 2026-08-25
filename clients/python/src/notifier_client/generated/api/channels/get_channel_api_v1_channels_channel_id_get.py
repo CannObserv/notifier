@@ -6,6 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.auth_error_detail import AuthErrorDetail
 from ...models.channel_out import ChannelOut
 from ...models.http_validation_error import HTTPValidationError
 from ...types import Response
@@ -27,11 +28,21 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ChannelOut | HTTPValidationError | None:
+) -> AuthErrorDetail | ChannelOut | HTTPValidationError | None:
     if response.status_code == 200:
         response_200 = ChannelOut.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 401:
+        response_401 = AuthErrorDetail.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 403:
+        response_403 = AuthErrorDetail.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
@@ -46,7 +57,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ChannelOut | HTTPValidationError]:
+) -> Response[AuthErrorDetail | ChannelOut | HTTPValidationError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -59,7 +70,7 @@ def sync_detailed(
     channel_id: str,
     *,
     client: AuthenticatedClient,
-) -> Response[ChannelOut | HTTPValidationError]:
+) -> Response[AuthErrorDetail | ChannelOut | HTTPValidationError]:
     """Get Channel
 
      Fetch a single channel; URL returned masked.
@@ -72,7 +83,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ChannelOut | HTTPValidationError]
+        Response[AuthErrorDetail | ChannelOut | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
@@ -90,7 +101,7 @@ def sync(
     channel_id: str,
     *,
     client: AuthenticatedClient,
-) -> ChannelOut | HTTPValidationError | None:
+) -> AuthErrorDetail | ChannelOut | HTTPValidationError | None:
     """Get Channel
 
      Fetch a single channel; URL returned masked.
@@ -103,7 +114,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ChannelOut | HTTPValidationError
+        AuthErrorDetail | ChannelOut | HTTPValidationError
     """
 
     return sync_detailed(
@@ -116,7 +127,7 @@ async def asyncio_detailed(
     channel_id: str,
     *,
     client: AuthenticatedClient,
-) -> Response[ChannelOut | HTTPValidationError]:
+) -> Response[AuthErrorDetail | ChannelOut | HTTPValidationError]:
     """Get Channel
 
      Fetch a single channel; URL returned masked.
@@ -129,7 +140,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ChannelOut | HTTPValidationError]
+        Response[AuthErrorDetail | ChannelOut | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
@@ -145,7 +156,7 @@ async def asyncio(
     channel_id: str,
     *,
     client: AuthenticatedClient,
-) -> ChannelOut | HTTPValidationError | None:
+) -> AuthErrorDetail | ChannelOut | HTTPValidationError | None:
     """Get Channel
 
      Fetch a single channel; URL returned masked.
@@ -158,7 +169,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ChannelOut | HTTPValidationError
+        AuthErrorDetail | ChannelOut | HTTPValidationError
     """
 
     return (

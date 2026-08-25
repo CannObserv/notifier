@@ -37,6 +37,30 @@ def test_dev_server_uses_the_safe_env_loading_idiom():
     assert "| xargs" not in body
 
 
+def test_dev_server_checks_the_dev_database_is_migrated():
+    """An unmigrated dev DB starts cleanly and 500s on every request (#23)."""
+    assert "alembic current" in DEV_SERVER.read_text()
+
+
+def test_dev_server_refuses_an_unreachable_dev_database():
+    env = {
+        **os.environ,
+        "NOTIFIER_DEV_SERVER_SKIP_ENV_FILES": "1",
+        "DEV_DATABASE_URL": "postgresql+asyncpg://notifier@localhost:5432/nope_dev",
+        "NOTIFIER_SECRET_KEY": "unused",
+    }
+    result = subprocess.run(
+        [str(DEV_SERVER)],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "migration" in (result.stdout + result.stderr).lower()
+
+
 def test_dev_server_targets_port_9001():
     """Port 9000 belongs to systemd."""
     body = DEV_SERVER.read_text()
@@ -87,10 +111,30 @@ def test_dev_server_refuses_when_no_dev_database_is_configured():
     assert "DEV_DATABASE_URL" in result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("doc", ["AGENTS.md", "README.md", "docs/COMMANDS.md"])
+DOCS = [
+    "AGENTS.md",
+    "README.md",
+    "docs/COMMANDS.md",
+    "docs/DEPLOYMENT.md",
+    "clients/python/README.md",
+]
+
+
+@pytest.mark.parametrize("doc", DOCS)
 def test_docs_do_not_carry_the_unguarded_recipe(doc):
     """No doc may pair a prod env load with a hand-run uvicorn."""
     body = (REPO_ROOT / doc).read_text()
     assert "export $(cat /etc/notifier/.env" not in body
     if "uvicorn src.api.main:app" in body:
         assert "dev_server.sh" in body
+
+
+@pytest.mark.parametrize("doc", DOCS)
+def test_docs_guard_both_env_files(doc):
+    """Sourcing an absent /etc/notifier/.env must not break a fresh clone."""
+    for line in (REPO_ROOT / doc).read_text().splitlines():
+        if "/etc/notifier/.env" not in line or "set -a" not in line:
+            continue
+        assert "[ -r /etc/notifier/.env ]" in line, (
+            f"{doc}: sources /etc/notifier/.env unguarded: {line.strip()}"
+        )

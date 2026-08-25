@@ -20,7 +20,7 @@ Two env files, loaded in order:
 
 # Load both for shell commands. Source them; do not word-split through xargs,
 # which corrupts values containing spaces or quotes.
-set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 ```
 
 The systemd service loads both automatically (see `deploy/notifier.service`).
@@ -134,7 +134,7 @@ the schema on teardown. Every subprocess receives `DATABASE_URL=$TEST_DATABASE_U
 so production cannot be polluted.
 
 ```bash
-set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 cd clients/python && uv run pytest -m integration
 ```
 
@@ -149,7 +149,7 @@ layer that catches a consumer's test suite calling production over HTTP; no
 database guard can see that vector (issue #22, finding 3).
 
 ```bash
-set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 
 # Dev tenant, on the dev database
 DATABASE_URL="$DEV_DATABASE_URL" \

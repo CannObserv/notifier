@@ -48,6 +48,24 @@ export DATABASE_URL="$DEV_DATABASE_URL"
 
 uv run python -m src.core.db_safety
 
+# An unmigrated dev database starts cleanly and then 500s on every
+# authenticated request with "relation ... does not exist" (issue #23), so
+# check migration state here where the message can say what to do about it.
+# `alembic current` prints the revision on stdout: non-zero means the database
+# is unreachable, empty stdout means reachable but never migrated.
+if ! revision="$(uv run alembic current 2>/dev/null)"; then
+  echo "dev_server: cannot read migration state — is the dev database reachable?" >&2
+  exit 1
+fi
+if [[ -z "${revision//[[:space:]]/}" ]]; then
+  cat >&2 <<'MSG'
+dev_server: the dev database has no migrations applied.
+
+  DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head
+MSG
+  exit 1
+fi
+
 exec uv run uvicorn src.api.main:app \
   --host 0.0.0.0 \
   --port 9001 \

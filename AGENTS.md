@@ -105,7 +105,7 @@ The systemd service loads both automatically. For shell commands, source them
 spaces or quotes:
 
 ```bash
-set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 ```
 
 **This leaves `DATABASE_URL` pointing at production.** That is correct for
@@ -115,7 +115,7 @@ test database itself.
 
 Currently defined:
 - `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)
-- `PROCRASTINATE_DATABASE_URL` — (optional) libpq-style DSN for procrastinate; reserved for future async dispatch worker
+- `PROCRASTINATE_DATABASE_URL` — (optional) libpq-style DSN for procrastinate; reserved for future async dispatch worker. **Not covered by the `db_safety` guard** — it opens a database by a path that crosses no chokepoint. Route it through `assert_safe_database_url` when the worker lands.
 - `GH_TOKEN` — GitHub personal access token (in `.env`)
 - `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
 - `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it
@@ -132,7 +132,7 @@ uv sync
 
 # Load environment (required before migrations or gh). Leaves DATABASE_URL
 # pointing at production — intended for alembic and systemctl, nothing else.
-set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 
 # Run tests
 uv run pytest

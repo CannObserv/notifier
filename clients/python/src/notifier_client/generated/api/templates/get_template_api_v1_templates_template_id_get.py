@@ -6,6 +6,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.auth_error_detail import AuthErrorDetail
 from ...models.http_validation_error import HTTPValidationError
 from ...models.template_out import TemplateOut
 from ...types import Response
@@ -27,11 +28,21 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> HTTPValidationError | TemplateOut | None:
+) -> AuthErrorDetail | HTTPValidationError | TemplateOut | None:
     if response.status_code == 200:
         response_200 = TemplateOut.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 401:
+        response_401 = AuthErrorDetail.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 403:
+        response_403 = AuthErrorDetail.from_dict(response.json())
+
+        return response_403
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
@@ -46,7 +57,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[HTTPValidationError | TemplateOut]:
+) -> Response[AuthErrorDetail | HTTPValidationError | TemplateOut]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -59,7 +70,7 @@ def sync_detailed(
     template_id: str,
     *,
     client: AuthenticatedClient,
-) -> Response[HTTPValidationError | TemplateOut]:
+) -> Response[AuthErrorDetail | HTTPValidationError | TemplateOut]:
     """Get Template
 
      Fetch a single template by ID.
@@ -72,7 +83,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | TemplateOut]
+        Response[AuthErrorDetail | HTTPValidationError | TemplateOut]
     """
 
     kwargs = _get_kwargs(
@@ -90,7 +101,7 @@ def sync(
     template_id: str,
     *,
     client: AuthenticatedClient,
-) -> HTTPValidationError | TemplateOut | None:
+) -> AuthErrorDetail | HTTPValidationError | TemplateOut | None:
     """Get Template
 
      Fetch a single template by ID.
@@ -103,7 +114,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | TemplateOut
+        AuthErrorDetail | HTTPValidationError | TemplateOut
     """
 
     return sync_detailed(
@@ -116,7 +127,7 @@ async def asyncio_detailed(
     template_id: str,
     *,
     client: AuthenticatedClient,
-) -> Response[HTTPValidationError | TemplateOut]:
+) -> Response[AuthErrorDetail | HTTPValidationError | TemplateOut]:
     """Get Template
 
      Fetch a single template by ID.
@@ -129,7 +140,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | TemplateOut]
+        Response[AuthErrorDetail | HTTPValidationError | TemplateOut]
     """
 
     kwargs = _get_kwargs(
@@ -145,7 +156,7 @@ async def asyncio(
     template_id: str,
     *,
     client: AuthenticatedClient,
-) -> HTTPValidationError | TemplateOut | None:
+) -> AuthErrorDetail | HTTPValidationError | TemplateOut | None:
     """Get Template
 
      Fetch a single template by ID.
@@ -158,7 +169,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | TemplateOut
+        AuthErrorDetail | HTTPValidationError | TemplateOut
     """
 
     return (
