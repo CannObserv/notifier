@@ -40,6 +40,25 @@ MSG
   exit 1
 fi
 
+# load_env.sh skips an unreadable /etc/notifier/.env silently — `[ -r … ] &&
+# . …`. Without this check the server starts, answers /ready with db:true
+# (the database URL comes from the repo .env), and then fails on the first
+# channel decrypt: a health check reporting green while the one thing the
+# service exists to do is broken.
+if [[ -z "${NOTIFIER_SECRET_KEY:-}" ]]; then
+  cat >&2 <<'MSG'
+dev_server: NOTIFIER_SECRET_KEY is not set.
+
+Apprise URLs are encrypted at rest; without the key every dispatch fails at
+decrypt time while the server still reports healthy. The key lives in
+/etc/notifier/.env — check that file exists and is readable by this user:
+
+  ls -l /etc/notifier/.env
+
+MSG
+  exit 1
+fi
+
 export DATABASE_URL="$DEV_DATABASE_URL"
 
 uv run python -m src.core.db_safety

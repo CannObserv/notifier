@@ -108,10 +108,10 @@ now refuses any database whose name does not end in `_test` or `_dev`; the
 production opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the systemd unit and
 must never be added to an env file.
 
-**After finishing work:** Always restart the systemd service to pick up changes merged to main:
+**After finishing work:** Always restart both services to pick up changes merged to main — they serve one working tree, so restarting only the live one leaves the dev endpoint answering from stale code:
 
 ```bash
-sudo systemctl restart notifier
+sudo systemctl restart notifier notifier-dev
 ```
 
 ## Environment Variables
@@ -144,8 +144,8 @@ Currently defined:
 - `DEV_TENANT_API_KEY` — API key for the `dev` tenant in `notifier_dev` (in `.env`); marked `development`, so production refuses it
 - `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only** to let a process open the production database; see `src/core/db_safety.py`
 - `BUILD_ID` — (optional) git SHA for observability; defaults to `"dev"`
-- `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves
-- `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+- `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
+- `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 
 ## Common Commands
 

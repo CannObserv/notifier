@@ -77,6 +77,48 @@ def test_dev_unit_bounds_its_restart_loop():
     assert "Restart=on-failure" in body
 
 
+def _setting(unit: Path, key: str) -> str:
+    for line in directives(unit).splitlines():
+        name, _, value = line.partition("=")
+        if name.strip() == key:
+            return value.strip()
+    raise AssertionError(f"{key} not set in {unit.name}")
+
+
+def test_dev_unit_survives_a_slow_database_at_boot():
+    """The bound must outlast a boot race, not just an unmigrated database.
+
+    A unit that trips StartLimitBurst stays failed until someone runs
+    `systemctl reset-failed`. The production unit sets no limit at all, so it
+    retries until Postgres is up; this one would give up permanently and leave
+    the endpoint silently down — the exact outcome #24 exists to prevent.
+    `After=postgresql.service` orders startup but does not wait for the
+    cluster to accept connections.
+
+    One minute of retries distinguishes a slow boot from a real
+    misconfiguration, which no amount of waiting will fix.
+    """
+    window = int(_setting(DEV_UNIT, "RestartSec")) * int(_setting(DEV_UNIT, "StartLimitBurst"))
+    assert window >= 60, f"gives up after {window}s — too fast to ride out a slow Postgres"
+    assert window <= int(_setting(DEV_UNIT, "StartLimitIntervalSec")), (
+        "StartLimitIntervalSec is shorter than the retries it is meant to count, "
+        "so the limit can never actually trip and the loop runs forever"
+    )
+
+
+def test_dev_unit_reports_which_commit_it_is_serving():
+    """/health on :9001 must not answer `dev` while :9000 answers a SHA (#24).
+
+    A bug reported against the dev endpoint is unactionable without it. Kept
+    off the production unit's /run/notifier/build-id so the two units never
+    race to write one file.
+    """
+    body = directives(DEV_UNIT)
+    assert "BUILD_ID=" in body
+    assert "build-id-dev" in body
+    assert "/run/notifier/build-id\n" not in body + "\n"
+
+
 def test_dev_unit_starts_at_boot():
     """Persistent means persistent — it must survive a VM reboot (#24)."""
     assert "WantedBy=multi-user.target" in directives(DEV_UNIT)

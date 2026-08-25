@@ -146,7 +146,8 @@ def _run_dev_server(tmp_path, **overrides):
         [str(DEV_SERVER)], cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=60
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    uvicorn_line = next(line for line in result.stdout.splitlines() if "uvicorn" in line)
+    uvicorn_line = next((line for line in result.stdout.splitlines() if "uvicorn" in line), None)
+    assert uvicorn_line is not None, f"never reached uvicorn:\n{result.stdout}{result.stderr}"
     return uvicorn_line
 
 
@@ -170,3 +171,31 @@ def test_dev_server_still_guards_when_the_reloader_is_off(tmp_path):
     """The toggle must not become a way around the checks."""
     line = _run_dev_server(tmp_path, NOTIFIER_DEV_RELOAD="0")
     assert "--port 9001" in line
+
+
+def test_dev_server_refuses_without_the_encryption_key(tmp_path):
+    """A missing NOTIFIER_SECRET_KEY must fail at startup, not at dispatch.
+
+    scripts/load_env.sh skips /etc/notifier/.env silently when it is not
+    readable — `[ -r … ] && . …`. The file is exedev-owned today, so it loads;
+    at root:root 0640 it would vanish from the environment without a word.
+    The service would still start and still pass /ready, because the database
+    URL comes from the repo .env, and would then fail on the first channel
+    decrypt. A health check that reports green while the one thing the service
+    exists to do is broken is worse than no health check.
+    """
+    env = {
+        **os.environ,
+        "NOTIFIER_DEV_SERVER_SKIP_ENV_FILES": "1",
+        "DEV_DATABASE_URL": "postgresql+asyncpg://u@h/notifier_dev",
+        "PATH": f"{_fake_uv_path(tmp_path)}:{os.environ['PATH']}",
+    }
+    env.pop("NOTIFIER_SECRET_KEY", None)
+    env.pop("NOTIFIER_ALLOW_PROD_DB", None)
+    result = subprocess.run(
+        [str(DEV_SERVER)], cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=60
+    )
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "NOTIFIER_SECRET_KEY" in combined
+    assert "uvicorn" not in combined, "must refuse before starting the server"

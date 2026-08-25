@@ -20,12 +20,21 @@ sudo -u postgres psql -c "CREATE DATABASE notifier OWNER notifier;"
 sudo -u postgres psql -c "CREATE DATABASE notifier_test OWNER notifier;"
 sudo -u postgres psql -c "CREATE DATABASE notifier_dev OWNER notifier;"
 
-# Install dependencies + apply migrations
+# Point the dev endpoint at the dev database. This MUST exist before
+# notifier-dev is enabled below: the unit runs scripts/dev_server.sh, which
+# refuses to start without DEV_DATABASE_URL, and five such refusals trip
+# StartLimitBurst and leave the unit failed until `systemctl reset-failed`.
+# The repo .env is git-ignored; DEV_DATABASE_URL never belongs in
+# /etc/notifier/.env, which is the production file.
 cd /home/exedev/notifier
+echo 'DEV_DATABASE_URL=postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_dev' >> .env
+
+# Install dependencies + apply migrations — both databases, since an
+# unmigrated notifier_dev also refuses to start (#23)
 uv sync
 . scripts/load_env.sh
 uv run alembic upgrade head
-DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head   # dev DB, if configured
+DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head
 
 # Install systemd units — production on :9000, dev endpoint on :9001
 sudo cp deploy/notifier.service deploy/notifier-dev.service /etc/systemd/system/
@@ -66,9 +75,21 @@ Three properties are load-bearing, each with a drift test in
   error on `main`, so `Restart=on-failure` never fires and the endpoint dies
   silently while systemd reports it active.
 
-`StartLimitBurst=5` bounds the restart loop: an unreachable or unmigrated
-`notifier_dev` makes the script exit non-zero on purpose, and without the
-bound that is a 5-second retry in the journal forever.
+`StartLimitBurst=5` at `RestartSec=15` bounds the restart loop: an
+unreachable, unconfigured, or unmigrated `notifier_dev` makes the script exit
+non-zero on purpose, and without the bound that is a retry in the journal
+forever. 75 seconds of retries is long enough to ride out a slow Postgres at
+boot — `After=` orders startup but does not wait for the cluster to accept
+connections — and short enough that a real misconfiguration gives up somewhere
+a human will see it. A unit that trips the limit stays failed:
+
+```bash
+sudo systemctl reset-failed notifier-dev && sudo systemctl start notifier-dev
+```
+
+The unit also writes `/run/notifier/build-id-dev`, its own file rather than
+the production unit's `build-id`, so `:9001/health` names the commit it is
+serving without the two units racing to write one path.
 
 To run a branch by hand, stop the unit first — it holds the port:
 

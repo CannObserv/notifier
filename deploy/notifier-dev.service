@@ -3,15 +3,34 @@ Description=Notifier (dev) — non-production API on port 9001
 After=network.target postgresql.service
 
 # The launch script exits non-zero by design when notifier_dev is unreachable
-# or unmigrated (#23). Without a bound that becomes a 5-second restart loop in
-# the journal forever; five tries then stop, so the failure is visible.
-StartLimitIntervalSec=300
+# or unmigrated (#23). Without a bound that is a restart loop in the journal
+# forever; with too tight a bound, a slow Postgres at boot exhausts the tries
+# and the unit stays failed until someone runs `systemctl reset-failed` —
+# turning a transient into a silently dead endpoint, the opposite of what this
+# unit is for. After= orders startup but does not wait for the cluster to
+# accept connections, so the window has to ride that race out.
+#
+# 5 tries x RestartSec=15 = 75s of retries. Long enough for any plausible boot
+# race; short enough that a real misconfiguration, which no amount of waiting
+# fixes, still gives up somewhere a human will see it.
+StartLimitIntervalSec=600
 StartLimitBurst=5
 
 [Service]
 Type=simple
 User=exedev
 WorkingDirectory=/home/exedev/notifier
+
+# Same runtime dir as the production unit, created here too because start
+# order between the two is not specified — whichever runs first makes it.
+ExecStartPre=+/bin/bash -c 'mkdir -p /run/notifier && chown exedev:exedev /run/notifier'
+
+# Report the commit being served, so a bug filed against :9001 names a SHA
+# instead of "dev". Written to its own file: the two units serve one working
+# tree but restart independently, and sharing /run/notifier/build-id would
+# have them racing to write it.
+ExecStartPre=/bin/bash -c 'echo BUILD_ID=$(git rev-parse --short HEAD) > /run/notifier/build-id-dev'
+EnvironmentFile=-/run/notifier/build-id-dev
 
 # Deliberately NO NOTIFIER_ALLOW_PROD_DB here. The production opt-in belongs
 # to notifier.service alone. Watcher's non-production processes point at this
@@ -20,10 +39,11 @@ WorkingDirectory=/home/exedev/notifier
 # tests/deploy/test_dev_systemd_unit.py asserts this stays absent.
 Environment=NOTIFIER_DEV_RELOAD=0
 
-# No EnvironmentFile= lines: the script sources /etc/notifier/.env and the
-# repo .env itself, then overrides DATABASE_URL with DEV_DATABASE_URL. Loading
-# them here too would just re-import the production DATABASE_URL one layer
-# earlier for no gain.
+# No EnvironmentFile= line for the secret files: the script sources
+# /etc/notifier/.env and the repo .env itself, then overrides DATABASE_URL
+# with DEV_DATABASE_URL. Loading them here too would just re-import the
+# production DATABASE_URL one layer earlier for no gain. The build-id file
+# above is the exception and holds nothing but BUILD_ID.
 #
 # ExecStart is the guarded script, never a hand-rolled uvicorn line. The
 # script unsets the production opt-in, swaps in DEV_DATABASE_URL, delegates
@@ -33,7 +53,7 @@ Environment=NOTIFIER_DEV_RELOAD=0
 ExecStart=/home/exedev/notifier/scripts/dev_server.sh
 
 Restart=on-failure
-RestartSec=5
+RestartSec=15
 
 [Install]
 WantedBy=multi-user.target
