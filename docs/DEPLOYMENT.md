@@ -27,7 +27,8 @@ sudo -u postgres psql -c "CREATE DATABASE notifier_dev OWNER notifier;"
 # The repo .env is git-ignored; DEV_DATABASE_URL never belongs in
 # /etc/notifier/.env, which is the production file.
 cd /home/exedev/notifier
-echo 'DEV_DATABASE_URL=postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_dev' >> .env
+grep -q '^DEV_DATABASE_URL=' .env 2>/dev/null || \
+  echo 'DEV_DATABASE_URL=postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_dev' >> .env
 
 # Install dependencies + apply migrations — both databases, since an
 # unmigrated notifier_dev also refuses to start (#23)

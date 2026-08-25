@@ -173,8 +173,13 @@ def test_dev_server_still_guards_when_the_reloader_is_off(tmp_path):
     assert "--port 9001" in line
 
 
-def test_dev_server_refuses_without_the_encryption_key(tmp_path):
+def test_dev_server_refuses_without_the_encryption_key():
     """A missing NOTIFIER_SECRET_KEY must fail at startup, not at dispatch.
+
+    No fake-`uv` shim here: the check sits ahead of the first `uv` call, so
+    the script never reaches one. If that ordering ever changes, this test
+    starts invoking the real `uv` and slows down — which is the signal to
+    move the check back.
 
     scripts/load_env.sh skips /etc/notifier/.env silently when it is not
     readable — `[ -r … ] && . …`. The file is exedev-owned today, so it loads;
@@ -188,7 +193,6 @@ def test_dev_server_refuses_without_the_encryption_key(tmp_path):
         **os.environ,
         "NOTIFIER_DEV_SERVER_SKIP_ENV_FILES": "1",
         "DEV_DATABASE_URL": "postgresql+asyncpg://u@h/notifier_dev",
-        "PATH": f"{_fake_uv_path(tmp_path)}:{os.environ['PATH']}",
     }
     env.pop("NOTIFIER_SECRET_KEY", None)
     env.pop("NOTIFIER_ALLOW_PROD_DB", None)

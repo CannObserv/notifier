@@ -12,7 +12,21 @@ from src.api.deps import get_db_session
 
 router = APIRouter(tags=["health"])
 
-BUILD_ID = os.environ.get("BUILD_ID", "dev")
+
+def _resolve_build_id() -> str:
+    """The commit this process is serving, or ``"dev"`` when unstamped.
+
+    Blank counts as unstamped. Both systemd units write the stamp with
+    ``echo BUILD_ID=$(git rev-parse --short HEAD)``, and ``echo`` exits 0 even
+    when the substitution comes back empty — so a failing ``git`` produces a
+    successful ExecStartPre and a ``BUILD_ID=`` line. ``os.environ.get`` with a
+    default would hand that straight through, and ``{"build": ""}`` reads as a
+    broken health endpoint rather than a missing build stamp.
+    """
+    return os.environ.get("BUILD_ID", "").strip() or "dev"
+
+
+BUILD_ID = _resolve_build_id()
 
 
 @router.get("/health")

@@ -13,6 +13,7 @@ ExecStart spelling is a second code path that can drift out from under all
 four checks.
 """
 
+import re
 from pathlib import Path
 
 from src.core import db_safety
@@ -77,11 +78,24 @@ def test_dev_unit_bounds_its_restart_loop():
     assert "Restart=on-failure" in body
 
 
-def _setting(unit: Path, key: str) -> str:
+def _seconds(unit: Path, key: str) -> int:
+    """Read a systemd time-valued setting as whole seconds.
+
+    Accepts a bare integer or an explicit ``s`` suffix, both of which systemd
+    takes. Anything else — ``1min``, ``2h`` — is rejected with a message
+    naming the parser rather than raising ValueError from int(), so the
+    failure points at this helper instead of looking like a broken test.
+    """
     for line in directives(unit).splitlines():
         name, _, value = line.partition("=")
-        if name.strip() == key:
-            return value.strip()
+        if name.strip() != key:
+            continue
+        raw = value.strip().removesuffix("s")
+        assert raw.isdigit(), (
+            f"{key}={value.strip()} in {unit.name} is a systemd time span this "
+            f"helper does not parse — express it in seconds, or teach _seconds() the unit"
+        )
+        return int(raw)
     raise AssertionError(f"{key} not set in {unit.name}")
 
 
@@ -98,9 +112,9 @@ def test_dev_unit_survives_a_slow_database_at_boot():
     One minute of retries distinguishes a slow boot from a real
     misconfiguration, which no amount of waiting will fix.
     """
-    window = int(_setting(DEV_UNIT, "RestartSec")) * int(_setting(DEV_UNIT, "StartLimitBurst"))
+    window = _seconds(DEV_UNIT, "RestartSec") * _seconds(DEV_UNIT, "StartLimitBurst")
     assert window >= 60, f"gives up after {window}s — too fast to ride out a slow Postgres"
-    assert window <= int(_setting(DEV_UNIT, "StartLimitIntervalSec")), (
+    assert window <= _seconds(DEV_UNIT, "StartLimitIntervalSec"), (
         "StartLimitIntervalSec is shorter than the retries it is meant to count, "
         "so the limit can never actually trip and the loop runs forever"
     )
@@ -116,7 +130,10 @@ def test_dev_unit_reports_which_commit_it_is_serving():
     body = directives(DEV_UNIT)
     assert "BUILD_ID=" in body
     assert "build-id-dev" in body
-    assert "/run/notifier/build-id\n" not in body + "\n"
+    # Every mention must be the -dev file. An end-of-line check would miss the
+    # one that matters: the write target sits mid-line inside the ExecStartPre
+    # shell quoting, and reverting only that half is what recreates the race.
+    assert re.search(r"/run/notifier/build-id(?!-dev)", body) is None
 
 
 def test_dev_unit_starts_at_boot():
