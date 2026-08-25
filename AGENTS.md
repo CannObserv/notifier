@@ -119,6 +119,7 @@ Currently defined:
 - `GH_TOKEN` — GitHub personal access token (in `.env`)
 - `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
 - `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it
+- `DEV_TENANT_API_KEY` — API key for the `dev` tenant in `notifier_dev` (in `.env`); marked `development`, so production refuses it
 - `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only** to let a process open the production database; see `src/core/db_safety.py`
 - `BUILD_ID` — (optional) git SHA for observability; defaults to `"dev"`
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
@@ -207,6 +208,7 @@ The service is consumer-agnostic. Resist these temptations:
 - **Do** validate `variables` against the template's `variables_schema` on dispatch. Reject 422 with a clear field path on miss.
 - **Do** render with `StrictUndefined` so unbound references fail loudly rather than silently producing empty output.
 - **Do** require `idempotency_key` to be tenant-scoped and unique-where-not-null; replay must be safe.
+- **Do** mark every API key with an `environment` (`production` | `development`). A production deployment refuses `development` keys with 403. This is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).
 
 ## Detail Docs
 

@@ -142,29 +142,26 @@ Skips with a message if `TEST_DATABASE_URL` is unset.
 
 ## Generating a tenant + API key (until admin UI exists)
 
-For v0, tenants and API keys are seeded via SQL or a one-off Python script. Example:
+Use `scripts/seed_tenant.py`. The third argument marks which deployment the
+key is for — `production` (default) or `development`. **A production
+deployment refuses `development` keys at the auth layer** (403), which is the
+layer that catches a consumer's test suite calling production over HTTP; no
+database guard can see that vector (issue #22, finding 3).
 
 ```bash
-uv run python -c "
-import asyncio, hashlib, secrets
-from src.core.database import get_session_factory
-from src.core.models import ApiKey, Tenant
+set -a; . /etc/notifier/.env; [ -r .env ] && . .env; set +a
 
-async def main():
-    factory = get_session_factory()
-    async with factory() as s:
-        t = Tenant(name='watcher')
-        s.add(t)
-        await s.flush()
-        raw = 'nk_' + secrets.token_urlsafe(32)
-        s.add(ApiKey(
-            tenant_id=t.id, label='watcher-prod',
-            key_prefix=raw[:8],
-            key_hash=hashlib.sha256(raw.encode()).hexdigest(),
-        ))
-        await s.commit()
-        print(f'tenant_id={t.id}\nraw_key={raw}')
+# Dev tenant, on the dev database
+DATABASE_URL="$DEV_DATABASE_URL" \
+  uv run python scripts/seed_tenant.py acme acme-dev development
 
-asyncio.run(main())
-"
+# Production tenant — deliberate, opt-in, on the command line only
+NOTIFIER_ALLOW_PROD_DB=1 \
+  uv run python scripts/seed_tenant.py acme acme-prod production
 ```
+
+Prints `tenant_id`, `raw_key`, and `environment`. **The raw key is shown
+once** — only its SHA-256 hash is stored.
+
+This VM already has a `dev` tenant with a `development` key in `notifier_dev`;
+the key is in the repo `.env` as `DEV_TENANT_API_KEY`.
