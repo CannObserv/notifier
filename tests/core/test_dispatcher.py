@@ -10,8 +10,9 @@ We patch apprise.Apprise.async_notify to capture the kwargs so the assertions
 focus on contract, not Apprise internals.
 """
 
+import socket
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 import apprise
 import pytest
@@ -25,9 +26,14 @@ from src.core.notifications.dispatcher import _build_asset, dispatch_to_channel
 
 @pytest.fixture
 def captured_notify():
-    """Patch Apprise.async_notify to capture kwargs and return success."""
-    mock = AsyncMock(return_value=True)
-    with patch.object(apprise.Apprise, "async_notify", mock):
+    """Patch Apprise.notify to capture kwargs and return success.
+
+    `notify`, not `async_notify`: the dispatcher drives the synchronous call
+    through `asyncio.to_thread` so the capture buffer survives the hop into
+    the worker thread (#25).
+    """
+    mock = MagicMock(return_value=True)
+    with patch.object(apprise.Apprise, "notify", mock):
         yield mock
 
 
@@ -38,8 +44,8 @@ async def test_html_native_channel_renders_html_body(captured_notify):
     result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body=body)
 
     assert result.success is True
-    captured_notify.assert_awaited_once()
-    kwargs = captured_notify.await_args.kwargs
+    captured_notify.assert_called_once()
+    kwargs = captured_notify.call_args.kwargs
     assert kwargs["body_format"] == apprise.NotifyFormat.HTML
     sent_body = kwargs["body"]
     assert "background:#e6ffec" in sent_body
@@ -55,8 +61,8 @@ async def test_non_html_channel_dispatches_markdown_unchanged(captured_notify):
     result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body=body)
 
     assert result.success is True
-    captured_notify.assert_awaited_once()
-    kwargs = captured_notify.await_args.kwargs
+    captured_notify.assert_called_once()
+    kwargs = captured_notify.call_args.kwargs
     assert kwargs["body_format"] == apprise.NotifyFormat.MARKDOWN
     # Body is the raw Markdown source, not the HTML rewrite.
     assert kwargs["body"] == body
@@ -72,8 +78,8 @@ async def test_html_native_channel_renders_plain_markdown_too(captured_notify):
     )
 
     assert result.success is True
-    sent_body = captured_notify.await_args.kwargs["body"]
-    assert captured_notify.await_args.kwargs["body_format"] == apprise.NotifyFormat.HTML
+    sent_body = captured_notify.call_args.kwargs["body"]
+    assert captured_notify.call_args.kwargs["body_format"] == apprise.NotifyFormat.HTML
     assert "<strong>" in sent_body
 
 
@@ -84,7 +90,7 @@ async def test_invalid_apprise_url_returns_failure_without_notify(captured_notif
     result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
 
     assert result.success is False
-    captured_notify.assert_not_awaited()
+    captured_notify.assert_not_called()
 
 
 class TestBrandingAsset:
@@ -130,3 +136,80 @@ class TestBrandingAsset:
                 if not line.lstrip().startswith("#")
             )
             assert "exe.xyz" not in code
+
+
+def _closed_port() -> int:
+    """A port nothing is listening on, so connecting is refused immediately."""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+class TestFailureDetail:
+    """Why a dispatch failed has to survive the trip back to the consumer.
+
+    `reason` is the only diagnostic the API hands a consumer, and in production
+    it read "Delivery failed: no detail captured" for every HTTP plugin — see
+    #25. The capture buffer is a contextvar, and Apprise runs a sync plugin's
+    send() through `loop.run_in_executor`, which does *not* copy the caller's
+    context. The WARNING Apprise logs is correct, well-worded, and lands in a
+    thread where the buffer is invisible.
+
+    Every existing test patches `Apprise.async_notify`, so none of them ever
+    crossed that thread boundary — which is exactly why a feature that never
+    worked once in production had a green suite behind it.
+    """
+
+    async def test_apprise_detail_survives_the_thread_hop(self):
+        """No patching: this is the path production takes."""
+        encrypted = encrypt_apprise_url(f"json://127.0.0.1:{_closed_port()}/notify")
+
+        result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
+
+        assert result.success is False
+        assert "no detail captured" not in result.reason
+        assert "Connection error" in result.reason
+
+    async def test_reason_names_the_target_when_apprise_reports_nothing(self):
+        """A silent False still has to say what could not be reached."""
+        port = _closed_port()
+        encrypted = encrypt_apprise_url(f"json://127.0.0.1:{port}/notify")
+
+        with patch.object(apprise.Apprise, "notify", MagicMock(return_value=False)):
+            result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
+
+        assert result.success is False
+        assert "NotifyJSON" in result.reason
+        assert f"127.0.0.1:{port}" in result.reason
+
+    async def test_an_exception_becomes_a_reason_not_a_500(self):
+        """A plugin blowing up is one channel's failure, not the request's."""
+        encrypted = encrypt_apprise_url("json://127.0.0.1:1/notify")
+
+        with patch.object(apprise.Apprise, "notify", MagicMock(side_effect=RuntimeError("boom"))):
+            result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
+
+        assert result.success is False
+        assert "RuntimeError" in result.reason
+        assert "boom" in result.reason
+
+    async def test_reason_never_carries_the_credential(self):
+        """`reason` is persisted and returned over the API; the URL is a secret."""
+        encrypted = encrypt_apprise_url(f"json://user:hunter2@127.0.0.1:{_closed_port()}/notify")
+
+        result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
+
+        assert result.success is False
+        assert "hunter2" not in result.reason
+
+    async def test_exception_text_is_scrubbed_too(self):
+        """`requests` quotes the full URL in several of its exception strings."""
+        encrypted = encrypt_apprise_url("json://user:hunter2@127.0.0.1:1/notify")
+        boom = RuntimeError("failed posting to json://user:hunter2@127.0.0.1:1/notify")
+
+        with patch.object(apprise.Apprise, "notify", MagicMock(side_effect=boom)):
+            result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
+
+        assert result.success is False
+        assert "hunter2" not in result.reason
+        assert "RuntimeError" in result.reason
