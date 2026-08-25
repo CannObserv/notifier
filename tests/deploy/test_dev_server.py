@@ -35,6 +35,13 @@ def test_dev_server_delegates_env_loading_to_the_shared_loader():
     assert "| xargs" not in body
 
 
+def test_dev_server_sources_the_loader_by_resolved_path():
+    """Not repo-root-relative — that silently couples it to the earlier cd."""
+    body = DEV_SERVER.read_text()
+    assert '. "$(dirname "${BASH_SOURCE[0]}")/load_env.sh"' in body
+    assert ". scripts/load_env.sh" not in body
+
+
 def test_dev_server_checks_the_dev_database_is_migrated():
     """An unmigrated dev DB starts cleanly and 500s on every request (#23)."""
     assert "alembic current" in DEV_SERVER.read_text()

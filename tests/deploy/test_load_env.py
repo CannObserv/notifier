@@ -6,6 +6,7 @@ form is the unsafe one. One short sourceable line keeps the copyable surface
 small and gives these tests a single target.
 """
 
+import stat
 import subprocess
 from pathlib import Path
 
@@ -24,6 +25,24 @@ DOCS = [
 
 def test_loader_exists():
     assert LOADER.is_file()
+
+
+def test_loader_is_not_executable():
+    """Executing it runs in a subshell where every export is discarded."""
+    assert not LOADER.stat().st_mode & stat.S_IXUSR
+
+
+def test_loader_refuses_to_be_executed():
+    """It must fail loudly rather than silently exporting into a subshell."""
+    result = subprocess.run(
+        ["bash", str(LOADER)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "source" in (result.stdout + result.stderr).lower()
 
 
 def test_loader_guards_both_env_files():

@@ -15,8 +15,10 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 if [[ "${NOTIFIER_DEV_SERVER_SKIP_ENV_FILES:-}" != "1" ]]; then
+  # Resolved from this script's own location, not the cwd — so it does not
+  # silently depend on the cd above.
   # shellcheck disable=SC1091
-  . scripts/load_env.sh
+  . "$(dirname "${BASH_SOURCE[0]}")/load_env.sh"
 fi
 
 # Never inherit the production opt-in; it belongs to the systemd unit alone.
