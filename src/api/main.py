@@ -1,5 +1,7 @@
 """FastAPI application entry point."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, FastAPI
 
 from src.api.deps import require_api_key
@@ -25,7 +27,7 @@ app = FastAPI(title="notifier", version="0.1.0")
 # Each carries a model, not just a description: an undescribed response makes
 # the SDK generator widen every operation's return type to ``Any``, disabling
 # type checking on the success path too.
-AUTH_RESPONSES: dict[int | str, dict[str, object]] = {
+AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"model": AuthErrorDetail, "description": "Invalid API key"},
     403: {
         "model": AuthErrorDetail,

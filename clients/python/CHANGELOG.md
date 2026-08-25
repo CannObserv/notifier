@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — 2026-08-25
+
+### Added
+- `AuthErrorDetail` in the generated models. The server now documents `401` and `403` on every `/api/v1` operation, so authentication failures are visible in the OpenAPI spec instead of being undocumented runtime behavior (CannObserv/notifier#22).
+
+### Changed
+- Generated operation return types widened from `T | None` to `AuthErrorDetail | T | None`, reflecting the newly documented responses.
+
+### Unchanged
+- **The public API is unaffected.** `notifier_client`, `notifier_client.types`, and every sub-client method keep their existing signatures — `channels.list()` still returns `list[ChannelOut]`. The sub-clients issue their own HTTP requests rather than calling `generated/`, so the widening is confined to internals that `clients/python/README.md` already documents as regenerated and not hand-edited.
+- Wire format, retry, idempotency, and error semantics identical to 0.2.1.
+
 ## 0.2.1 — 2026-05-02
 
 ### Added

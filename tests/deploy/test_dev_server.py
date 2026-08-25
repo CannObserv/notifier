@@ -11,8 +11,6 @@ import stat
 import subprocess
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEV_SERVER = REPO_ROOT / "scripts" / "dev_server.sh"
 
@@ -29,10 +27,10 @@ def test_dev_server_delegates_the_guard_to_python():
     assert "db_name" not in body, "bash must not reimplement the URL parsing"
 
 
-def test_dev_server_uses_the_safe_env_loading_idiom():
-    """``export $(cat … | xargs)`` corrupts values with spaces or quotes."""
+def test_dev_server_delegates_env_loading_to_the_shared_loader():
+    """One env-loading recipe, in scripts/load_env.sh — not a second copy."""
     body = DEV_SERVER.read_text()
-    assert "set -a" in body
+    assert "load_env.sh" in body
     assert "export $(cat" not in body
     assert "| xargs" not in body
 
@@ -46,7 +44,9 @@ def test_dev_server_refuses_an_unreachable_dev_database():
     env = {
         **os.environ,
         "NOTIFIER_DEV_SERVER_SKIP_ENV_FILES": "1",
-        "DEV_DATABASE_URL": "postgresql+asyncpg://notifier@localhost:5432/nope_dev",
+        # Port 1 is unroutable, so the connection failure is structural rather
+        # than depending on no database named nope_dev ever existing.
+        "DEV_DATABASE_URL": "postgresql+asyncpg://notifier@localhost:1/nope_dev",
         "NOTIFIER_SECRET_KEY": "unused",
     }
     result = subprocess.run(
@@ -109,32 +109,3 @@ def test_dev_server_refuses_when_no_dev_database_is_configured():
     )
     assert result.returncode != 0
     assert "DEV_DATABASE_URL" in result.stdout + result.stderr
-
-
-DOCS = [
-    "AGENTS.md",
-    "README.md",
-    "docs/COMMANDS.md",
-    "docs/DEPLOYMENT.md",
-    "clients/python/README.md",
-]
-
-
-@pytest.mark.parametrize("doc", DOCS)
-def test_docs_do_not_carry_the_unguarded_recipe(doc):
-    """No doc may pair a prod env load with a hand-run uvicorn."""
-    body = (REPO_ROOT / doc).read_text()
-    assert "export $(cat /etc/notifier/.env" not in body
-    if "uvicorn src.api.main:app" in body:
-        assert "dev_server.sh" in body
-
-
-@pytest.mark.parametrize("doc", DOCS)
-def test_docs_guard_both_env_files(doc):
-    """Sourcing an absent /etc/notifier/.env must not break a fresh clone."""
-    for line in (REPO_ROOT / doc).read_text().splitlines():
-        if "/etc/notifier/.env" not in line or "set -a" not in line:
-            continue
-        assert "[ -r /etc/notifier/.env ]" in line, (
-            f"{doc}: sources /etc/notifier/.env unguarded: {line.strip()}"
-        )

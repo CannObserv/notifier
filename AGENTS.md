@@ -105,7 +105,7 @@ The systemd service loads both automatically. For shell commands, source them
 spaces or quotes:
 
 ```bash
-set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+. scripts/load_env.sh
 ```
 
 **This leaves `DATABASE_URL` pointing at production.** That is correct for
@@ -132,7 +132,7 @@ uv sync
 
 # Load environment (required before migrations or gh). Leaves DATABASE_URL
 # pointing at production — intended for alembic and systemctl, nothing else.
-set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+. scripts/load_env.sh
 
 # Run tests
 uv run pytest

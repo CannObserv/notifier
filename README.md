@@ -10,7 +10,7 @@ uv run pre-commit install   # once per clone — gates commits on ruff check + f
 
 # Load secrets, then apply migrations. This leaves DATABASE_URL pointing at
 # production, which is what alembic wants here — main is the deployed code.
-set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+. scripts/load_env.sh
 uv run alembic upgrade head
 
 # Dev server: guarded, port 9001, runs against DEV_DATABASE_URL (notifier_dev)

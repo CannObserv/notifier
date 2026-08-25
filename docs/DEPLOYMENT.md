@@ -23,7 +23,7 @@ sudo -u postgres psql -c "CREATE DATABASE notifier_dev OWNER notifier;"
 # Install dependencies + apply migrations
 cd /home/exedev/notifier
 uv sync
-set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+. scripts/load_env.sh
 uv run alembic upgrade head
 DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head   # dev DB, if configured
 
@@ -52,7 +52,7 @@ sudo systemctl restart notifier
 # Apply pending migrations then restart. alembic/env.py reads DATABASE_URL
 # directly and is deliberately exempt from the db_safety guard — production is
 # the correct target here.
-set -a; [ -r /etc/notifier/.env ] && . /etc/notifier/.env; [ -r .env ] && . .env; set +a
+. scripts/load_env.sh
 uv run alembic upgrade head && sudo systemctl restart notifier
 
 # Logs

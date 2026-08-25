@@ -14,15 +14,9 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# set -a exports every assignment; sourcing preserves values containing
-# spaces or quotes, which word-splitting an env file through xargs corrupts.
 if [[ "${NOTIFIER_DEV_SERVER_SKIP_ENV_FILES:-}" != "1" ]]; then
-  set -a
   # shellcheck disable=SC1091
-  [[ -r /etc/notifier/.env ]] && . /etc/notifier/.env
-  # shellcheck disable=SC1091
-  [[ -r .env ]] && . .env
-  set +a
+  . scripts/load_env.sh
 fi
 
 # Never inherit the production opt-in; it belongs to the systemd unit alone.
