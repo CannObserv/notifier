@@ -91,7 +91,7 @@ async def test_template_crud_and_preview(client, api_key):
     assert response.status_code == 204
 
 
-async def test_channel_create_round_trips_masked_url(client, api_key):
+async def test_channel_create_round_trips_masked_url(client, api_key, closed_port):
     """Channel URL is encrypted at rest and returned masked on read."""
     raw_key, _ = api_key
     headers = {"X-API-Key": raw_key}
@@ -99,7 +99,7 @@ async def test_channel_create_round_trips_masked_url(client, api_key):
     response = await client.post(
         "/api/v1/channels",
         headers=headers,
-        json={"name": "smoke-channel", "apprise_url": "json://example.com/path"},
+        json={"name": "smoke-channel", "apprise_url": f"json://127.0.0.1:{closed_port}/path"},
     )
     assert response.status_code == 201, response.text
     channel = response.json()
@@ -260,7 +260,7 @@ async def test_template_malformed_delete_param_returns_422(client, api_key):
     assert response.status_code == 422
 
 
-async def test_inline_dispatch_with_auto_idempotency(client, api_key):
+async def test_inline_dispatch_with_auto_idempotency(client, api_key, closed_port):
     """Second inline dispatch with the same idempotency_key replays the original."""
     raw_key, _ = api_key
     headers = {"X-API-Key": raw_key}
@@ -268,7 +268,7 @@ async def test_inline_dispatch_with_auto_idempotency(client, api_key):
     ch = await client.post(
         "/api/v1/channels",
         headers=headers,
-        json={"name": "idem-channel", "apprise_url": "json://example.com"},
+        json={"name": "idem-channel", "apprise_url": f"json://127.0.0.1:{closed_port}"},
     )
     assert ch.status_code == 201
     channel_id = ch.json()["id"]
@@ -296,7 +296,7 @@ async def test_inline_dispatch_with_auto_idempotency(client, api_key):
     assert d2["attempts"] == d1["attempts"]
 
 
-async def test_delete_channel_with_dispatch_attempts_returns_409(client, api_key):
+async def test_delete_channel_with_dispatch_attempts_returns_409(client, api_key, closed_port):
     """DELETE a channel that has dispatch attempts must return 409, not 500."""
     raw_key, _ = api_key
     headers = {"X-API-Key": raw_key}
@@ -304,7 +304,7 @@ async def test_delete_channel_with_dispatch_attempts_returns_409(client, api_key
     ch = await client.post(
         "/api/v1/channels",
         headers=headers,
-        json={"name": "busy-channel", "apprise_url": "json://example.com"},
+        json={"name": "busy-channel", "apprise_url": f"json://127.0.0.1:{closed_port}"},
     )
     assert ch.status_code == 201
     channel_id = ch.json()["id"]
@@ -326,7 +326,7 @@ async def test_delete_channel_with_dispatch_attempts_returns_409(client, api_key
     assert "dispatch" in response.json()["detail"].lower()
 
 
-async def test_delete_channel_without_attempts_returns_204(client, api_key):
+async def test_delete_channel_without_attempts_returns_204(client, api_key, closed_port):
     """DELETE a channel with no dispatch attempts still returns 204."""
     raw_key, _ = api_key
     headers = {"X-API-Key": raw_key}
@@ -334,7 +334,7 @@ async def test_delete_channel_without_attempts_returns_204(client, api_key):
     ch = await client.post(
         "/api/v1/channels",
         headers=headers,
-        json={"name": "idle-channel", "apprise_url": "json://example.com"},
+        json={"name": "idle-channel", "apprise_url": f"json://127.0.0.1:{closed_port}"},
     )
     assert ch.status_code == 201
     channel_id = ch.json()["id"]

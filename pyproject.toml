@@ -57,6 +57,12 @@ known-first-party = ["src"]
 
 [tool.coverage.run]
 source = ["src"]
+# The default trace core under-reports async function bodies: it credited
+# src/api/routes/dispatch.py with 64% while a deliberate `raise` proved the
+# handler ran end to end, and the whole suite read 87% against a true 93%.
+# Gating on fail_under with a core that miscounts async code — most of this
+# codebase — measures the tracer, not the tests.
+core = "sysmon"
 
 [tool.coverage.report]
 show_missing = true

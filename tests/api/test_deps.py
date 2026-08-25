@@ -12,6 +12,12 @@ async def test_require_api_key_returns_str_tenant_id():
     ulid_obj = ULID.from_str("01H5K3G8V4HCQ2DXFE5FJNWQER")
     mock_api_key = MagicMock()
     mock_api_key.tenant_id = ulid_obj
+    # Without this the attribute is a MagicMock, which is != "production", so
+    # the test fell into the production-refusal branch and passed only because
+    # the session's database name ends in _test. Pin it: this test is about
+    # the str() cast, not about key environments (those live in
+    # test_key_environment.py).
+    mock_api_key.environment = "production"
 
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = mock_api_key

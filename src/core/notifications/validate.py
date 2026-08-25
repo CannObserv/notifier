@@ -28,13 +28,21 @@ def validate_variables(variables: dict[str, Any], schema: dict[str, Any] | None)
     if not schema:
         return
     try:
-        validator = Draft202012Validator(schema)
+        # check_schema, not the constructor: Draft202012Validator(schema)
+        # accepts anything and defers the complaint to validation time, where
+        # it surfaces as UnknownType — an exception this function does not
+        # raise and its callers do not catch. Templates store
+        # variables_schema unvalidated, so a consumer could POST
+        # {"type": "not-a-json-schema-type"}, get a 201, and turn every
+        # dispatch through that template into a 500.
+        Draft202012Validator.check_schema(schema)
     except SchemaError as exc:
         # Schema itself is malformed — separate from variable-bag problems.
         raise VariablesValidationError(
             message=f"variables_schema is not a valid JSON Schema: {exc.message}",
             path="",
         ) from exc
+    validator = Draft202012Validator(schema)
     errors = sorted(validator.iter_errors(variables), key=lambda e: list(e.path))
     if not errors:
         return

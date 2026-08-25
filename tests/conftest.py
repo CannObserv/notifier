@@ -1,8 +1,11 @@
 """Shared test fixtures — async database session and FastAPI TestClient."""
 
 import hashlib
+import http.server
 import os
 import secrets
+import socket
+import threading
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -17,8 +20,7 @@ from src.core.models import ApiKey, Base, Tenant
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 if not TEST_DATABASE_URL:
     raise RuntimeError(
-        "TEST_DATABASE_URL environment variable is not set. "
-        "Load env: set -a; . /etc/notifier/.env; . .env; set +a"
+        "TEST_DATABASE_URL environment variable is not set. Load env:  . scripts/load_env.sh"
     )
 
 # Pin DATABASE_URL at the test database for the whole session, before any
@@ -104,3 +106,51 @@ async def client(test_engine, db_session) -> AsyncGenerator[AsyncClient]:
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+def _free_port() -> int:
+    """A port the OS just handed back, bound by nothing."""
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture(scope="session")
+def closed_port() -> int:
+    """An address where a connection is refused immediately.
+
+    Dispatch tests need a target that fails fast and locally. They used
+    `json://example.com`, which made every `pytest` run POST notification
+    payloads to a third-party host — real DNS, real TCP, and slower offline
+    for an outcome no assertion looked at.
+    """
+    return _free_port()
+
+
+class _SinkHandler(http.server.BaseHTTPRequestHandler):
+    """Accepts anything and returns 200, so Apprise reports success."""
+
+    def do_POST(self) -> None:  # noqa: N802 — BaseHTTPRequestHandler's spelling
+        length = int(self.headers.get("Content-Length", 0))
+        self.rfile.read(length)
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *args) -> None:
+        """Silence the default stderr access log."""
+
+
+@pytest.fixture(scope="session")
+def sink_server():
+    """A local HTTP endpoint that Apprise can actually deliver to.
+
+    Needed to produce a *successful* attempt without leaving the machine —
+    which is what makes a mixed-outcome dispatch, and therefore the `partial`
+    status, reachable from a test at all.
+    """
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _SinkHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield server.server_address[1]
+    server.shutdown()
+    server.server_close()
