@@ -2,6 +2,7 @@
 
 import contextvars
 import logging
+import os
 from dataclasses import dataclass
 
 import apprise
@@ -9,20 +10,37 @@ from apprise import AppriseAsset, NotifyFormat, NotifyType
 
 from src.core.crypto import decrypt_apprise_url
 from src.core.logging import get_logger
-from src.core.notifications.constants import APP_URL
+from src.core.notifications.constants import APP_URL_ENV_VAR
 from src.core.notifications.html_render import markdown_to_email_html
 
 logger = get_logger(__name__)
 
-# Brand identity for all outbound notifications.
-# image_url_mask/logo suppressed (empty) so plugins don't pull Apprise CDN icons.
-_ASSET = AppriseAsset(
-    app_id="Notifier",
-    app_desc="Notifier — multi-tenant notifications service",
-    app_url=APP_URL,
-    image_url_mask="",
-    image_url_logo="",
-)
+
+def _build_asset() -> AppriseAsset:
+    """Brand identity for all outbound notifications.
+
+    Three fields are deliberately suppressed rather than defaulted:
+    ``image_url_mask`` and ``image_url_logo`` so plugins don't pull Apprise CDN
+    icons, and ``app_url`` — unset unless ``NOTIFIER_APP_URL`` names a real
+    address — so no plugin embeds a link that does not resolve. Apprise's own
+    default for ``app_url`` is the Apprise GitHub repo, which would be someone
+    else's branding on our notifications; its ``app_url`` property maps any
+    falsy value to ``""`` and plugins then omit the link entirely.
+
+    A function rather than a module constant so the environment is read where
+    it is used, and so tests can build an asset without reimporting the module
+    (which would mint fresh copies of the enums in ``constants``).
+    """
+    return AppriseAsset(
+        app_id="Notifier",
+        app_desc="Notifier — multi-tenant notifications service",
+        app_url=os.environ.get(APP_URL_ENV_VAR, ""),
+        image_url_mask="",
+        image_url_logo="",
+    )
+
+
+_ASSET = _build_asset()
 
 # Per-task capture buffer for Apprise WARNING log messages.
 # Each asyncio task gets its own context copy, so concurrent dispatch calls

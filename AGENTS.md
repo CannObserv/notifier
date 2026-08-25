@@ -144,6 +144,7 @@ Currently defined:
 - `DEV_TENANT_API_KEY` — API key for the `dev` tenant in `notifier_dev` (in `.env`); marked `development`, so production refuses it
 - `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only** to let a process open the production database; see `src/core/db_safety.py`
 - `BUILD_ID` — (optional) git SHA for observability; defaults to `"dev"`
+- `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 
 ## Common Commands
