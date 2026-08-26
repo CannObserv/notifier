@@ -25,6 +25,10 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    # GitHub's default is 360 minutes. These jobs finish in under a minute, so
+    # anything past this is wedged — a hung `uv sync`, or a postgres that never
+    # comes up — and should stop burning runner time rather than sit there.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -42,6 +46,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -87,6 +92,7 @@ jobs:
     # builds schema with Base.metadata.create_all, so a broken migration chain
     # never surfaces in pytest — it surfaces on deploy.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16

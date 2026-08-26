@@ -37,6 +37,9 @@ permissions:
 jobs:
   staleness:
     runs-on: ubuntu-latest
+    # Wider than ci.yml's jobs: this one installs two dependency trees and
+    # shells out to the generator. Still far below GitHub's 360-minute default.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

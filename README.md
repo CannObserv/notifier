@@ -1,5 +1,7 @@
 # notifier
 
+[![CI](https://github.com/CannObserv/notifier/actions/workflows/ci.yml/badge.svg)](https://github.com/CannObserv/notifier/actions/workflows/ci.yml)
+
 Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templates and JSON-Schema-validated variable bags. Consumers send `{template_id | inline templates, variables, channel_ids}`; notifier renders, validates, and dispatches.
 
 ## Quick start
@@ -7,6 +9,7 @@ Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templa
 ```bash
 uv sync
 uv run pre-commit install   # once per clone — gates commits on ruff check + format
+                            # note: no tests. Only CI runs the suite.
 
 # Load secrets, then apply migrations. This leaves DATABASE_URL pointing at
 # production, which is what alembic wants here — main is the deployed code.

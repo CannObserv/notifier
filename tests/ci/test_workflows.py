@@ -3,7 +3,11 @@
 Every other check in this repo is something a human or agent chose to run.
 These workflows are the only ones that fire on their own, so the conditions
 that make them meaningful have to be asserted somewhere that fails loudly.
-Four of them are not obvious from reading the YAML:
+
+The first thing asserted is that each gate still *does* something: a `test`
+job that installs dependencies and stops would satisfy every other check in
+this file, and "present in form, doing nothing" is precisely what #27 was
+filed about. The rest are conditions a reader cannot see in the YAML:
 
 * **The test database must be named with a ``_test`` suffix.** ``db_safety``
   matches the suffix, not a substring, and ``get_database_url()`` is the
@@ -21,6 +25,7 @@ Four of them are not obvious from reading the YAML:
   resolve can change what the coverage gate measures.
 """
 
+import shlex
 from pathlib import Path
 
 import pytest
@@ -53,9 +58,22 @@ def run_lines(job: dict) -> str:
     return "\n".join(step.get("run", "") for step in steps(job))
 
 
+def run_tokens(job: dict) -> list[str]:
+    """Every run line split into shell words.
+
+    Token-level, not substring: `"-m" in run_lines(job)` also matches
+    `--no-modify-path` and would fail a step about something else entirely
+    with a message about marker expressions.
+    """
+    return [token for step in steps(job) for token in shlex.split(step.get("run", ""))]
+
+
+def postgres(job: dict) -> dict:
+    return job["services"]["postgres"]
+
+
 def service_env(job: dict) -> dict:
-    postgres = job["services"]["postgres"]
-    return postgres["env"]
+    return postgres(job)["env"]
 
 
 @pytest.fixture(scope="module")
@@ -123,10 +141,21 @@ def test_test_job_passes_that_database_as_test_database_url(ci):
     assert service_env(job)["POSTGRES_DB"] in job["env"]["TEST_DATABASE_URL"]
 
 
+def test_test_job_actually_runs_the_suite(ci):
+    """The absence checks below say what the step must not carry. This one
+    says the step exists at all.
+
+    Without it the whole file is satisfiable by a `test` job that installs
+    dependencies and stops — present in form, doing nothing, which is the
+    exact failure #27 was filed about.
+    """
+    assert "uv run pytest" in run_lines(ci["jobs"]["test"])
+
+
 def test_test_job_does_not_restate_the_marker_expression(ci):
     """`-m 'not integration'` is already in addopts. A second spelling on the
     command line overrides rather than composes, and can drift."""
-    assert "-m" not in run_lines(ci["jobs"]["test"])
+    assert "-m" not in run_tokens(ci["jobs"]["test"])
 
 
 def test_migrations_job_uses_a_database_pytest_never_touches(ci):
@@ -177,11 +206,23 @@ def test_every_workflow_pins_the_interpreter(workflow):
 
 
 @pytest.mark.parametrize("workflow", [CI, STALENESS], ids=["ci", "staleness"])
-def test_every_workflow_installs_from_the_lockfile(workflow):
-    """`coverage` is pinned nowhere in pyproject but sysmon needs >= 7.10."""
-    body = workflow.read_text()
-    assert "uv sync" in body
-    assert "uv sync\n" not in body, "bare `uv sync` re-resolves; use --locked"
+def test_every_job_installs_from_the_lockfile(workflow):
+    """`coverage` is pinned nowhere in pyproject but sysmon needs >= 7.10, so
+    an unlocked resolve can change what the coverage gate measures.
+
+    Walks parsed steps rather than grepping the file: raw text waves through
+    `uv sync --no-dev`, misses a trailing `uv sync` with no newline after it,
+    and cannot tell that *every* job installs this way.
+    """
+    for name, job in load(workflow)["jobs"].items():
+        syncs = [
+            shlex.split(step["run"])
+            for step in steps(job)
+            if step.get("run", "").startswith("uv sync")
+        ]
+        assert syncs, f"{workflow.name}:{name} installs nothing"
+        for tokens in syncs:
+            assert "--locked" in tokens, f"{workflow.name}:{name} runs {' '.join(tokens)}"
 
 
 def test_staleness_check_can_actually_fire(staleness):
@@ -198,5 +239,29 @@ def test_staleness_check_covers_hand_written_sdk_code(staleness):
     assert any(p.startswith("clients/python/") and "scripts" not in p for p in paths)
 
 
+def test_staleness_check_filters_push_and_pull_request_identically(staleness):
+    """The two lists are duplicated because the Actions parser does not expand
+    YAML aliases. Nothing but this test keeps them in step, and a drifted
+    filter means pushes and PRs gate on different paths."""
+    on = triggers(staleness)
+    assert on["push"]["paths"] == on["pull_request"]["paths"]
+
+
 def test_staleness_check_takes_read_only_permissions(staleness):
     assert staleness["permissions"] == {"contents": "read"}
+
+
+@pytest.mark.parametrize("workflow", [CI, STALENESS], ids=["ci", "staleness"])
+def test_every_job_bounds_its_own_runtime(workflow):
+    """GitHub's default is 360 minutes. A wedged `uv sync` or a postgres that
+    never comes up would burn six hours before anyone noticed; these runs
+    finish in under a minute."""
+    for name, job in load(workflow)["jobs"].items():
+        assert job.get("timeout-minutes"), f"{workflow.name}:{name} has no timeout"
+
+
+@pytest.mark.parametrize("job_name", ["test", "migrations"], ids=["test", "migrations"])
+def test_database_services_are_waited_for(ci, job_name):
+    """Without a health check the job races container startup, and the failure
+    surfaces as an intermittent red — the hardest kind to attribute."""
+    assert "pg_isready" in postgres(ci["jobs"][job_name])["options"]
