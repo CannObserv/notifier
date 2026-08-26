@@ -116,14 +116,14 @@ uv run pytest -m integration           # integration tests (require live DB)
 uv run pytest --no-cov                 # skip coverage
 uv run ruff check .                    # lint
 uv run ruff format .                   # format
-uv run ruff format --check .           # format gate (as run by CI's lint job)
+uv run ruff format --check .           # format gate (CI's lint job + pre-ship.sh)
 ```
 
 ## Lint & format gates
 
 `ruff check` and `ruff format --check` run as separate steps in CI's `lint`
-job and are wired into pre-commit, so a plain `git commit` enforces them
-locally too:
+job, again in `pre-ship.sh` before pytest, and are wired into pre-commit — so
+a plain `git commit` enforces them locally too:
 
 ```bash
 uv run pre-commit install              # one-time, per clone
@@ -133,8 +133,10 @@ git commit --no-verify                 # escape hatch — gates still fail at sh
 
 The hooks shell out to `uv run ruff`, so they use the exact ruff pinned in
 `uv.lock` — the same binary CI installs with `uv sync --locked`. No version
-skew. Note the hooks stop there: **pre-commit runs no tests**, so only CI
-says whether the suite passes.
+skew. Note the hooks stop there: **pre-commit runs no tests**. The suite runs
+in CI, and in `pre-ship.sh` — which lives in the
+`shipping-work-python-fastapi` skill (`.claude/skills/…/scripts/`), not in
+this repo's `scripts/`, which is why grepping the repo for it comes up empty.
 
 
 ## Generating a Fernet key
