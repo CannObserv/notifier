@@ -16,6 +16,22 @@ TDD required. Red → Green → Refactor. No production code without a failing t
 
 Python ≥3.12, uv, pytest, ruff.
 
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs `lint`, `test`, and `migrations` on every push
+to main, on PRs, and on manual dispatch. `sdk-staleness.yml` runs on the same
+triggers when `src/api/**`, `scripts/dump_openapi.py`, or `clients/python/**`
+changes.
+
+Two things not to re-derive from the YAML:
+
+- **`pre-commit` runs ruff only, never pytest.** A clean commit hook says
+  nothing about correctness — only CI does.
+- **CI pins CPython 3.12 and installs with `uv sync --locked`, deliberately.**
+  `[tool.coverage.run] core = "sysmon"` needs ≥3.12 and coverage ≥7.10; below
+  either it falls back silently and reports ~6 points low against the live
+  `fail_under = 80`. `tests/ci/` asserts both, so a runner change fails loudly.
+
 <!-- BEGIN socraticode-policy -->
 ## Code Exploration Policy
 
@@ -43,7 +59,7 @@ Full tool table, prefetch query, per-tool guidance: [`docs/SOCRATICODE.md`](docs
 
 Two packages, one boundary: `src/api/` is transport (routes, Pydantic schemas, auth deps) and `src/core/` is domain logic (models, crypto, Apprise dispatch, Jinja rendering). Core never imports api.
 
-`/api/v1/` is versioned and auth-guarded; `/health` and `/ready` are root-level and unauthenticated. `clients/python/src/notifier_client/generated/` is generated from `/openapi.json` — never hand-edit it; CI fails a stale PR.
+`/api/v1/` is versioned and auth-guarded; `/health` and `/ready` are root-level and unauthenticated. `clients/python/src/notifier_client/generated/` is generated from `/openapi.json` — never hand-edit it; `sdk-staleness.yml` fails a stale push to main or PR.
 
 Per-module inventory: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 

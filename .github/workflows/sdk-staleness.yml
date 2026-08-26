@@ -1,12 +1,38 @@
+# Regenerates the SDK and fails if the committed output differs.
+#
+# Ran zero times before #27: the trigger was `pull_request` alone, and this
+# repo commits straight to main. `push` is the one that matters here.
 name: SDK staleness check
 
 on:
+  push:
+    branches: [main]
+    # Duplicated below, not a YAML anchor: GitHub Actions' workflow parser
+    # does not expand anchors/aliases. Keep the two lists in step.
+    paths:
+      # src/api/** already covers src/api/schemas/**.
+      - "src/api/**"
+      - "scripts/dump_openapi.py"
+      # Not just the generator inputs. clients/python/src/notifier_client/
+      # holds twelve hand-written modules — client, retry, retry_after,
+      # idempotency, errors, logging, types, and the sub-clients — plus their
+      # unit tests. Under the original filter an SDK-only change matched
+      # nothing and got no CI at all.
+      - "clients/python/**"
   pull_request:
+    branches: [main]
     paths:
       - "src/api/**"
-      - "src/api/schemas/**"
       - "scripts/dump_openapi.py"
-      - "clients/python/scripts/regen.sh"
+      - "clients/python/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
   staleness:
@@ -14,11 +40,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
       - name: Install notifier deps
-        run: uv sync
+        run: uv sync --locked
       - name: Install SDK dev deps
         working-directory: clients/python
-        run: uv sync
+        run: uv sync --locked
+      # scripts/dump_openapi.py imports the app and serializes app.openapi() —
+      # no server, no database, no NOTIFIER_SECRET_KEY.
       - name: Regenerate SDK
         run: clients/python/scripts/regen.sh
       - name: Fail if generated/ is stale
@@ -27,6 +58,8 @@ jobs:
             echo "::error::SDK generated/ is stale. Run clients/python/scripts/regen.sh and commit the result."
             exit 1
           fi
+      # The SDK's own addopts carry -m 'not integration', so this is the unit
+      # suite; the integration tier needs a live notifier and stays manual.
       - name: SDK tests pass against regenerated client
         working-directory: clients/python
-        run: uv run pytest -v
+        run: uv run pytest

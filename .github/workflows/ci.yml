@@ -1,0 +1,122 @@
+# The repo's only automated correctness gate. Until this landed, every green
+# result notifier ever reported came from a human or an agent choosing to run
+# the suite: `.github/workflows/` held one PR-triggered workflow, and this
+# repo commits straight to main, so it had never executed once (#27).
+#
+# `pre-commit` is not a substitute — it runs ruff and nothing else.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  # Supersede PR runs; never cancel a run on main. On this single-VM setup
+  # main is the deployed code, so cancelling costs that commit its only signal.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked
+      # Two steps, not one: a red run should say whether it was a lint
+      # violation or a formatting one without anyone opening the log.
+      - name: ruff check
+        run: uv run ruff check .
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: notifier
+          POSTGRES_PASSWORD: notifier
+          # The _test suffix is load-bearing, not cosmetic. src/core/db_safety.py
+          # classifies a database by the suffix of its *name*, and
+          # get_database_url() is the chokepoint every connection crosses. A
+          # container named `notifier` fails the whole suite at fixture setup
+          # with a production-refusal error that reads nothing like a typo.
+          POSTGRES_DB: notifier_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U notifier"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          # Pinned because [tool.coverage.run] core = "sysmon" needs CPython
+          # >= 3.12. An older interpreter falls back to the default trace core
+          # *silently* and reports ~6 points low — against the live
+          # fail_under = 80 that is a quiet near-miss, not a loud failure.
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked
+      # No -m and no --cov here: both live in [tool.pytest.ini_options]
+      # addopts. A second spelling on the command line overrides rather than
+      # composes, and gives the marker expression somewhere to drift.
+      # NOTIFIER_SECRET_KEY is not needed — conftest generates a throwaway one.
+      - name: Run tests
+        run: uv run pytest
+
+  migrations:
+    # The one gate the test suite structurally cannot be. tests/conftest.py
+    # builds schema with Base.metadata.create_all, so a broken migration chain
+    # never surfaces in pytest — it surfaces on deploy.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: notifier
+          POSTGRES_PASSWORD: notifier
+          # Deliberately its own database, and empty. Reusing the test job's
+          # would work until create_all ran first, then fail `upgrade head`
+          # on "relation already exists".
+          POSTGRES_DB: notifier_migrations_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U notifier"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # No NOTIFIER_ALLOW_PROD_DB. alembic/env.py reads os.environ directly and
+      # never calls the guard — a documented carve-out, not an oversight.
+      DATABASE_URL: postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_migrations_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Migrate an empty database from scratch
+        run: uv run alembic upgrade head
+      - name: Fail on model/migration drift
+        run: uv run alembic check

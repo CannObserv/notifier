@@ -1,0 +1,202 @@
+"""Drift tests for .github/workflows/ — the gates that run unattended.
+
+Every other check in this repo is something a human or agent chose to run.
+These workflows are the only ones that fire on their own, so the conditions
+that make them meaningful have to be asserted somewhere that fails loudly.
+Four of them are not obvious from reading the YAML:
+
+* **The test database must be named with a ``_test`` suffix.** ``db_safety``
+  matches the suffix, not a substring, and ``get_database_url()`` is the
+  chokepoint every connection crosses. A service container named ``notifier``
+  fails the whole suite at fixture setup with what reads like a security
+  refusal rather than the config typo it is.
+* **The migrations job needs its own database.** ``tests/conftest.py`` builds
+  schema with ``Base.metadata.create_all``; pointing ``alembic upgrade head``
+  at a database pytest has touched fails on "relation already exists".
+* **The interpreter must be pinned.** ``[tool.coverage.run] core = "sysmon"``
+  falls back silently on CPython < 3.12 and reports ~6 points low against a
+  live ``fail_under = 80`` (issue #27).
+* **Dependencies must install from the lockfile.** ``coverage`` is pinned
+  nowhere in ``pyproject.toml`` but sysmon needs >= 7.10, so an unlocked
+  resolve can change what the coverage gate measures.
+"""
+
+from pathlib import Path
+
+import pytest
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+WORKFLOWS = REPO_ROOT / ".github" / "workflows"
+CI = WORKFLOWS / "ci.yml"
+STALENESS = WORKFLOWS / "sdk-staleness.yml"
+
+# PyYAML resolves a bare `on:` key to the boolean True (the YAML 1.1 "Norway
+# problem"). GitHub Actions means the string. Look up both rather than
+# quoting the key in the workflow, which would be unidiomatic there.
+ON = True
+
+
+def load(path: Path) -> dict:
+    return yaml.safe_load(path.read_text())
+
+
+def triggers(doc: dict) -> dict:
+    return doc.get(ON, doc.get("on"))
+
+
+def steps(job: dict) -> list[dict]:
+    return job.get("steps", [])
+
+
+def run_lines(job: dict) -> str:
+    return "\n".join(step.get("run", "") for step in steps(job))
+
+
+def service_env(job: dict) -> dict:
+    postgres = job["services"]["postgres"]
+    return postgres["env"]
+
+
+@pytest.fixture(scope="module")
+def ci() -> dict:
+    return load(CI)
+
+
+@pytest.fixture(scope="module")
+def staleness() -> dict:
+    return load(STALENESS)
+
+
+def test_ci_workflow_exists():
+    assert CI.is_file(), "the repo's only automated correctness gate"
+
+
+def test_ci_fires_on_push_to_main(ci):
+    """The trigger that matters: this repo commits straight to main.
+
+    A pull_request-only gate is vacuous here — that is the whole of #27.
+    """
+    assert "main" in triggers(ci)["push"]["branches"]
+
+
+def test_ci_also_covers_pull_requests_and_manual_runs(ci):
+    on = triggers(ci)
+    assert "main" in on["pull_request"]["branches"]
+    assert "workflow_dispatch" in on
+
+
+def test_ci_never_cancels_a_run_on_main(ci):
+    """Superseding a PR run is free; superseding main's loses that commit's
+    only signal, and on this VM main is what is deployed."""
+    concurrency = ci["concurrency"]
+    assert "github.event_name == 'pull_request'" in str(concurrency["cancel-in-progress"])
+    assert "github.head_ref || github.ref" in concurrency["group"]
+
+
+def test_ci_takes_read_only_permissions(ci):
+    assert ci["permissions"] == {"contents": "read"}
+
+
+def test_ci_runs_lint_test_and_migrations(ci):
+    assert {"lint", "test", "migrations"} <= set(ci["jobs"])
+
+
+def test_lint_names_its_own_failure(ci):
+    """Separate steps, so a red run says whether it was style or format."""
+    runs = [step["run"] for step in steps(ci["jobs"]["lint"]) if "ruff" in step.get("run", "")]
+    assert "uv run ruff check ." in runs
+    assert "uv run ruff format --check ." in runs
+
+
+def test_test_job_database_carries_the_non_production_suffix(ci):
+    """`db_safety` matches the suffix; any other name fails all 240 tests."""
+    name = service_env(ci["jobs"]["test"])["POSTGRES_DB"]
+    assert name.endswith("_test"), (
+        f"{name!r} reads as production to src/core/db_safety.py, which every "
+        f"connection path crosses"
+    )
+
+
+def test_test_job_passes_that_database_as_test_database_url(ci):
+    job = ci["jobs"]["test"]
+    assert service_env(job)["POSTGRES_DB"] in job["env"]["TEST_DATABASE_URL"]
+
+
+def test_test_job_does_not_restate_the_marker_expression(ci):
+    """`-m 'not integration'` is already in addopts. A second spelling on the
+    command line overrides rather than composes, and can drift."""
+    assert "-m" not in run_lines(ci["jobs"]["test"])
+
+
+def test_migrations_job_uses_a_database_pytest_never_touches(ci):
+    """conftest's create_all would leave tables behind and break upgrade head."""
+    test_db = service_env(ci["jobs"]["test"])["POSTGRES_DB"]
+    migrations_db = service_env(ci["jobs"]["migrations"])["POSTGRES_DB"]
+    assert migrations_db != test_db
+
+
+def test_migrations_job_builds_from_scratch_and_checks_for_drift(ci):
+    """The one gate the suite structurally cannot be: conftest builds schema
+    with create_all, so a broken migration chain surfaces only on deploy."""
+    runs = run_lines(ci["jobs"]["migrations"])
+    assert "alembic upgrade head" in runs
+    assert "alembic check" in runs
+
+
+def test_no_job_carries_the_production_opt_in(ci):
+    """alembic is exempt from the guard by design (src/core/db_safety.py), so
+    the migrations job needs no escape hatch — and nothing else may grow one.
+
+    Checked against the parsed workflow, not the raw text: ci.yml explains in
+    a comment why the flag is absent, and matching raw text would make that
+    comment fail the test it documents.
+    """
+    from src.core import db_safety
+
+    flag = db_safety.ALLOW_PROD_ENV_VAR
+    assert flag not in ci.get("env", {})
+    for name, job in ci["jobs"].items():
+        assert flag not in job.get("env", {}), name
+        for step in steps(job):
+            assert flag not in step.get("env", {}), name
+            assert flag not in step.get("run", ""), name
+
+
+@pytest.mark.parametrize("workflow", [CI, STALENESS], ids=["ci", "staleness"])
+def test_every_workflow_pins_the_interpreter(workflow):
+    """sysmon falls back silently below 3.12 and reports ~6 points low."""
+    doc = load(workflow)
+    for name, job in doc["jobs"].items():
+        pinned = [
+            step
+            for step in steps(job)
+            if "setup-uv" in step.get("uses", "") and step.get("with", {}).get("python-version")
+        ]
+        assert pinned, f"{workflow.name}:{name} does not pin python-version"
+
+
+@pytest.mark.parametrize("workflow", [CI, STALENESS], ids=["ci", "staleness"])
+def test_every_workflow_installs_from_the_lockfile(workflow):
+    """`coverage` is pinned nowhere in pyproject but sysmon needs >= 7.10."""
+    body = workflow.read_text()
+    assert "uv sync" in body
+    assert "uv sync\n" not in body, "bare `uv sync` re-resolves; use --locked"
+
+
+def test_staleness_check_can_actually_fire(staleness):
+    """It has never run once: a pull_request-only trigger on a repo that
+    commits to main (#27)."""
+    assert "main" in triggers(staleness)["push"]["branches"]
+
+
+def test_staleness_check_covers_hand_written_sdk_code(staleness):
+    """clients/python/src/notifier_client/ holds 12 hand-written modules and
+    ~14 unit test files. Under the original filter an SDK-only change got no
+    CI at all — the generated/ paths are not the only ones that can break."""
+    paths = triggers(staleness)["push"]["paths"]
+    assert any(p.startswith("clients/python/") and "scripts" not in p for p in paths)
+
+
+def test_staleness_check_takes_read_only_permissions(staleness):
+    assert staleness["permissions"] == {"contents": "read"}

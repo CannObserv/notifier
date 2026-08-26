@@ -1,7 +1,10 @@
 # Local hooks only. Every entry shells out to `uv run`, so the hooks use the
-# exact tool versions pinned in uv.lock — the same ruff that pre-ship.sh and
-# the review gate use. No pinned hook revs to drift out of sync, and no network
+# exact tool versions pinned in uv.lock — the same ruff the CI lint job and the
+# review gate use. No pinned hook revs to drift out of sync, and no network
 # needed to bootstrap a clone.
+#
+# These hooks do not run pytest. CI does (.github/workflows/ci.yml); a green
+# pre-commit proves style, not correctness.
 #
 # Both hooks are read-only: they report violations rather than rewriting files
 # mid-commit. Fix with `uv run ruff format .` / `uv run ruff check --fix .`.
