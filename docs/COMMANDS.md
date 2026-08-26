@@ -199,6 +199,29 @@ not in this repo.
 `development`. The pair only works together — a development key against
 `http://localhost:9000` is rejected, which is the point.
 
+### Seeding the dev tenant's sink channels
+
+A dev tenant with a key and no channels can authenticate but cannot dispatch
+(#26). `scripts/seed_dev_channels.py` gives one two sinks, neither of which
+reaches a real recipient:
+
+```bash
+. scripts/load_env.sh
+DATABASE_URL="$DEV_DATABASE_URL" \
+  uv run python scripts/seed_dev_channels.py watcher
+```
+
+| Channel | Apprise URL | Outcome | Why |
+|---|---|---|---|
+| `dev-sink` | `syslog://local7` | succeeds | Lands in this VM's journal — `sudo journalctl -t Notifier` shows the rendered payload, so a consumer can read back what it sent |
+| `dev-sink-failing` | `json://127.0.0.1:1/sink` | fails | Port 1 is privileged and unroutable, so the refusal is structural. Lets a consumer exercise error handling without waiting for a real outage |
+
+Safe to re-run; existing channels are left alone. It refuses any database whose
+name does not end in `_dev` — **including with `NOTIFIER_ALLOW_PROD_DB=1` set**,
+which is deliberate: seeding fixture rows is never a production operation, and
+fixture channels in the production tenant is the shape of the incident behind
+watcher#278.
+
 ### Dev channels are sink channels by construction
 
 `notifier_dev` is a separate database from `notifier`, so the production Slack
