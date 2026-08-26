@@ -152,7 +152,7 @@ test database itself.
 
 Currently defined:
 - `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)
-- `PROCRASTINATE_DATABASE_URL` — (optional) libpq-style DSN for procrastinate; reserved for future async dispatch worker. **Not covered by the `db_safety` guard** — it opens a database by a path that crosses no chokepoint. Route it through `assert_safe_database_url` when the worker lands.
+- `PROCRASTINATE_DATABASE_URL` — (optional) libpq-style DSN reserved for the future async dispatch worker. **The name is reserved, not wired: procrastinate is not installed** — dropped in #29 because nothing imported it, so `import procrastinate` fails until someone runs `uv add procrastinate` against whatever version is current when the worker is written. **Not covered by the `db_safety` guard** — it opens a database by a path that crosses no chokepoint. Route it through `assert_safe_database_url` when the worker lands.
 - `GH_TOKEN` — GitHub personal access token (in `.env`)
 - `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
 - `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it, so `notifier-dev.service` does too
