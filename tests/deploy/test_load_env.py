@@ -20,6 +20,11 @@ DOCS = [
     "docs/COMMANDS.md",
     "docs/DEPLOYMENT.md",
     "clients/python/README.md",
+    # Not prose, and the most-read copy of the recipe there is: it is the
+    # error message a developer meets at the moment they need it. It carried
+    # the unguarded form until b24f4a0 while this list watched five files
+    # that did not.
+    "tests/conftest.py",
 ]
 
 

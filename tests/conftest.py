@@ -2,11 +2,13 @@
 
 import hashlib
 import http.server
+import json
 import os
 import secrets
 import socket
 import threading
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
+from dataclasses import dataclass
 
 import pytest
 from cryptography.fernet import Fernet
@@ -108,49 +110,64 @@ async def client(test_engine, db_session) -> AsyncGenerator[AsyncClient]:
     app.dependency_overrides.clear()
 
 
-def _free_port() -> int:
-    """A port the OS just handed back, bound by nothing."""
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 @pytest.fixture(scope="session")
-def closed_port() -> int:
+def closed_port() -> Iterator[int]:
     """An address where a connection is refused immediately.
+
+    Holds the socket for the whole session without ever calling listen().
+    Binding and releasing would only leave the port *unclaimed*: `sink_server`
+    binds port 0 in the same session and the kernel is free to hand it exactly
+    this number, at which point the "closed" port is a live HTTP server and
+    the failure-path tests fail for reasons that look nothing like the cause.
+    A bound-but-unlistening port answers RST, so connecting still refuses
+    immediately rather than hanging.
 
     Dispatch tests need a target that fails fast and locally. They used
     `json://example.com`, which made every `pytest` run POST notification
     payloads to a third-party host — real DNS, real TCP, and slower offline
     for an outcome no assertion looked at.
     """
-    return _free_port()
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        yield s.getsockname()[1]
 
 
-class _SinkHandler(http.server.BaseHTTPRequestHandler):
-    """Accepts anything and returns 200, so Apprise reports success."""
+@dataclass
+class Sink:
+    """A local HTTP endpoint Apprise can deliver to, and what it received."""
 
-    def do_POST(self) -> None:  # noqa: N802 — BaseHTTPRequestHandler's spelling
-        length = int(self.headers.get("Content-Length", 0))
-        self.rfile.read(length)
-        self.send_response(200)
-        self.end_headers()
-
-    def log_message(self, *args) -> None:
-        """Silence the default stderr access log."""
+    port: int
+    received: list[dict]
 
 
 @pytest.fixture(scope="session")
-def sink_server():
-    """A local HTTP endpoint that Apprise can actually deliver to.
+def sink_server() -> Iterator[Sink]:
+    """A delivery target that succeeds, and records what arrived.
 
-    Needed to produce a *successful* attempt without leaving the machine —
-    which is what makes a mixed-outcome dispatch, and therefore the `partial`
-    status, reachable from a test at all.
+    Two jobs. It makes a *successful* attempt possible without leaving the
+    machine — which is what puts a mixed-outcome dispatch, and therefore the
+    `partial` status, within reach of a test. And it lets a test assert on the
+    bytes that actually went out, rather than on the kwargs of a mock: the
+    gap that hid #25 for the lifetime of the feature.
     """
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _SinkHandler)
+    received: list[dict] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 — BaseHTTPRequestHandler's spelling
+            raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            try:
+                received.append(json.loads(raw))
+            except ValueError:
+                received.append({"_raw": raw.decode(errors="replace")})
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args) -> None:
+            """Silence the default stderr access log."""
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    yield server.server_address[1]
+    yield Sink(port=server.server_address[1], received=received)
     server.shutdown()
     server.server_close()

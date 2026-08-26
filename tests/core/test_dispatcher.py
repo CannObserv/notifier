@@ -213,3 +213,37 @@ class TestFailureDetail:
         assert result.success is False
         assert "hunter2" not in result.reason
         assert "RuntimeError" in result.reason
+
+
+class TestWireFormat:
+    """What actually leaves the process, asserted against a real target.
+
+    The format-negotiation tests above read `Apprise.notify`'s kwargs through
+    a mock. That is one boundary short of the wire, and being one boundary
+    short of the wire is what hid #25 for the lifetime of the feature.
+
+    Only the Markdown side can be checked this way: every HTML-native plugin
+    Apprise ships (mailto, mailgun, sendgrid, brevo, telegram, …) speaks SMTP
+    or a fixed vendor host, so none can be pointed at a local sink. The HTML
+    rewrite stays mock-asserted for that reason, not for convenience.
+    """
+
+    async def test_markdown_target_receives_the_source_unchanged(self, sink_server):
+        sink_server.received.clear()
+        encrypted = encrypt_apprise_url(f"json://127.0.0.1:{sink_server.port}/wire")
+        body = "```diff\n+ added\n- removed\n```\n"
+
+        result = await dispatch_to_channel(
+            apprise_url_encrypted=encrypted, title="wire-title", body=body
+        )
+
+        assert result.success is True, result.reason
+        assert len(sink_server.received) == 1
+        payload = sink_server.received[0]
+        assert payload["title"] == "wire-title"
+        # Apprise strips trailing whitespace on the way out — the one
+        # difference between what the dispatcher hands over and what leaves
+        # the process, and invisible to a test that stops at the mock.
+        assert payload["message"] == body.rstrip("\n")
+        assert "\n".join(payload["message"].splitlines()[1:3]) == "+ added\n- removed"
+        assert "<pre" not in payload["message"], "the HTML rewrite must not reach a text target"

@@ -40,7 +40,7 @@ async def _channel(client, headers, url: str) -> str:
 @pytest.fixture
 async def good_channel(client, headers, sink_server) -> str:
     """Delivers successfully — a local HTTP sink that answers 200."""
-    return await _channel(client, headers, f"json://127.0.0.1:{sink_server}/ok")
+    return await _channel(client, headers, f"json://127.0.0.1:{sink_server.port}/ok")
 
 
 @pytest.fixture
@@ -226,7 +226,7 @@ class TestStatusAggregation:
     """`partial` was asserted to exist as a string and never once produced."""
 
     async def test_all_channels_succeed(self, client, headers, good_channel, sink_server):
-        second = await _channel(client, headers, f"json://127.0.0.1:{sink_server}/two")
+        second = await _channel(client, headers, f"json://127.0.0.1:{sink_server.port}/two")
         response = await client.post(
             "/api/v1/dispatch",
             headers=headers,

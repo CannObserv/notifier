@@ -36,13 +36,13 @@ def validate_variables(variables: dict[str, Any], schema: dict[str, Any] | None)
         # {"type": "not-a-json-schema-type"}, get a 201, and turn every
         # dispatch through that template into a 500.
         Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
     except SchemaError as exc:
         # Schema itself is malformed — separate from variable-bag problems.
         raise VariablesValidationError(
             message=f"variables_schema is not a valid JSON Schema: {exc.message}",
             path="",
         ) from exc
-    validator = Draft202012Validator(schema)
     errors = sorted(validator.iter_errors(variables), key=lambda e: list(e.path))
     if not errors:
         return
