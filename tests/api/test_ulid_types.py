@@ -5,49 +5,49 @@ import re
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from src.api.schemas.types import _ULID_PATTERN, ULIDStr
+from src.api.schemas.types import _ULID_PATTERN, ULIDStr, _normalise_ulid
 
 
 def test_valid_ulid_passes():
-    assert ULIDStr._validate("01H5K3G8V4HCQ2DXFE5FJNWQER") == "01H5K3G8V4HCQ2DXFE5FJNWQER"
+    assert _normalise_ulid("01H5K3G8V4HCQ2DXFE5FJNWQER") == "01H5K3G8V4HCQ2DXFE5FJNWQER"
 
 
 def test_normalizes_to_uppercase():
-    result = ULIDStr._validate("01h5k3g8v4hcq2dxfe5fjnwqer")
+    result = _normalise_ulid("01h5k3g8v4hcq2dxfe5fjnwqer")
     assert result == "01H5K3G8V4HCQ2DXFE5FJNWQER"
 
 
 def test_all_zeros_valid():
-    assert ULIDStr._validate("00000000000000000000000000") == "00000000000000000000000000"
+    assert _normalise_ulid("00000000000000000000000000") == "00000000000000000000000000"
 
 
 def test_uuid_with_dashes_invalid():
     with pytest.raises(ValueError, match="invalid ULID"):
-        ULIDStr._validate("550e8400-e29b-41d4-a716-446655440000")
+        _normalise_ulid("550e8400-e29b-41d4-a716-446655440000")
 
 
 def test_too_short_invalid():
     with pytest.raises(ValueError, match="invalid ULID"):
-        ULIDStr._validate("01H5K3G8V4HCQ2")
+        _normalise_ulid("01H5K3G8V4HCQ2")
 
 
 def test_too_long_invalid():
     with pytest.raises(ValueError, match="invalid ULID"):
-        ULIDStr._validate("01H5K3G8V4HCQ2DXFE5FJNWQER0")
+        _normalise_ulid("01H5K3G8V4HCQ2DXFE5FJNWQER0")
 
 
 def test_empty_string_invalid():
     with pytest.raises(ValueError, match="invalid ULID"):
-        ULIDStr._validate("")
+        _normalise_ulid("")
 
 
 def test_random_string_invalid():
     with pytest.raises(ValueError, match="invalid ULID"):
-        ULIDStr._validate("not-a-valid-ulid")
+        _normalise_ulid("not-a-valid-ulid")
 
 
 def test_is_str_subclass():
-    result = ULIDStr._validate("01H5K3G8V4HCQ2DXFE5FJNWQER")
+    result = _normalise_ulid("01H5K3G8V4HCQ2DXFE5FJNWQER")
     assert isinstance(result, str)
 
 

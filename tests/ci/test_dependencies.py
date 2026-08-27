@@ -16,6 +16,12 @@ Invariants that `uv sync --locked` cannot express, from #30 and its review.
   `procrastinate` sat unimported for months (#29). The exceptions are real
   but few, so `IMPORT_LESS` states each one once, with a reason that has to
   be non-empty; a stale entry there fails as loudly as a missing one.
+* **Every third-party module `src/` imports is declared.** The mirror of the
+  above, and the direction this repo was already in: `pydantic` backed every
+  model in `src/api/schemas/` while riding in transitively through fastapi,
+  so the version floor for code we wrote was a side effect of someone else's
+  packaging (#32). This check walks the AST rather than matching text —
+  exhaustive is the whole point in this direction.
 
 The bound checks cover **both** dependency tables in this repo: the service's
 and `clients/python/`'s, which is published to consumers and is exactly as
@@ -25,7 +31,9 @@ tools everywhere are run as commands or imported from `tests/`, so
 "unimported by `src/`" is their normal condition and says nothing.
 """
 
+import ast
 import re
+import sys
 import tomllib
 from functools import cache
 from importlib.metadata import PackageNotFoundError, distribution, packages_distributions
@@ -80,6 +88,13 @@ IMPORT_LESS = {
         ),
     }.items()
 }
+
+
+# Third-party modules src/ may import without the service declaring them, and
+# why. Expected to stay empty: relying on a transitive dependency means the
+# floor for our own code is set by whoever pulls it in. An entry here is a
+# deliberate exception, not a shortcut past declaring the dependency.
+UNDECLARED_OK: dict[str, str] = {}
 
 
 @cache
@@ -267,4 +282,58 @@ def test_import_less_allowlist_has_no_entry_that_is_imported(name):
     assert not found, (
         f"src/ now imports {name} ({', '.join(found)}); remove its "
         f"IMPORT_LESS entry so the importer check applies."
+    )
+
+
+@cache
+def imported_modules() -> tuple[str, ...]:
+    """Top-level third-party modules imported anywhere under src/.
+
+    An AST walk, unlike the textual match `importers()` uses: this direction
+    has to be exhaustive, and a regex that misses an import silently reports
+    the invariant as held. Standard-library and first-party modules are
+    dropped, as are relative imports, which have no distribution to declare.
+    """
+    modules = set()
+    for _, source in src_sources():
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Import):
+                modules.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                modules.add(node.module.split(".")[0])
+    return tuple(
+        sorted(
+            module
+            for module in modules
+            if module not in sys.stdlib_module_names and module != SRC.name
+        )
+    )
+
+
+def declaring_distributions(module: str) -> list[str]:
+    """Canonical names of the distributions that install a top-level module."""
+    return [canonicalize_name(dist) for dist in packages_distributions().get(module, [])]
+
+
+@pytest.mark.parametrize(
+    "module", [mod for mod in imported_modules() if mod not in UNDECLARED_OK], ids=str
+)
+def test_every_module_src_imports_is_declared(module):
+    """An undeclared import takes its floor from whoever pulls it in.
+
+    Checked against the runtime table alone: `src/` is what a consumer
+    installs, so an import satisfied only by a dev-group entry is a packaging
+    bug rather than a passing case.
+    """
+    declared_names = {canonicalize_name(req.name) for req in runtime_requirements()}
+    providers = declaring_distributions(module)
+    assert providers, (
+        f"src/ imports {module}, which no installed distribution claims. "
+        f"Run `uv sync`, or drop the import if it is dead."
+    )
+    assert any(name in declared_names for name in providers), (
+        f"src/ imports {module} (from {', '.join(providers)}), which "
+        f"pyproject.toml does not declare — it arrives transitively, so its "
+        f"version floor is set by whatever pulls it in. Declare it, or add it "
+        f"to UNDECLARED_OK with the reason."
     )

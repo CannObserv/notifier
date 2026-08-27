@@ -236,7 +236,8 @@ Entry points only: call `configure_logging()` once.
 - Every specifier carries an upper bound, runtime and dev group alike
 - A `0.x` dependency caps at the next *minor* above the locked version (`<0.38`, never `<1`) — pre-1.0 projects ship breaking changes in minors
 - Every runtime dependency has an importer under `src/`, or an `IMPORT_LESS` entry in `tests/ci/test_dependencies.py` stating how it is reached instead
-- All three are asserted there, so a dependency added without them fails the suite
+- Every third-party module `src/` imports is declared — a package that arrives transitively takes its floor from whoever pulls it in (#32)
+- All of these are asserted there, so a dependency added without them fails the suite
 
 **General:**
 - No inline module imports; all at file top
