@@ -54,3 +54,13 @@ the `docs/` entry above predates this file.
 **Environment files** (not in the repo tree):
 - `/etc/notifier/.env` — Production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); outside repo, persistent. Sourcing it leaves `DATABASE_URL` on **production** — intended for alembic and systemctl only
 - `.env` (repo root) — Dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`); git-ignored
+
+
+## Dependency policy
+
+**Dependencies:** (both `pyproject.toml` files — the service's and the SDK's)
+- Every specifier carries an upper bound, runtime and dev group alike
+- A `0.x` dependency caps at the next *minor* above the locked version (`<0.38`, never `<1`) — pre-1.0 projects ship breaking changes in minors
+- Every runtime dependency has an importer under `src/`, or an `IMPORT_LESS` entry in `tests/ci/test_dependencies.py` stating how it is reached instead
+- Every third-party module `src/` imports is declared — a package that arrives transitively takes its floor from whoever pulls it in (#32)
+- All of these are asserted there, so a dependency added without them fails the suite

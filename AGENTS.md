@@ -232,12 +232,7 @@ Entry points only: call `configure_logging()` once.
 - All UTC
 - ISO 8601: `YYYY-MM-DDTHH:MM:SS.ffffffZ` (timestamps), `YYYY-MM-DD` (dates)
 
-**Dependencies:** (both `pyproject.toml` files — the service's and the SDK's)
-- Every specifier carries an upper bound, runtime and dev group alike
-- A `0.x` dependency caps at the next *minor* above the locked version (`<0.38`, never `<1`) — pre-1.0 projects ship breaking changes in minors
-- Every runtime dependency has an importer under `src/`, or an `IMPORT_LESS` entry in `tests/ci/test_dependencies.py` stating how it is reached instead
-- Every third-party module `src/` imports is declared — a package that arrives transitively takes its floor from whoever pulls it in (#32)
-- All of these are asserted there, so a dependency added without them fails the suite
+**Dependencies:** four rules, all asserted by `tests/ci/test_dependencies.py` — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#dependency-policy) before adding or bumping one
 
 **General:**
 - No inline module imports; all at file top
@@ -261,7 +256,7 @@ The service is consumer-agnostic. Resist these temptations:
 
 ## Detail Docs
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for, including `tests/`, `deploy/`, and the skill trees
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for, including `tests/`, `deploy/`, and the skill trees; plus the dependency policy every specifier is held to
 - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
 - [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — full SocratiCode tool table, the `ToolSearch` prefetch query, per-tool notes, graph-health guidance, and this repo's measured yield
