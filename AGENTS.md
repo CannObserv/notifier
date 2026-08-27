@@ -232,6 +232,11 @@ Entry points only: call `configure_logging()` once.
 - All UTC
 - ISO 8601: `YYYY-MM-DDTHH:MM:SS.ffffffZ` (timestamps), `YYYY-MM-DD` (dates)
 
+**Dependencies:**
+- Every specifier carries an upper bound (`<next-major`), runtime and dev group alike
+- Every runtime dependency has an importer under `src/`, or an `IMPORT_LESS` entry in `tests/ci/test_dependencies.py` stating how it is reached instead
+- Both are asserted there, so a dependency added without either fails the suite
+
 **General:**
 - No inline module imports; all at file top
 - Docstrings for public modules, classes, functions
