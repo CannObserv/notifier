@@ -35,8 +35,9 @@ class AuthError(NotifierError):
 class ValidationError(NotifierError):
     """422 — request body or rendered template failed validation.
 
-    ``section`` is one of ``"variables"``, ``"title"``, ``"body"`` (notifier's
-    typed shape) or ``"body"`` for FastAPI's default validator output.
+    ``section`` is one of ``"variables"``, ``"variables_schema"``, ``"title"``,
+    ``"body"`` (notifier's typed shape) or ``"body"`` for FastAPI's default
+    validator output.
     ``field_path`` is dot-joined when notifier returns a list-style ``loc``.
     """
 

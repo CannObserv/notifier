@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from src.api.schemas.types import JSONSchemaDict
+
 
 class TemplateCreate(BaseModel):
     """Request body for POST /templates."""
@@ -12,7 +14,7 @@ class TemplateCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     title_template: str
     body_template: str
-    variables_schema: dict[str, Any] | None = None
+    variables_schema: JSONSchemaDict | None = None
     sample_variables: dict[str, Any] | None = None
     tags: list[str] | None = None
 
@@ -23,7 +25,7 @@ class TemplateUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     title_template: str | None = None
     body_template: str | None = None
-    variables_schema: dict[str, Any] | None = None
+    variables_schema: JSONSchemaDict | None = None
     sample_variables: dict[str, Any] | None = None
     tags: list[str] | None = None
 
@@ -59,4 +61,7 @@ class TemplatePreviewResponse(BaseModel):
     title: str | None = None
     body: str | None = None
     error: str | None = None
-    error_section: str | None = None  # "title" | "body" | "variables"
+    # "title" | "body" | "variables" | "variables_schema" — the last names the
+    # stored schema as the fault, reachable only for a row written before
+    # templates validated their schema on write (#28).
+    error_section: str | None = None

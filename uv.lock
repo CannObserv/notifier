@@ -722,6 +722,7 @@ dependencies = [
     { name = "mistune" },
     { name = "python-json-logger" },
     { name = "python-ulid" },
+    { name = "referencing" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn" },
 ]
@@ -750,6 +751,7 @@ requires-dist = [
     { name = "mistune", specifier = ">=3.0,<4" },
     { name = "python-json-logger", specifier = ">=4.0.0,<5" },
     { name = "python-ulid", specifier = ">=3.0.0,<4" },
+    { name = "referencing", specifier = ">=0.37.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0,<3" },
     { name = "uvicorn", specifier = ">=0.34.0,<1" },
 ]

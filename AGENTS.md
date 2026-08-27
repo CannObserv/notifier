@@ -247,7 +247,7 @@ The service is consumer-agnostic. Resist these temptations:
 - **Do not** infer routing/subscriptions in v0 — consumers pass `channel_ids` explicitly. Subscription model is v1.
 - **Do not** fetch consumer data (no diff loading, no snapshot reads). Consumers ship rendered or pre-rendered values via `variables`.
 - **Do not** branch on tenant identity inside business logic. Tenancy is enforced at the auth layer; the rest of the code treats `tenant_id` as a partition key.
-- **Do** validate `variables` against the template's `variables_schema` on dispatch. Reject 422 with a clear field path on miss — including when the stored *schema* is itself malformed, which templates currently accept on write (#28).
+- **Do** validate `variables` against the template's `variables_schema` on dispatch. Reject 422 with a clear field path on miss. The *schema itself* is checked twice: on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which is what catches rows stored before that guard landed (#28).
 - **Do** render with `StrictUndefined` so unbound references fail loudly rather than silently producing empty output.
 - **Do** require `idempotency_key` to be tenant-scoped and unique-where-not-null; replay must be safe.
 - **Do** mark every API key with an `environment` (`production` | `development`). A production deployment refuses `development` keys with 403. This is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).

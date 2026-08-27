@@ -17,7 +17,8 @@ class PreviewResponse:
 
     On success, ``title`` and ``body`` are populated and ``error`` is ``None``.
     On error, ``error`` carries the message and ``error_section`` indicates
-    which input failed: ``"title"``, ``"body"``, or ``"variables"``.
+    which input failed: ``"title"``, ``"body"``, ``"variables"``, or
+    ``"variables_schema"`` when the supplied schema is itself the problem.
 
         Attributes:
             body (None | str | Unset):

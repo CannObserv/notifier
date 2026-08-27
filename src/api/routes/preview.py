@@ -5,7 +5,11 @@ from fastapi import APIRouter, Depends
 from src.api.deps import require_api_key
 from src.api.schemas.preview import PreviewRequest, PreviewResponse
 from src.core.notifications.render import TemplateRenderError, render_template
-from src.core.notifications.validate import VariablesValidationError, validate_variables
+from src.core.notifications.validate import (
+    SchemaDocumentError,
+    VariablesValidationError,
+    validate_variables,
+)
 
 router = APIRouter(prefix="/preview", tags=["preview"])
 
@@ -18,6 +22,8 @@ async def preview(
     """Render inline templates with supplied variables; returns errors per section."""
     try:
         validate_variables(body.variables, body.variables_schema)
+    except SchemaDocumentError as exc:
+        return PreviewResponse(error=str(exc), error_section="variables_schema")
     except VariablesValidationError as exc:
         return PreviewResponse(error=str(exc), error_section="variables")
 

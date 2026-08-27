@@ -16,6 +16,7 @@ import secrets
 import pytest
 from ulid import ULID
 
+from src.core.models.template import Template
 from src.core.notifications.validate import VariablesValidationError, validate_variables
 
 HEADER = "X-API-Key"
@@ -184,34 +185,71 @@ class TestVariableValidation:
         assert response.status_code == 422, response.text
         assert response.json()["detail"]["section"] == "title"
 
-    async def test_a_malformed_stored_schema_is_422_not_500(self, client, headers, good_channel):
-        """Templates store `variables_schema` unvalidated, so a consumer can
-        save a broken one and get a 201. Every dispatch through that template
-        then raised jsonschema's UnknownType straight out of the route — a 500
-        on consumer-supplied input. Found by writing this test."""
-        created = await client.post(
-            "/api/v1/templates",
-            headers=headers,
-            json={
-                "name": f"bad-{secrets.token_hex(4)}",
-                "title_template": "x",
-                "body_template": "y",
-                "variables_schema": {"type": "not-a-json-schema-type"},
-            },
+    async def test_a_malformed_stored_schema_is_422_not_500(
+        self, client, headers, good_channel, db_session, tenant
+    ):
+        """The dispatch-time backstop, for a row the write-time guard never saw.
+
+        Templates once stored `variables_schema` unvalidated, so a consumer
+        could save a broken one and get a 201; every dispatch through that
+        template then raised jsonschema's UnknownType straight out of the
+        route — a 500 on consumer-supplied input. Found by writing this test.
+
+        POST /templates refuses that schema now (#28), so the row is inserted
+        through the ORM instead — which is exactly the case the backstop still
+        has to cover: a template written before the guard landed.
+        """
+        stored = Template(
+            tenant_id=tenant.id,
+            name=f"bad-{secrets.token_hex(4)}",
+            title_template="x",
+            body_template="y",
+            variables_schema={"type": "not-a-json-schema-type"},
         )
-        assert created.status_code == 201, created.text
+        db_session.add(stored)
+        await db_session.flush()
 
         response = await client.post(
             "/api/v1/dispatch",
             headers=headers,
             json={
-                "template_id": created.json()["id"],
+                "template_id": str(stored.id),
                 "variables": {"n": 1},
                 "channel_ids": [good_channel],
             },
         )
         assert response.status_code == 422, response.text
         assert "not a valid JSON Schema" in response.json()["detail"]["message"]
+
+    async def test_an_unresolvable_ref_in_a_stored_schema_is_422_not_500(
+        self, client, headers, good_channel, db_session, tenant
+    ):
+        """`check_schema` passes a `$ref` that resolves to nothing, so this
+        schema reached storage looking valid. `iter_errors` then raised
+        `Unresolvable` — not a SchemaError, caught by nobody — straight out of
+        the route. Same 500-on-consumer-input as the malformed-type case above,
+        which is why the dispatch guard has to catch both."""
+        stored = Template(
+            tenant_id=tenant.id,
+            name=f"ref-{secrets.token_hex(4)}",
+            title_template="x",
+            body_template="y",
+            variables_schema={"$ref": "https://example.com/schema.json"},
+        )
+        db_session.add(stored)
+        await db_session.flush()
+
+        response = await client.post(
+            "/api/v1/dispatch",
+            headers=headers,
+            json={
+                "template_id": str(stored.id),
+                "variables": {"n": 1},
+                "channel_ids": [good_channel],
+            },
+        )
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"]["section"] == "variables_schema"
 
     def test_a_malformed_schema_is_reported_separately(self):
         """Unreachable through the API — templates validate their schema on

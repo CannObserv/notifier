@@ -18,7 +18,11 @@ from src.api.schemas.template import (
 from src.api.schemas.types import ULIDStr
 from src.core.models.template import Template
 from src.core.notifications.render import TemplateRenderError, render_template
-from src.core.notifications.validate import VariablesValidationError, validate_variables
+from src.core.notifications.validate import (
+    SchemaDocumentError,
+    VariablesValidationError,
+    validate_variables,
+)
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -141,6 +145,8 @@ async def preview_template(
 
     try:
         validate_variables(variables, template.variables_schema)
+    except SchemaDocumentError as exc:
+        return TemplatePreviewResponse(error=str(exc), error_section="variables_schema")
     except VariablesValidationError as exc:
         return TemplatePreviewResponse(error=str(exc), error_section="variables")
 

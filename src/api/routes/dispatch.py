@@ -30,7 +30,11 @@ from src.core.models.template import Template
 from src.core.notifications.constants import DispatchAttemptStatus, DispatchStatus
 from src.core.notifications.dispatcher import dispatch_to_channel
 from src.core.notifications.render import TemplateRenderError, render_template
-from src.core.notifications.validate import VariablesValidationError, validate_variables
+from src.core.notifications.validate import (
+    SchemaDocumentError,
+    VariablesValidationError,
+    validate_variables,
+)
 
 router = APIRouter(prefix="/dispatch", tags=["dispatch"])
 
@@ -125,6 +129,15 @@ async def create_dispatch(
         body_src = body_src or template.body_template
         try:
             validate_variables(body.variables, template.variables_schema)
+        except SchemaDocumentError as exc:
+            # The stored schema is at fault, not the bag the consumer sent —
+            # only reachable for a row written before templates validated on
+            # write (#28). Naming `variables` here would send them auditing
+            # input that is fine.
+            raise HTTPException(
+                status_code=422,
+                detail={"section": "variables_schema", "path": exc.path, "message": exc.message},
+            ) from exc
         except VariablesValidationError as exc:
             raise HTTPException(
                 status_code=422,
