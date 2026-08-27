@@ -46,11 +46,6 @@ def test_random_string_invalid():
         _normalise_ulid("not-a-valid-ulid")
 
 
-def test_is_str_subclass():
-    result = _normalise_ulid("01H5K3G8V4HCQ2DXFE5FJNWQER")
-    assert isinstance(result, str)
-
-
 def test_pydantic_model_accepts_valid_ulid():
     class M(BaseModel):
         id: ULIDStr
@@ -67,6 +62,24 @@ def test_pydantic_model_rejects_invalid():
     with pytest.raises(ValidationError) as exc_info:
         M(id="not-a-ulid")
     assert "invalid ULID" in str(exc_info.value)
+
+
+def test_pydantic_model_rejects_a_non_string():
+    """A non-string id answers `string_type`, not `invalid ULID` (#32).
+
+    The str subclass this type replaced used a plain validator that
+    stringified anything, so `123` reached ULID parsing and came back as
+    "invalid ULID: 123". Same 422 and same `loc` either way; pinned here
+    because it is a deliberate consequence of the rewrite rather than an
+    accident, and the SDK surfaces `msg` to consumers.
+    """
+
+    class M(BaseModel):
+        id: ULIDStr
+
+    with pytest.raises(ValidationError) as exc_info:
+        M(id=123)
+    assert exc_info.value.errors()[0]["type"] == "string_type"
 
 
 def test_pydantic_model_optional_accepts_none():

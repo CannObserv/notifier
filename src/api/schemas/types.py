@@ -18,7 +18,7 @@ _ULID_PATTERN = f"^[{_ulid_base32.ENCODE}{_ULID_ALPHA.lower()}]{{26}}$"
 def _normalise_ulid(value: str) -> str:
     """Uppercase a ULID string and reject anything ULID cannot parse.
 
-    The pattern below documents the accepted input space in OpenAPI but does
+    ``_ULID_PATTERN`` documents the accepted input space in OpenAPI but does
     not enforce it: a constraint would run before this validator and answer
     "String should match pattern" where "invalid ULID" names the actual
     problem.

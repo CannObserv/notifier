@@ -16,19 +16,23 @@ Invariants that `uv sync --locked` cannot express, from #30 and its review.
   `procrastinate` sat unimported for months (#29). The exceptions are real
   but few, so `IMPORT_LESS` states each one once, with a reason that has to
   be non-empty; a stale entry there fails as loudly as a missing one.
-* **Every third-party module `src/` imports is declared.** The mirror of the
-  above, and the direction this repo was already in: `pydantic` backed every
-  model in `src/api/schemas/` while riding in transitively through fastapi,
-  so the version floor for code we wrote was a side effect of someone else's
-  packaging (#32). This check walks the AST rather than matching text —
-  exhaustive is the whole point in this direction.
+* **Every third-party module this repo imports is declared.** The mirror of
+  the above, and the direction this repo was already in: `pydantic` backed
+  every model in `src/api/schemas/` while riding in transitively through
+  fastapi, so the version floor for code we wrote was a side effect of
+  someone else's packaging (#32). This check walks the AST rather than
+  matching text — exhaustive is the whole point in this direction — and
+  covers `alembic/` and `scripts/` alongside `src/`, because those run
+  against production too and fail at run time rather than at test time.
 
 The bound checks cover **both** dependency tables in this repo: the service's
 and `clients/python/`'s, which is published to consumers and is exactly as
 exposed to an unreviewed major. The importer check covers the service's
 `[project.dependencies]` only — the SDK's `src/` is generated, and dev-group
 tools everywhere are run as commands or imported from `tests/`, so
-"unimported by `src/`" is their normal condition and says nothing.
+"unimported by `src/`" is their normal condition and says nothing. It also
+looks at `src/` alone: a dependency reached only from `scripts/` is a tool,
+not something the service needs at run time.
 """
 
 import ast
@@ -46,6 +50,12 @@ from packaging.version import InvalidVersion, Version
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC = REPO_ROOT / "src"
+
+# Directories whose imports must be declared. `src/` is the service; the other
+# two run against production — `alembic/env.py` under `alembic upgrade head`,
+# `scripts/` by hand and from the systemd units — where an undeclared import
+# surfaces at run time rather than in the suite.
+IMPORT_AREAS = ("src", "alembic", "scripts")
 
 # Every dependency table in the repo. The SDK ships to consumers from its own
 # table, so leaving it out would enforce the invariant everywhere except the
@@ -180,11 +190,17 @@ def module_names(name: str) -> frozenset[str]:
 
 
 @cache
-def src_sources() -> tuple[tuple[str, str], ...]:
-    """Every module under src/, read once for all importer lookups."""
+def python_sources(area: str) -> tuple[tuple[str, str], ...]:
+    """Every module under one tracked directory, read once and reused."""
     return tuple(
-        (str(path.relative_to(REPO_ROOT)), path.read_text()) for path in sorted(SRC.rglob("*.py"))
+        (str(path.relative_to(REPO_ROOT)), path.read_text())
+        for path in sorted((REPO_ROOT / area).rglob("*.py"))
     )
+
+
+def src_sources() -> tuple[tuple[str, str], ...]:
+    """Every module under src/ — what the importer check reads."""
+    return python_sources("src")
 
 
 def is_installed(name: str) -> bool:
@@ -286,27 +302,35 @@ def test_import_less_allowlist_has_no_entry_that_is_imported(name):
 
 
 @cache
-def imported_modules() -> tuple[str, ...]:
-    """Top-level third-party modules imported anywhere under src/.
+def imported_modules() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Third-party top-level modules imported anywhere in IMPORT_AREAS.
 
     An AST walk, unlike the textual match `importers()` uses: this direction
     has to be exhaustive, and a regex that misses an import silently reports
-    the invariant as held. Standard-library and first-party modules are
-    dropped, as are relative imports, which have no distribution to declare.
+    the invariant as held. It also sees imports inside a function body, which
+    the house style forbids and therefore does not look for. Standard-library
+    and first-party modules are dropped, as are relative imports, which have
+    no distribution to declare.
+
+    Each module carries the paths that import it, so a failure names where to
+    look rather than only what is missing.
     """
-    modules = set()
-    for _, source in src_sources():
-        for node in ast.walk(ast.parse(source)):
-            if isinstance(node, ast.Import):
-                modules.update(alias.name.split(".")[0] for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                modules.add(node.module.split(".")[0])
+    sites: dict[str, set[str]] = {}
+    for area in IMPORT_AREAS:
+        for path, source in python_sources(area):
+            for node in ast.walk(ast.parse(source)):
+                if isinstance(node, ast.Import):
+                    found = {alias.name.split(".")[0] for alias in node.names}
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    found = {node.module.split(".")[0]}
+                else:
+                    continue
+                for module in found:
+                    sites.setdefault(module, set()).add(path)
     return tuple(
-        sorted(
-            module
-            for module in modules
-            if module not in sys.stdlib_module_names and module != SRC.name
-        )
+        (module, tuple(sorted(paths)))
+        for module, paths in sorted(sites.items())
+        if module not in sys.stdlib_module_names and module != SRC.name
     )
 
 
@@ -316,24 +340,45 @@ def declaring_distributions(module: str) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    "module", [mod for mod in imported_modules() if mod not in UNDECLARED_OK], ids=str
+    "case",
+    [case for case in imported_modules() if case[0] not in UNDECLARED_OK],
+    ids=lambda case: case[0],
 )
-def test_every_module_src_imports_is_declared(module):
+def test_every_imported_module_is_declared(case):
     """An undeclared import takes its floor from whoever pulls it in.
 
-    Checked against the runtime table alone: `src/` is what a consumer
-    installs, so an import satisfied only by a dev-group entry is a packaging
-    bug rather than a passing case.
+    Checked against the runtime table alone: these directories are what runs
+    against production, so an import satisfied only by a dev-group entry is a
+    packaging bug rather than a passing case.
     """
+    module, paths = case
     declared_names = {canonicalize_name(req.name) for req in runtime_requirements()}
     providers = declaring_distributions(module)
     assert providers, (
-        f"src/ imports {module}, which no installed distribution claims. "
-        f"Run `uv sync`, or drop the import if it is dead."
+        f"{module} is imported ({', '.join(paths)}) but no installed "
+        f"distribution claims it. Run `uv sync`, or drop the import if it is dead."
     )
     assert any(name in declared_names for name in providers), (
-        f"src/ imports {module} (from {', '.join(providers)}), which "
-        f"pyproject.toml does not declare — it arrives transitively, so its "
-        f"version floor is set by whatever pulls it in. Declare it, or add it "
-        f"to UNDECLARED_OK with the reason."
+        f"{module} is imported ({', '.join(paths)}) from {', '.join(providers)}, "
+        f"which pyproject.toml does not declare — it arrives transitively, so "
+        f"its version floor is set by whatever pulls it in. Declare it, or add "
+        f"it to UNDECLARED_OK with the reason."
+    )
+
+
+@pytest.mark.parametrize("module", sorted(UNDECLARED_OK), ids=str)
+def test_undeclared_ok_allowlist_states_a_reason(module):
+    """Same rule as IMPORT_LESS: the reason is the artifact, not the key."""
+    assert UNDECLARED_OK[module].strip(), (
+        f"UNDECLARED_OK[{module!r}] states no reason. Relying on a transitive "
+        f"dependency is a decision; it has to be written down once."
+    )
+
+
+@pytest.mark.parametrize("module", sorted(UNDECLARED_OK), ids=str)
+def test_undeclared_ok_allowlist_has_no_stale_entry(module):
+    """An exception outliving the import it excused is a claim nobody rechecks."""
+    imported = {name for name, _ in imported_modules()}
+    assert module in imported, (
+        f"UNDECLARED_OK excuses {module}, which nothing imports any more; remove the entry."
     )
