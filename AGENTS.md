@@ -152,7 +152,6 @@ test database itself.
 
 Currently defined:
 - `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)
-- `PROCRASTINATE_DATABASE_URL` — (optional) libpq-style DSN reserved for the future async dispatch worker. **The name is reserved, not wired: procrastinate is not installed** — dropped in #29 because nothing imported it, so `import procrastinate` fails until someone runs `uv add procrastinate` against whatever version is current when the worker is written. **Not covered by the `db_safety` guard** — it opens a database by a path that crosses no chokepoint. Route it through `assert_safe_database_url` when the worker lands.
 - `GH_TOKEN` — GitHub personal access token (in `.env`)
 - `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
 - `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it, so `notifier-dev.service` does too
@@ -162,6 +161,9 @@ Currently defined:
 - `BUILD_ID` — (optional) git SHA reported by `/health`; blank or unset both fall back to `"dev"`. Each systemd unit stamps its own file (`/run/notifier/build-id`, `/run/notifier/build-id-dev`) from `git rev-parse` at start
 - `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+
+Reserved, not set:
+- `PROCRASTINATE_DATABASE_URL` — libpq-style DSN for the future async dispatch worker. Set nowhere, read by nothing; procrastinate is uninstalled (#29). **Not covered by the `db_safety` guard** — it crosses no chokepoint, so route it through `assert_safe_database_url` when the worker lands.
 
 ## Common Commands
 
