@@ -232,10 +232,11 @@ Entry points only: call `configure_logging()` once.
 - All UTC
 - ISO 8601: `YYYY-MM-DDTHH:MM:SS.ffffffZ` (timestamps), `YYYY-MM-DD` (dates)
 
-**Dependencies:**
-- Every specifier carries an upper bound (`<next-major`), runtime and dev group alike
+**Dependencies:** (both `pyproject.toml` files — the service's and the SDK's)
+- Every specifier carries an upper bound, runtime and dev group alike
+- A `0.x` dependency caps at the next *minor* above the locked version (`<0.38`, never `<1`) — pre-1.0 projects ship breaking changes in minors
 - Every runtime dependency has an importer under `src/`, or an `IMPORT_LESS` entry in `tests/ci/test_dependencies.py` stating how it is reached instead
-- Both are asserted there, so a dependency added without either fails the suite
+- All three are asserted there, so a dependency added without them fails the suite
 
 **General:**
 - No inline module imports; all at file top

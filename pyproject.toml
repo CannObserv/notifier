@@ -5,20 +5,20 @@ description = "Multi-tenant notifications service: Apprise-backed dispatcher wit
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0,<1",
+    "fastapi>=0.115.0,<0.137",
     "python-json-logger>=4.0.0,<5",
-    "uvicorn>=0.34.0,<1",
+    "uvicorn>=0.34.0,<0.47",
     "sqlalchemy[asyncio]>=2.0,<3",
-    "asyncpg>=0.30.0,<1",
+    "asyncpg>=0.30.0,<0.32",
     "alembic>=1.15.0,<2",
     "python-ulid>=3.0.0,<4",
-    "httpx>=0.28.0,<1",
+    "httpx>=0.28.0,<0.29",
     "jinja2>=3.1.6,<4",
     "jsonschema>=4.21.0,<5",
     "apprise>=1.9.9,<2",
     "cryptography>=46.0.6,<48",
     "mistune>=3.0,<4",
-    "referencing>=0.37.0,<1",
+    "referencing>=0.37.0,<0.38",
 ]
 
 [dependency-groups]
@@ -34,7 +34,7 @@ dev = [
     # tests/ci/ parses .github/workflows/*.yml. Available transitively via
     # pre-commit, but declared here because the tests import it directly.
     "pyyaml>=6.0,<7",
-    "ruff>=0.9,<1",
+    "ruff>=0.9,<0.16",
 ]
 
 [tool.pytest.ini_options]
