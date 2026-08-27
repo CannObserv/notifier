@@ -1,0 +1,32 @@
+# Acknowledged cross-reference seams (check-seams.sh --ack-file).
+# One entry per judged line, form "PATH :: CONTENT" — content is a substring of
+# the live line, so the entry stops matching (and gets re-judged) the moment
+# that line changes. Reviewed 2026-08-27 under #42: every anchor, path, and
+# claim below was verified against the current tree.
+
+# docs/ARCHITECTURE.md — legitimate links back to the policy file's index
+# sections; both anchors (## Project Layout, ## Detail Docs) exist in AGENTS.md.
+docs/ARCHITECTURE.md :: are summarised in [AGENTS.md](../AGENTS.md#project-layout)
+docs/ARCHITECTURE.md :: [AGENTS.md § Detail Docs](../AGENTS.md#detail-docs)
+
+# docs/ARCHITECTURE.md — names the tenancy rule as stated in AGENTS.md
+# (§ API Boundary Principles: tenancy enforced at the auth layer, business
+# logic never branches on it); tests/api/test_tenant_isolation.py exists.
+docs/ARCHITECTURE.md :: The rule AGENTS.md states — tenancy is enforced at the boundary
+
+# docs/SKILLS.md — describes the context-budget write guard; hook file,
+# uninstall path, and both budget values (6000 / 10000) verified against
+# .claude/hooks/ and .skills/context-*budget.
+docs/SKILLS.md :: an edit pushes `AGENTS.md` past 6,000 tokens
+
+# docs/SKILLS.md — skills-inventory row naming the curating-context trigger
+# phrases; "trim AGENTS.md" is a trigger, not a stale pointer.
+docs/SKILLS.md :: Triggers: `curate context`, `context budget`, `trim AGENTS.md`
+
+# docs/SOCRATICODE.md — this doc IS the detail doc for the
+# ## Code Exploration Policy block in AGENTS.md (block exists, AGENTS.md:36);
+# all four mentions describe that relationship or which variant the block is on.
+docs/SOCRATICODE.md :: Detail doc for the `## Code Exploration Policy` block in `AGENTS.md`
+docs/SOCRATICODE.md :: heading down there, not in `AGENTS.md`.
+docs/SOCRATICODE.md :: `AGENTS.md` block should be on its degraded variant.
+docs/SOCRATICODE.md :: block in `AGENTS.md` is therefore on **variant A** (standard).
