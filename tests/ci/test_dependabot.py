@@ -33,7 +33,7 @@ CONFIG = REPO_ROOT / ".github" / "dependabot.yml"
 def expected_directories() -> set[str]:
     """One dependabot directory per dependency table, in dependabot's shape."""
     return {
-        f"/{path.parent.relative_to(REPO_ROOT).as_posix()}".replace("/.", "/")
+        "/" if path.parent == REPO_ROOT else f"/{path.parent.relative_to(REPO_ROOT).as_posix()}"
         for path in TABLES.values()
     }
 
@@ -98,7 +98,7 @@ def test_uv_dev_churn_is_grouped(block):
 
 
 def test_actions_are_covered_too():
-    covered = set().union(*(directories(block) for block in blocks("github-actions")), set())
+    covered = set().union(*(directories(block) for block in blocks("github-actions")))
     assert "/" in covered, (
         ".github/workflows/ pins actions/checkout and astral-sh/setup-uv; "
         "they drift exactly like the uv tables"
