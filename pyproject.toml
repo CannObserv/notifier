@@ -11,7 +11,7 @@ dependencies = [
     # else's packaging.
     "pydantic>=2.9,<3",
     "python-json-logger>=4.0.0,<5",
-    "uvicorn>=0.34.0,<0.47",
+    "uvicorn>=0.52.4,<0.53",
     "sqlalchemy[asyncio]>=2.0,<3",
     "asyncpg>=0.30.0,<0.32",
     "alembic>=1.15.0,<2",
