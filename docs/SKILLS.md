@@ -30,6 +30,24 @@ A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and
 
 The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
+### Override drift
+
+Overrides are the one thing the refresh machinery does not keep current. `.skills/doctor.sh`
+walks *symlinks* and deliberately skips override directories; the daily hook only moves the
+submodule pointer, which by definition never touches a forked file. So an override falls
+further behind on every vendor release, silently.
+
+`shipping-work-python-fastapi` shows both the mitigation and the residue. Its five unchanged
+scripts are **per-script symlinks** into `skills-vendor/`, so they track upstream for free —
+a pattern thinner than `managing-skills`' documented "complete replacement" rule and worth
+preferring. But `SKILL.md` carries the notifier deltas and cannot be symlinked, so it drifts
+alone. It sat at v1.2 while vendor reached v1.4, missing the Step 1 script-resolution loop
+that upstream added for [gregoryfoster/skills#63](https://github.com/gregoryfoster/skills/issues/63);
+`bash scripts/pre-ship.sh` failed until it was re-synced.
+
+To re-sync an override: diff its `SKILL.md` against the vendor copy, reapply the local deltas
+onto the newer upstream text (not the reverse), and update the pinned version in the table below.
+
 `init-socraticode` installs its own `SessionStart` entry: `.claude/hooks/socraticode-health.sh`, a symlink into the vendor tree wired by `managing-skills`' shared `install-hook.sh` (`--hook socraticode-health.sh --skill init-socraticode --marker socraticode-health --copy-fallback`; add `--check` to verify without writing). It reports and never repairs — a stopped container, a FAILED last index operation, a degraded graph yield, and since [gregoryfoster/skills#214](https://github.com/gregoryfoster/skills/issues/214) a context artifact declared in `.socraticodecontextartifacts.json` but never indexed, named in the finding. Silent when clean, at most one report per UTC day per project (`.git/socraticode-health.lock` / `.log`), exits 0 on every path. The entry carries an explicit `"timeout": 90` — above the hook's own 60 s driver ceiling (`HEALTH_TIMEOUT_MS`), so a slow check is not killed mid-run. Force a run with `SOCRATICODE_HEALTH_FORCE=1 bash .claude/hooks/socraticode-health.sh`.
 
 Its sibling `.claude/hooks/socraticode-reminder.sh` — the `ToolSearch` prefetch line — is the same installer with `--marker socraticode-prefetch --marker socraticode-reminder`, and was a hand-typed copy until #21 symlinked it, so upstream edits to the prefetch query now arrive on the normal submodule refresh. **Both entries are hand-customized after install and the installer does not preserve that:** it strips its marked entry and appends a canonical one at the end of the array, with no `timeout` key. After any re-run, re-add the health entry's `"timeout": 90`, and the reminder entry's `"timeout": 5` and first position. Neither hook resolves on a checkout with uninitialized submodules — both are vendor symlinks, so a fresh clone or new worktree fails them with rc=127 until `bash .skills/doctor.sh` has run once ([gregoryfoster/skills#228](https://github.com/gregoryfoster/skills/issues/228)).
@@ -42,7 +60,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 
 | Skill | Source | Notes |
 |---|---|---|
-| `brainstorming` | Local override (obra-superpowers) | Project-specific conventions |
+| `brainstorming` | Full override (obra-superpowers) | Project-specific conventions. A complete copy — upstream carries no `version:`, so drift here is undetectable by inspection |
 | `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Tracks the vendored pointer; the wave-A hold at v1.2 was lifted 2026-08-14 (#20) |
 | `dispatching-parallel-agents` | obra-superpowers symlink | |
 | `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |
@@ -51,7 +69,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
-| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills) | Loads `/etc/notifier/.env` before delegating |
+| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **pinned at vendor v1.4** | Loads `/etc/notifier/.env` before delegating. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. See [Override drift](#override-drift) — bump the recorded version whenever you re-sync |
 | `subagent-driven-development` | obra-superpowers symlink | |
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |
