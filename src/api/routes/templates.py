@@ -42,6 +42,30 @@ def _to_out(t: Template) -> TemplateOut:
     )
 
 
+def _check_sample(schema: dict[str, Any] | None, sample: dict[str, Any] | None) -> None:
+    """Reject a `sample_variables` bag its own `variables_schema` refuses (#31).
+
+    Route-level, not a Pydantic validator: PATCH must judge the merged result,
+    so the values here may come from the stored row rather than the request.
+    A malformed *stored* schema (pre-#28 row) is named as the fault instead of
+    the sample the consumer just sent — dispatch's precedent.
+    """
+    if sample is None:
+        return
+    try:
+        validate_variables(sample, schema)
+    except SchemaDocumentError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"section": "variables_schema", "path": exc.path, "message": exc.message},
+        ) from exc
+    except VariablesValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"section": "sample_variables", "path": exc.path, "message": exc.message},
+        ) from exc
+
+
 async def _load_owned(session: AsyncSession, template_id: str, tenant_id: str) -> Template:
     result = await session.execute(
         select(Template).where(Template.id == template_id, Template.tenant_id == tenant_id)
@@ -71,6 +95,7 @@ async def create_template(
     session: AsyncSession = Depends(get_db_session),
 ) -> TemplateOut:
     """Create a new template for the calling tenant."""
+    _check_sample(body.variables_schema, body.sample_variables)
     template = Template(
         tenant_id=tenant_id,
         name=body.name,
@@ -109,7 +134,13 @@ async def update_template(
 ) -> TemplateOut:
     """Partially update a template; only supplied fields are changed."""
     template = await _load_owned(session, template_id, tenant_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    if "variables_schema" in updates or "sample_variables" in updates:
+        _check_sample(
+            updates.get("variables_schema", template.variables_schema),
+            updates.get("sample_variables", template.sample_variables),
+        )
+    for field, value in updates.items():
         setattr(template, field, value)
     try:
         await session.commit()

@@ -17,6 +17,11 @@ HEADER = "X-API-Key"
 
 INVALID_SCHEMA = {"type": "not-a-json-schema-type"}
 VALID_SCHEMA = {"type": "object", "properties": {"n": {"type": "integer"}}}
+STRICT_SCHEMA = {
+    "type": "object",
+    "properties": {"n": {"type": "integer"}},
+    "required": ["n"],
+}
 EXTERNAL_REF_SCHEMA = {"$ref": "https://example.com/schema.json"}
 DANGLING_REF_SCHEMA = {"type": "object", "properties": {"n": {"$ref": "#/$defs/missing"}}}
 
@@ -145,6 +150,166 @@ class TestUpdateSchemaValidation:
         )
         assert response.status_code == 200, response.text
         assert response.json()["variables_schema"] == VALID_SCHEMA
+
+
+class TestSampleVariablesCrossValidation:
+    """Templates must not carry a `sample_variables` bag their own
+    `variables_schema` rejects (#31).
+
+    POST checks the request pair; PATCH checks the *merged* result — either
+    field can arrive alone, and the one that stayed home is read from the
+    stored row. Route-level, so the error is dispatch's `{section, path,
+    message}` dict, not Pydantic's `loc` list.
+    """
+
+    async def test_post_rejects_a_sample_the_schema_refuses(self, client, headers):
+        response = await _create(
+            client,
+            headers,
+            variables_schema=STRICT_SCHEMA,
+            sample_variables={"n": "not-an-integer"},
+        )
+        assert response.status_code == 422, response.text
+        detail = response.json()["detail"]
+        assert detail["section"] == "sample_variables"
+        assert detail["path"] == "n"
+
+    async def test_post_accepts_a_sample_the_schema_allows(self, client, headers):
+        response = await _create(
+            client, headers, variables_schema=STRICT_SCHEMA, sample_variables={"n": 3}
+        )
+        assert response.status_code == 201, response.text
+
+    async def test_post_rejects_an_empty_sample_when_the_schema_requires_a_key(
+        self, client, headers
+    ):
+        """`{}` genuinely violates `required`, and preview's `or`-chain treats
+        an empty sample as absent anyway — refusing it loses nothing."""
+        response = await _create(
+            client, headers, variables_schema=STRICT_SCHEMA, sample_variables={}
+        )
+        assert response.status_code == 422, response.text
+
+    async def test_post_accepts_a_sample_with_no_schema_to_judge_it(self, client, headers):
+        response = await _create(client, headers, sample_variables={"n": "anything"})
+        assert response.status_code == 201, response.text
+
+    @pytest.fixture
+    async def strict_template_id(self, client, headers) -> str:
+        response = await _create(
+            client, headers, variables_schema=STRICT_SCHEMA, sample_variables={"n": 1}
+        )
+        assert response.status_code == 201, response.text
+        return response.json()["id"]
+
+    async def test_patch_checks_a_lone_sample_against_the_stored_schema(
+        self, client, headers, strict_template_id
+    ):
+        response = await client.patch(
+            f"/api/v1/templates/{strict_template_id}",
+            headers=headers,
+            json={"sample_variables": {"n": "not-an-integer"}},
+        )
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"]["section"] == "sample_variables"
+
+    async def test_patch_checks_a_lone_schema_against_the_stored_sample(
+        self, client, headers, strict_template_id
+    ):
+        """Tightening a schema must not silently strand the sample it was
+        supposed to describe."""
+        response = await client.patch(
+            f"/api/v1/templates/{strict_template_id}",
+            headers=headers,
+            json={"variables_schema": {"type": "object", "properties": {"n": {"type": "string"}}}},
+        )
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"]["section"] == "sample_variables"
+
+    async def test_a_rejected_patch_leaves_the_stored_row_intact(
+        self, client, headers, strict_template_id
+    ):
+        await client.patch(
+            f"/api/v1/templates/{strict_template_id}",
+            headers=headers,
+            json={"sample_variables": {"n": "not-an-integer"}},
+        )
+        response = await client.get(f"/api/v1/templates/{strict_template_id}", headers=headers)
+        assert response.json()["sample_variables"] == {"n": 1}
+        assert response.json()["variables_schema"] == STRICT_SCHEMA
+
+    async def test_patch_accepts_a_compatible_schema_replacement(
+        self, client, headers, strict_template_id
+    ):
+        response = await client.patch(
+            f"/api/v1/templates/{strict_template_id}",
+            headers=headers,
+            json={"variables_schema": VALID_SCHEMA},
+        )
+        assert response.status_code == 200, response.text
+
+    async def test_patch_clearing_the_schema_lifts_the_constraint(
+        self, client, headers, strict_template_id
+    ):
+        response = await client.patch(
+            f"/api/v1/templates/{strict_template_id}",
+            headers=headers,
+            json={"variables_schema": None, "sample_variables": {"n": "anything"}},
+        )
+        assert response.status_code == 200, response.text
+
+    async def test_patch_clearing_the_sample_needs_no_judgement(
+        self, client, headers, strict_template_id
+    ):
+        response = await client.patch(
+            f"/api/v1/templates/{strict_template_id}",
+            headers=headers,
+            json={"sample_variables": None},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["sample_variables"] is None
+
+    async def test_an_unrelated_patch_does_not_rejudge_the_stored_pair(
+        self, client, headers, db_session, tenant
+    ):
+        """A pre-guard row holding a contradictory pair stays editable on
+        other fields — only a request touching the pair triggers the check."""
+        stored = Template(
+            tenant_id=tenant.id,
+            name=f"contradictory-{secrets.token_hex(4)}",
+            title_template="x",
+            body_template="y",
+            variables_schema=STRICT_SCHEMA,
+            sample_variables={"n": "not-an-integer"},
+        )
+        db_session.add(stored)
+        await db_session.flush()
+        response = await client.patch(
+            f"/api/v1/templates/{stored.id}", headers=headers, json={"title_template": "z"}
+        )
+        assert response.status_code == 200, response.text
+
+    async def test_a_lone_sample_patch_names_a_malformed_stored_schema(
+        self, client, headers, db_session, tenant
+    ):
+        """Pre-#28 row with a broken stored schema: the fault is the schema,
+        not the sample the consumer just sent — dispatch's precedent."""
+        stored = Template(
+            tenant_id=tenant.id,
+            name=f"legacy-{secrets.token_hex(4)}",
+            title_template="x",
+            body_template="y",
+            variables_schema=INVALID_SCHEMA,
+        )
+        db_session.add(stored)
+        await db_session.flush()
+        response = await client.patch(
+            f"/api/v1/templates/{stored.id}",
+            headers=headers,
+            json={"sample_variables": {"n": 1}},
+        )
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"]["section"] == "variables_schema"
 
 
 class TestSchemaReferences:
