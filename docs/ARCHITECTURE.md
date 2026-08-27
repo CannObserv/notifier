@@ -8,7 +8,7 @@ is the enumeration behind them.
 
 ```
 src/api/                     — FastAPI app (ASGI, routes, schemas); /api/v1/ versioned + auth-guarded; /health, /ready root-level
-src/api/routes/templates.py  — CRUD + preview for templates; `POST /templates/{id}/preview` renders with `sample_variables` or supplied variables. Write paths reject a malformed `variables_schema` with a 422 naming `body.variables_schema` (via `JSONSchemaDict`); preview reports a bad *stored* schema in-band as `error_section: "variables_schema"` rather than raising
+src/api/routes/templates.py  — CRUD + preview for templates; `POST /templates/{id}/preview` renders with `sample_variables` or supplied variables. Write paths reject a malformed `variables_schema` with a 422 naming `body.variables_schema` (via `JSONSchemaDict`), and a `sample_variables` bag the *merged* `variables_schema` refuses — PATCH judges a lone field against the stored sibling — with a 422 `{section: "sample_variables"}` (#31); preview reports a bad *stored* schema in-band as `error_section: "variables_schema"` rather than raising
 src/api/routes/channels.py   — CRUD + test for channels; Apprise URL encrypted at rest; never returned in plaintext
 src/api/routes/dispatch.py   — `POST /dispatch` (renders, validates, dispatches, logs); `GET /dispatch/{id}`; `GET /dispatch?event_type=&since=&limit=` log query
 src/api/routes/preview.py    — Stateless `POST /preview` that takes inline templates + variables, returns rendered title/body or per-section error
