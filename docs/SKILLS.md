@@ -38,15 +38,31 @@ submodule pointer, which by definition never touches a forked file. So an overri
 further behind on every vendor release, silently.
 
 `shipping-work-python-fastapi` shows both the mitigation and the residue. Its five unchanged
-scripts are **per-script symlinks** into `skills-vendor/`, so they track upstream for free —
-a pattern thinner than `managing-skills`' documented "complete replacement" rule and worth
-preferring. But `SKILL.md` carries the notifier deltas and cannot be symlinked, so it drifts
-alone. It sat at v1.2 while vendor reached v1.4, missing the Step 1 script-resolution loop
-that upstream added for [gregoryfoster/skills#63](https://github.com/gregoryfoster/skills/issues/63);
-`bash scripts/pre-ship.sh` failed until it was re-synced.
+scripts are **per-script symlinks** into `skills-vendor/`, so they track upstream for free — a
+pattern thinner than `managing-skills`' documented "complete replacement" rule, and worth
+preferring. `brainstorming` now follows it too. But `SKILL.md` carries the local deltas and
+cannot be symlinked, so it is the one file that drifts. `shipping-work`'s sat at v1.2 while
+vendor reached v1.4, missing the Step 1 script-resolution loop upstream added for
+[gregoryfoster/skills#63](https://github.com/gregoryfoster/skills/issues/63); Step 1 failed
+until it was re-synced. `brainstorming`'s had fallen a full restructure behind — 128 lines
+against vendor's 250, predating upstream's Spike/Bounded/Architectural model.
+
+**One caveat on the symlink pattern.** `doctor.sh` globs `"$dir"/*` exactly one level deep under
+`skills` and `.claude/hooks`, so symlinks nested inside an override directory sit below its scan
+depth and are never checked. A fresh clone is still covered — `scan_uninit()` catches an
+uninitialized submodule by a separate path — but if upstream *renames or deletes* a script, the
+dangling symlink is invisible and surfaces only as `No such file or directory` mid-run. Raised
+upstream alongside the pattern in
+[gregoryfoster/skills#238](https://github.com/gregoryfoster/skills/issues/238).
 
 To re-sync an override: diff its `SKILL.md` against the vendor copy, reapply the local deltas
-onto the newer upstream text (not the reverse), and update the pinned version in the table below.
+onto the newer upstream text (not the reverse), and update the pin in the table below.
+
+**What the pin means.** In an override, `metadata.version` records *the vendor version this file
+was last synced from* — not a version of the local file. The two readings diverge the moment
+someone edits an override after syncing, so bump it on every re-sync even when the local deltas
+are unchanged. Where upstream ships no `version:` (obra-superpowers), use `synced-from:` with the
+submodule tag instead.
 
 `init-socraticode` installs its own `SessionStart` entry: `.claude/hooks/socraticode-health.sh`, a symlink into the vendor tree wired by `managing-skills`' shared `install-hook.sh` (`--hook socraticode-health.sh --skill init-socraticode --marker socraticode-health --copy-fallback`; add `--check` to verify without writing). It reports and never repairs — a stopped container, a FAILED last index operation, a degraded graph yield, and since [gregoryfoster/skills#214](https://github.com/gregoryfoster/skills/issues/214) a context artifact declared in `.socraticodecontextartifacts.json` but never indexed, named in the finding. Silent when clean, at most one report per UTC day per project (`.git/socraticode-health.lock` / `.log`), exits 0 on every path. The entry carries an explicit `"timeout": 90` — above the hook's own 60 s driver ceiling (`HEALTH_TIMEOUT_MS`), so a slow check is not killed mid-run. Force a run with `SOCRATICODE_HEALTH_FORCE=1 bash .claude/hooks/socraticode-health.sh`.
 
@@ -60,7 +76,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 
 | Skill | Source | Notes |
 |---|---|---|
-| `brainstorming` | Full override (obra-superpowers) | Project-specific conventions. A complete copy — upstream carries no `version:`, so drift here is undetectable by inspection |
+| `brainstorming` | Thin override (obra-superpowers), **synced from v6.3.0** | Project-specific conventions: `docs/plans/` spec path, notifier commit format, `writing-plans` optional rather than mandatory, `using-git-worktrees` for multi-step work. `SKILL.md` is the only real file; `visual-companion.md` and `scripts/` symlink into `skills-vendor/`. Upstream carries no `version:`, so the pin is the submodule tag in `synced-from:` |
 | `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Tracks the vendored pointer; the wave-A hold at v1.2 was lifted 2026-08-14 (#20) |
 | `dispatching-parallel-agents` | obra-superpowers symlink | |
 | `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |

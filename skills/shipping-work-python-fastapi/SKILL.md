@@ -177,6 +177,6 @@ If nothing applies, omit this step entirely.
   files, and the other five scripts are per-script symlinks into `skills-vendor/`, so they track
   upstream automatically. `SKILL.md` cannot be symlinked — it carries the notifier deltas — so it is
   the one file that drifts. It sat at v1.2 while vendor reached v1.4, missing the Step 1 script
-  resolution loop; `bash scripts/pre-ship.sh` failed as a result. Nothing detects this: `doctor.sh`
+  resolution loop, so it still said `bash scripts/pre-ship.sh` (the old, broken form) and Step 1 failed. Nothing detects this: `doctor.sh`
   walks symlinks and skips override directories, and the refresh hook only moves the submodule
   pointer. Re-diff this file against vendor when the submodule moves
