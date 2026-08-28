@@ -142,5 +142,13 @@ def test_dev_unit_starts_at_boot():
 
 
 def test_the_two_units_do_not_collide_on_a_port():
-    assert "--port 9000" in directives(PROD_UNIT)
+    """Both ExecStarts are scripts now (#43), so the ports live there."""
+    assert "--port 9000" in (REPO_ROOT / "scripts" / "serve.sh").read_text()
     assert "9001" not in directives(PROD_UNIT)
+    assert "9001" in (REPO_ROOT / "scripts" / "dev_server.sh").read_text()
+
+
+def test_dev_unit_orders_after_tailscaled():
+    """Same boot race as the production unit (#43 R1 / observo#473)."""
+    after = [line for line in directives(DEV_UNIT).splitlines() if line.startswith("After=")]
+    assert after and any("tailscaled.service" in line for line in after)

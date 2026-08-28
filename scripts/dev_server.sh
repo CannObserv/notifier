@@ -91,8 +91,13 @@ if [[ "${NOTIFIER_DEV_RELOAD:-1}" == "1" ]]; then
   reload_args=(--reload)
 fi
 
+# Same tailnet-only bind as production (#43 D3): the dev endpoint carries real
+# consumer traffic from watcher's non-production processes, so it has no more
+# business on 0.0.0.0 than :9000 does.
+HOST="$("$(dirname "${BASH_SOURCE[0]}")/tailnet_bind.sh")"
+
 exec uv run uvicorn src.api.main:app \
-  --host 0.0.0.0 \
+  --host "$HOST" \
   --port 9001 \
   "${reload_args[@]}" \
   --log-config src/core/log_config.json

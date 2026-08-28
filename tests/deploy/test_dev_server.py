@@ -68,6 +68,17 @@ def test_dev_server_refuses_an_unreachable_dev_database():
     assert "migration" in (result.stdout + result.stderr).lower()
 
 
+def test_dev_server_binds_the_tailnet_address_not_a_wildcard(tmp_path):
+    """#43 D3 — the dev endpoint carries real consumer traffic from watcher.
+
+    Asserts the resolved address reaches uvicorn, so a future edit cannot
+    quietly reintroduce ``--host 0.0.0.0`` while the probe still runs.
+    """
+    line = _run_dev_server(tmp_path, NOTIFIER_BIND_HOST="100.64.1.2")
+    assert "--host 100.64.1.2" in line
+    assert "0.0.0.0" not in line
+
+
 def test_dev_server_targets_port_9001():
     """Port 9000 belongs to systemd."""
     body = DEV_SERVER.read_text()
@@ -138,6 +149,10 @@ def _run_dev_server(tmp_path, **overrides):
         "NOTIFIER_DEV_SERVER_SKIP_ENV_FILES": "1",
         "DEV_DATABASE_URL": "postgresql+asyncpg://u@h/notifier_dev",
         "NOTIFIER_SECRET_KEY": "unused",
+        # CI has no tailnet, so the real probe would burn its full wait and
+        # then fail every test in this file. The override exists for exactly
+        # this; test_systemd_unit.py asserts no unit or env file carries it.
+        "NOTIFIER_BIND_HOST": "127.0.0.1",
         "PATH": f"{_fake_uv_path(tmp_path)}:{os.environ['PATH']}",
         **overrides,
     }

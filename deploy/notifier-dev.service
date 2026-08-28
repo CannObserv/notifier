@@ -1,6 +1,6 @@
 [Unit]
 Description=Notifier (dev) — non-production API on port 9001
-After=network.target postgresql.service
+After=network.target postgresql.service tailscaled.service
 
 # The launch script exits non-zero by design when notifier_dev is unreachable
 # or unmigrated (#23). Without a bound that is a restart loop in the journal
@@ -9,6 +9,9 @@ After=network.target postgresql.service
 # turning a transient into a silently dead endpoint, the opposite of what this
 # unit is for. After= orders startup but does not wait for the cluster to
 # accept connections, so the window has to ride that race out.
+#
+# Since #43 this unit also waits on tailscaled for its bind address, which
+# scripts/tailnet_bind.sh bounds internally before failing the start.
 #
 # 5 tries x RestartSec=15 = 75s of retries. Long enough for any plausible boot
 # race; short enough that a real misconfiguration, which no amount of waiting

@@ -1,6 +1,22 @@
 [Unit]
 Description=Notifier — multi-tenant notifications service
-After=network.target postgresql.service
+After=network.target postgresql.service tailscaled.service
+
+# The service binds this host's tailnet address alone (#43 D3), so a start that
+# beats tailscaled to an address cannot bind at all. After= orders the two but
+# does not wait for the address — scripts/tailnet_bind.sh does that, and gives
+# up non-zero rather than falling back to a bind reachable from elsewhere.
+#
+# Which means every failed start now costs the full tailnet wait *before*
+# RestartSec begins. systemd's default StartLimitIntervalSec is 10s, far too
+# short to ever count restarts that far apart, so without an explicit bound a
+# genuinely broken configuration would retry forever — the same silently-dead
+# endpoint notifier-dev.service bounds itself against, arriving by a different
+# route. 5 tries x (60s wait + 5s) = ~325s of retries inside a 900s window:
+# long enough to ride out tailscaled and Postgres at boot, short enough that a
+# real misconfiguration gives up somewhere a human will see it.
+StartLimitIntervalSec=900
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -24,7 +40,11 @@ EnvironmentFile=-/run/notifier/build-id
 EnvironmentFile=/etc/notifier/.env
 EnvironmentFile=-/home/exedev/notifier/.env
 
-ExecStart=/usr/local/bin/uv run uvicorn src.api.main:app --host 0.0.0.0 --port 9000 --log-config src/core/log_config.json
+# Never a uvicorn line here. Besides the one-spelling rule notifier-dev.service
+# has held since #24, systemd reads every EnvironmentFile= *before* ExecStartPre
+# runs — so no ExecStartPre can resolve this host's tailnet address into the
+# environment ExecStart would see. Resolving and binding must share a process.
+ExecStart=/home/exedev/notifier/scripts/serve.sh
 Restart=on-failure
 RestartSec=5
 
