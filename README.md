@@ -20,7 +20,9 @@ uv run alembic upgrade head
 ./scripts/dev_server.sh
 ```
 
-Live service runs on port 9000 via systemd; dev server uses 9001. Never
+Live service runs on port 9000 via systemd; dev server uses 9001. Both bind
+this host's tailnet address only — reachable as `http://notifier:9000` from the
+`cannobserv.org.github` tailnet, not from loopback or the internet. Never
 hand-run uvicorn — `scripts/dev_server.sh` exists because the old recipe
 pointed the dev server at the production database (issue #22).
 

@@ -67,7 +67,7 @@ processes at (#24) — 9000 refuses `development`-marked keys.
 sudo systemctl restart notifier-dev
 sudo systemctl status notifier-dev
 sudo journalctl -u notifier-dev -f
-curl http://127.0.0.1:9001/health
+curl "http://$(tailscale ip -4):9001/health"   # this VM: loopback is NOT bound
 ```
 
 It launches `scripts/dev_server.sh`, so it inherits every guard that script
@@ -199,9 +199,9 @@ tenant there, minted for watcher's non-production processes (watcher#278 step
 not in this repo.
 
 **Hand a consumer both halves, never just the key:** base URL
-`http://localhost:9001` for anything co-located on this VM, and a key minted
+`http://notifier:9001` from any node on the tailnet, and a key minted
 `development`. The pair only works together — a development key against
-`http://localhost:9000` is rejected, which is the point.
+`http://notifier:9000` is rejected, which is the point.
 
 ### Seeding the dev tenant's sink channels
 

@@ -1,11 +1,25 @@
 # Deployment
 
-Single-VM setup; co-located with `watcher` for the v0 phase.
+Own VM since #43: `notifier.exe.xyz` (exe.dev, `pdx`) runs this service and its
+PostgreSQL 16 cluster and nothing else. Consumers reach it over the
+`cannobserv.org.github` tailnet — see
+[reference/tailscale.md](reference/tailscale.md).
 
 ## First-time setup
 
 ```bash
-# Install Python 3.12+ and uv (already present on the shared VM)
+# The exeuntu image already ships Python 3.12, uv, git — and, as of 2026-08,
+# Tailscale itself (inactive). Join the tailnet first: both units bind this
+# host's tailnet address and will not start without one.
+sudo install -m 600 /dev/null /run/ts.key
+sudo tee /run/ts.key >/dev/null <<< 'tskey-auth-...'   # pre-approved + tag:notifier + NOT ephemeral
+sudo systemctl enable --now tailscaled
+sudo tailscale up --auth-key=file:/run/ts.key --hostname=notifier
+sudo shred -u /run/ts.key
+tailscale ip -4
+
+sudo apt-get install -y postgresql-16 postgresql-client-16
+
 # Create the production env file
 sudo mkdir -p /etc/notifier
 sudo tee /etc/notifier/.env > /dev/null <<'EOF'
@@ -120,20 +134,39 @@ sudo journalctl -u notifier -f
 sudo journalctl -u notifier-dev -f
 ```
 
-## Future: split VM
+## Health checks
 
-Once the v0 API has held still for a few weeks, provision a separate exe.dev VM and pg_dump → restore the `notifier` database there. Update watcher's `WATCHER_NOTIFIER_BASE_URL` — and `WATCHER_DEV_NOTIFIER_BASE_URL`, which points at :9001 — to the new host. Decommission the local notifier service on watcher's VM.
+**On this VM, `curl http://127.0.0.1:9000/health` fails — so does
+`http://notifier:9000`.** The units bind the tailnet address alone, and
+Ubuntu's `/etc/hosts` maps the hostname `notifier` to `127.0.1.1`, so the short
+name resolves locally instead of through MagicDNS:
 
-Note the VM is currently named `watcher`, so the exe.dev proxy serves these as `https://watcher.exe.xyz:9000/` and `https://watcher.exe.xyz:9001/`. Co-located consumers should use `http://localhost:<port>` and skip the proxy entirely.
+```bash
+curl "http://$(tailscale ip -4):9000/health"     # this VM
+curl http://notifier:9000/health                 # any other tailnet node
+```
+
+`https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops
+there: nothing listens on the interface the proxy forwards to. Deliberate.
+
+## The VM split (#43, done)
+
+Notifier ran co-located on the `watcher` VM through v0, reached at
+`http://localhost:9000`. #43 moved it here and replaced that hop with the
+tailnet. The migration record — including the `pg_dump`/restore, the Fernet-key
+verification gate, and the rollback path — is in that issue.
 
 ## SocratiCode indexing (agent tooling)
 
 Cross-project semantic search and context-artifact retrieval rely on two files:
 
 - **`.socraticodecontextartifacts.json`** — committed catalog of non-code knowledge to index alongside source (DB schema migrations, deployment doc, ops runbook, systemd unit). Edit when adding new authoritative reference material.
-- **`.claude/settings.local.json`** — gitignored, **per-VM**. Provides `SOCRATICODE_LINKED_PROJECTS` so the MCP server can search sibling projects (e.g. `watcher`).
+- **`.claude/settings.local.json`** — gitignored, **per-VM**. Provides `SOCRATICODE_LINKED_PROJECTS` so the MCP server can search sibling projects.
 
-On a fresh VM, create `.claude/settings.local.json` with absolute paths to any sibling repos you want linked:
+**Since #43 there are no sibling repos on this host** — it runs notifier alone,
+so there is nothing local to link. The setting stays documented because the
+sibling checkouts live on the `watcher` VM, and an agent working there against
+this repo would still want it:
 
 ```json
 {

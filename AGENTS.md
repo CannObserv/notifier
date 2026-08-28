@@ -65,26 +65,50 @@ Per-module inventory: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Infrastructure
 
-**Single-VM setup (shared with watcher).** This VM is both development and production. Code committed to main is the deployed code. The systemd service (`notifier`) runs the live service on port 9000.
+**Own VM since #43.** `notifier.exe.xyz` (exe.dev, `pdx`) runs this service and
+its PostgreSQL 16 cluster, nothing else. Dev and production both. Code
+committed to main is the deployed code; `notifier.service` runs the live
+service on port 9000.
 
 | Service | Framework | Port | Managed by |
 |---|---|---|---|
 | API (live) | FastAPI | 9000 | `systemctl` (`notifier.service`), production DB |
 | API (dev) | FastAPI | 9001 | `systemctl` (`notifier-dev.service`), `notifier_dev` |
 
-Both ports are always-on. **9001 is the development endpoint consumers point
-at** — it accepts `development`-marked API keys, which 9000 refuses (#24).
-`./scripts/dev_server.sh` is still the way to run a worktree or branch by hand;
-stop the dev unit first so the two do not fight over the port.
+Both always-on. **9001 is the development endpoint consumers point at** — it
+accepts `development`-marked API keys, which 9000 refuses (#24).
+`./scripts/dev_server.sh` still runs a worktree or branch by hand; stop the dev
+unit first so the two do not fight over the port.
 
-Co-located consumers reach the dev endpoint at `http://localhost:9001`. The
-exe.dev proxy also forwards ports 3000–9999 as
-`https://<vmname>.exe.xyz:<port>/` — **the VM is named `watcher`**, not
-`notifier` (notifier is the co-located service, not the host), so the browser
-URL is `https://watcher.exe.xyz:9001/`. The proxy is not reachable from inside
-the VM; test locally with `curl http://127.0.0.1:9001/health`.
+**Both bind this host's tailnet address alone, never `0.0.0.0`.** Unreachable
+from exe.dev's internal `10.42.0.0/16`, from the exe.dev proxy, and from the
+internet — the Tailscale ACL decides who gets in. Address resolved by
+`scripts/tailnet_bind.sh`, which waits for tailscaled and fails loudly rather
+than falling back to a wider bind. Full reference:
+[docs/reference/tailscale.md](docs/reference/tailscale.md).
 
-Watcher (the first consumer) co-locates on this VM during v0; both services run side by side. Watcher's API on port 8000, notifier's on 9000.
+Reachable by MagicDNS from any node on the `cannobserv.org.github` tailnet:
+
+| From | Live | Dev |
+|---|---|---|
+| Another tailnet node | `http://notifier:9000` | `http://notifier:9001` |
+| **This VM itself** | `http://$(tailscale ip -4):9000` | same, `:9001` |
+
+**On this VM both `127.0.0.1:9000` and `http://notifier:9000` fail** — Ubuntu's
+`/etc/hosts` maps the hostname `notifier` to `127.0.1.1`, which nothing binds.
+Use the tailnet address:
+
+```bash
+curl "http://$(tailscale ip -4):9000/health"
+```
+
+`https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops:
+nothing listens on the interface the proxy forwards to. Deliberate, not broken.
+
+Watcher, the first consumer, is on the separate `watcher` VM (`lax`) with
+archiver and replicator; its API is on 8000 there. Its production credential
+lives in `/etc/watcher/notifier.env` on that host, pointed at
+`http://notifier:9000` (watcher#278).
 
 ## Server Lifecycle
 
@@ -119,7 +143,8 @@ and the endpoint is silently dead.
 
 Never hand-run uvicorn. The old recipe sourced `/etc/notifier/.env` — which
 sets `DATABASE_URL` to **production** — so the "dev" server on 9001 shared one
-database with the live service on 9000 (issue #22). `src/core/db_safety.py`
+database with the live service on 9000 (issue #22). Still true on a dedicated
+VM: the two endpoints share a host and a cluster, only the database differs. `src/core/db_safety.py`
 now refuses any database whose name does not end in `_test` or `_dev`; the
 production opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the systemd unit and
 must never be added to an env file.
@@ -161,6 +186,16 @@ Currently defined:
 - `BUILD_ID` — (optional) git SHA reported by `/health`; blank or unset both fall back to `"dev"`. Each systemd unit stamps its own file (`/run/notifier/build-id`, `/run/notifier/build-id-dev`) from `git rev-parse` at start
 - `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+- `NOTIFIER_BIND_HOST` — **tests and diagnosis only.** Overrides the tailnet
+  probe in `scripts/tailnet_bind.sh` with a literal bind address. Never put it
+  in an env file or a unit, for the same reason as `NOTIFIER_ALLOW_PROD_DB`: it
+  would move the bind off the tailnet silently while every health check stayed
+  green. CI sets it because CI has no tailnet;
+  `tests/deploy/test_systemd_unit.py` asserts neither unit nor either env file
+  carries it
+- `NOTIFIER_TAILNET_WAIT_SECONDS` — how long `scripts/tailnet_bind.sh` waits for
+  tailscaled to assign an address before failing the start (default 60). The
+  unit's `StartLimit*` bound is sized around it
 
 Reserved, not set:
 - `PROCRASTINATE_DATABASE_URL` — libpq-style DSN for the future async dispatch worker. Set nowhere, read by nothing; procrastinate is uninstalled (#29). **Not covered by the `db_safety` guard** — it crosses no chokepoint, so route it through `assert_safe_database_url` when the worker lands.
@@ -259,5 +294,6 @@ The service is consumer-agnostic. Resist these temptations:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for, including `tests/`, `deploy/`, and the skill trees; plus the dependency policy every specifier is held to
 - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
+- [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet this VM lives on: node identity, ACL, the bind decision and the boot race it buys, and how to re-join or move the host
 - [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — full SocratiCode tool table, the `ToolSearch` prefetch query, per-tool notes, graph-health guidance, and this repo's measured yield
 - [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendored submodule repos and refresh procedure, full skills inventory

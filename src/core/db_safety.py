@@ -13,9 +13,11 @@ anything added later.
 Two deliberate carve-outs:
 
 * **Alembic is exempt.** ``alembic/env.py`` reads ``os.environ`` directly and
-  never calls this. That is intended: on this single-VM setup ``main`` *is*
-  production, so ``alembic upgrade head`` against production is the correct
-  operation, not the bug.
+  never calls this. That is intended: this host is both development and
+  production — ``main`` *is* the deployed code — so ``alembic upgrade head``
+  against production is the correct operation, not the bug. Still true since
+  #43 gave notifier its own VM: what stopped being shared is the *host*, not
+  the dev-and-prod-on-one-box arrangement that makes this carve-out necessary.
 * **The escape flag lives in the systemd unit, never an EnvironmentFile.**
   ``deploy/notifier.service`` carries ``EnvironmentFile=`` lines for both
   ``/etc/notifier/.env`` and the repo ``.env``; a flag placed in either would
