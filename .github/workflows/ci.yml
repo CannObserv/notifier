@@ -31,7 +31,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
@@ -70,7 +70,7 @@ jobs:
       TEST_DATABASE_URL: postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_test
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           # Pinned because [tool.coverage.run] core = "sysmon" needs CPython
           # >= 3.12. An older interpreter falls back to the default trace core
@@ -116,7 +116,7 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_migrations_test
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: true
