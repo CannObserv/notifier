@@ -39,10 +39,10 @@ class TemplateCreate:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.template_create_sample_variables_type_0 import (
-            TemplateCreateSampleVariablesType0,
+            TemplateCreateSampleVariablesType0,  # noqa: PLC0415
         )
         from ..models.template_create_variables_schema_type_0 import (
-            TemplateCreateVariablesSchemaType0,
+            TemplateCreateVariablesSchemaType0,  # noqa: PLC0415
         )
 
         body_template = self.body_template
@@ -97,10 +97,10 @@ class TemplateCreate:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.template_create_sample_variables_type_0 import (
-            TemplateCreateSampleVariablesType0,
+            TemplateCreateSampleVariablesType0,  # noqa: PLC0415
         )
         from ..models.template_create_variables_schema_type_0 import (
-            TemplateCreateVariablesSchemaType0,
+            TemplateCreateVariablesSchemaType0,  # noqa: PLC0415
         )
 
         d = dict(src_dict)

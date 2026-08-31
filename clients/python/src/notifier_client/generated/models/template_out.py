@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..types import UNSET, Unset
 
@@ -48,8 +47,12 @@ class TemplateOut:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.template_out_sample_variables_type_0 import TemplateOutSampleVariablesType0
-        from ..models.template_out_variables_schema_type_0 import TemplateOutVariablesSchemaType0
+        from ..models.template_out_sample_variables_type_0 import (
+            TemplateOutSampleVariablesType0,  # noqa: PLC0415
+        )
+        from ..models.template_out_variables_schema_type_0 import (
+            TemplateOutVariablesSchemaType0,  # noqa: PLC0415
+        )
 
         body_template = self.body_template
 
@@ -114,13 +117,17 @@ class TemplateOut:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.template_out_sample_variables_type_0 import TemplateOutSampleVariablesType0
-        from ..models.template_out_variables_schema_type_0 import TemplateOutVariablesSchemaType0
+        from ..models.template_out_sample_variables_type_0 import (
+            TemplateOutSampleVariablesType0,  # noqa: PLC0415
+        )
+        from ..models.template_out_variables_schema_type_0 import (
+            TemplateOutVariablesSchemaType0,  # noqa: PLC0415
+        )
 
         d = dict(src_dict)
         body_template = d.pop("body_template")
 
-        created_at = isoparse(d.pop("created_at"))
+        created_at = datetime.datetime.fromisoformat(d.pop("created_at"))
 
         id = d.pop("id")
 
@@ -130,7 +137,7 @@ class TemplateOut:
 
         title_template = d.pop("title_template")
 
-        updated_at = isoparse(d.pop("updated_at"))
+        updated_at = datetime.datetime.fromisoformat(d.pop("updated_at"))
 
         def _parse_sample_variables(data: object) -> None | TemplateOutSampleVariablesType0 | Unset:
             if data is None:

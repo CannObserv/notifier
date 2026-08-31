@@ -80,8 +80,8 @@ class PluginDetail:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.plugin_detail_tokens import PluginDetailTokens
-        from ..models.plugin_variant import PluginVariant
+        from ..models.plugin_detail_tokens import PluginDetailTokens  # noqa: PLC0415
+        from ..models.plugin_variant import PluginVariant  # noqa: PLC0415
 
         d = dict(src_dict)
         plugin_schema = d.pop("plugin_schema")

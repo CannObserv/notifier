@@ -25,7 +25,9 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
     print("test:", test_result.success, test_result.reason)
 
     tpl = await client.templates.create(
-        name="alert", title_template="{{ event }}", body_template="...",
+        name="alert",
+        title_template="{{ event }}",
+        body_template="...",
     )
 
     result = await client.dispatch(
@@ -39,6 +41,7 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
     # result.status is DispatchOutStatus; a.status is DispatchAttemptOutStatus.
     # Both are str subclasses, so string comparison works either way:
     from notifier_client import DispatchOutStatus, DispatchAttemptOutStatus
+
     if result.status == DispatchOutStatus.SUCCEEDED:
         print("all channels delivered")
     elif result.status == DispatchOutStatus.PARTIAL:
@@ -75,16 +78,17 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
 from notifier_client import NotifierClient, RetryConfig
 
 retry = RetryConfig(
-    max_attempts=5,                          # default 3
-    backoff_base=0.25,                       # exponential: base * 2^(attempt-1)
+    max_attempts=5,  # default 3
+    backoff_base=0.25,  # exponential: base * 2^(attempt-1)
     retry_on=frozenset({500, 502, 503, 504}),  # default
-    honor_retry_after=True,                  # honor 429 Retry-After header
-    retry_on_network_error=True,             # retry httpx.TransportError (timeouts, conn errors)
+    honor_retry_after=True,  # honor 429 Retry-After header
+    retry_on_network_error=True,  # retry httpx.TransportError (timeouts, conn errors)
 )
 async with NotifierClient(
-    base_url=..., api_key=...,
+    base_url=...,
+    api_key=...,
     retry_config=retry,
-    timeout=30.0,                            # per-request timeout in seconds; default 10.0
+    timeout=30.0,  # per-request timeout in seconds; default 10.0
 ) as client:
     ...
 ```
@@ -95,11 +99,11 @@ All SDK errors inherit `NotifierError`. Catch the base, or branch on the typed s
 
 ```python
 from notifier_client import (
-    AuthError,         # 401, 403
-    NotifierError,     # base — also catches 404 and other 4xx
-    RateLimited,       # 429 after retries are exhausted; carries .retry_after_seconds
-    ServerError,       # 5xx after retries are exhausted
-    ValidationError,   # 422; carries .field_path and .section
+    AuthError,  # 401, 403
+    NotifierError,  # base — also catches 404 and other 4xx
+    RateLimited,  # 429 after retries are exhausted; carries .retry_after_seconds
+    ServerError,  # 5xx after retries are exhausted
+    ValidationError,  # 422; carries .field_path and .section
 )
 
 try:

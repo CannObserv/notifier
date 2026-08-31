@@ -102,8 +102,8 @@ class DispatchRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.dispatch_request_metadata import DispatchRequestMetadata
-        from ..models.dispatch_request_variables import DispatchRequestVariables
+        from ..models.dispatch_request_metadata import DispatchRequestMetadata  # noqa: PLC0415
+        from ..models.dispatch_request_variables import DispatchRequestVariables  # noqa: PLC0415
 
         d = dict(src_dict)
         channel_ids = cast(list[str], d.pop("channel_ids"))

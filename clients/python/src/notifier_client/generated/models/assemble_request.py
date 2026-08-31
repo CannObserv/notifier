@@ -51,7 +51,7 @@ class AssembleRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.assemble_request_tokens import AssembleRequestTokens
+        from ..models.assemble_request_tokens import AssembleRequestTokens  # noqa: PLC0415
 
         d = dict(src_dict)
         tokens = AssembleRequestTokens.from_dict(d.pop("tokens"))

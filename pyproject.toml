@@ -57,7 +57,13 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["skills-vendor/", "alembic/versions/"]
+# skills/ is symlinks into skills-vendor/, which is already excluded — and
+# the links dangle wherever the submodules are not checked out, which is
+# every CI job but context-cadence. ruff 0.16 formats Python blocks inside
+# Markdown, so it started following them and exiting 2 (#45).
+# docs/plans/ are dated snapshots of what was proposed, not maintained
+# source; reformatting their code samples rewrites the record.
+extend-exclude = ["skills-vendor/", "skills/", "alembic/versions/", "docs/plans/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP"]
