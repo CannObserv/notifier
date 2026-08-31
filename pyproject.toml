@@ -27,18 +27,18 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "anyio>=4.12.1,<5",
-    "pre-commit>=4.5.1,<5",
-    "pytest>=8.0,<9",
-    "pytest-asyncio>=1.3.0,<2",
-    "pytest-cov>=6.0,<7",
+    "anyio>=4.14.2,<5",
+    "pre-commit>=4.6.2,<5",
+    "pytest>=9.1.1,<10",
+    "pytest-asyncio>=1.4.0,<2",
+    "pytest-cov>=7.1.0,<8",
     # tests/ci/ parses pyproject.toml's own specifiers (#30). Present
     # transitively, but declared here because the tests import it directly.
-    "packaging>=26.2,<27",
+    "packaging>=26.3,<27",
     # tests/ci/ parses .github/workflows/*.yml. Available transitively via
     # pre-commit, but declared here because the tests import it directly.
     "pyyaml>=6.0,<7",
-    "ruff>=0.9,<0.16",
+    "ruff>=0.16.5,<0.17",
 ]
 
 [tool.pytest.ini_options]
