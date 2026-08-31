@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.0,<0.29",
+    # Spans two majors deliberately, unlike the service's >=4.0.1 (#45).
+    # idempotency.py only ever calls str(ULID()), which 4.0 left untouched
+    # — it removed ValueProvider and ULID.provider — so a consumer already
+    # holding ulid at 3.x is not forced through a major to install this.
     "python-ulid>=3.0.0,<5",
     "attrs>=24,<27",             # required by openapi-python-client output
     "python-dateutil>=2.9,<3",   # required by openapi-python-client output
