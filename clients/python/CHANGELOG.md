@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 — 2026-08-31
+
+### Removed
+- `python-dateutil` from the SDK's dependencies. openapi-python-client 0.29 parses date fields with `datetime.datetime.fromisoformat` instead of `dateutil.parser.isoparse`, so nothing this package ships imports it any more. A consumer that reached `dateutil` transitively through notifier-client must declare it directly (CannObserv/notifier#45).
+
+### Changed
+- Regenerated `generated/` with openapi-python-client 0.29. Alongside the date parsing above: the status enums derive from `enum.StrEnum` rather than `(str, Enum)`, and the underlying client's context managers and setters return `Self`.
+
+### Unchanged
+- **The public API is unaffected.** `str(DispatchOutStatus.SUCCEEDED)`, `f"{...}"` and `== "succeeded"` all behave exactly as they did under `(str, Enum)` on the supported interpreters — checked, not assumed. Wire format, retry, idempotency, and error semantics identical to 0.3.0.
+
 ## 0.3.0 — 2026-08-25
 
 ### Added
