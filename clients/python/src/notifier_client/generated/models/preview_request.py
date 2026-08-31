@@ -35,7 +35,7 @@ class PreviewRequest:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.preview_request_variables_schema_type_0 import (
-            PreviewRequestVariablesSchemaType0,
+            PreviewRequestVariablesSchemaType0,  # noqa: PLC0415
         )
 
         body_template = self.body_template
@@ -68,9 +68,9 @@ class PreviewRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.preview_request_variables import PreviewRequestVariables
+        from ..models.preview_request_variables import PreviewRequestVariables  # noqa: PLC0415
         from ..models.preview_request_variables_schema_type_0 import (
-            PreviewRequestVariablesSchemaType0,
+            PreviewRequestVariablesSchemaType0,  # noqa: PLC0415
         )
 
         d = dict(src_dict)

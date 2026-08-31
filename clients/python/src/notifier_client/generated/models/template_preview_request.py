@@ -33,7 +33,7 @@ class TemplatePreviewRequest:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.template_preview_request_variables_type_0 import (
-            TemplatePreviewRequestVariablesType0,
+            TemplatePreviewRequestVariablesType0,  # noqa: PLC0415
         )
 
         variables: dict[str, Any] | None | Unset
@@ -55,7 +55,7 @@ class TemplatePreviewRequest:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.template_preview_request_variables_type_0 import (
-            TemplatePreviewRequestVariablesType0,
+            TemplatePreviewRequestVariablesType0,  # noqa: PLC0415
         )
 
         d = dict(src_dict)

@@ -15,8 +15,6 @@ T = TypeVar("T", bound="PluginDetailTokens")
 
 @_attrs_define
 class PluginDetailTokens:
-    """ """
-
     additional_properties: dict[str, TokenMeta] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -29,7 +27,7 @@ class PluginDetailTokens:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.token_meta import TokenMeta
+        from ..models.token_meta import TokenMeta  # noqa: PLC0415
 
         d = dict(src_dict)
         plugin_detail_tokens = cls()

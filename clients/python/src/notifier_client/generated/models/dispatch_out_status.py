@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class DispatchOutStatus(str, Enum):
+class DispatchOutStatus(StrEnum):
     FAILED = "failed"
     PARTIAL = "partial"
     SUCCEEDED = "succeeded"

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..models.dispatch_out_status import DispatchOutStatus
 
@@ -94,8 +93,8 @@ class DispatchOut:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.dispatch_attempt_out import DispatchAttemptOut
-        from ..models.dispatch_out_metadata import DispatchOutMetadata
+        from ..models.dispatch_attempt_out import DispatchAttemptOut  # noqa: PLC0415
+        from ..models.dispatch_out_metadata import DispatchOutMetadata  # noqa: PLC0415
 
         d = dict(src_dict)
         attempts = []
@@ -105,7 +104,7 @@ class DispatchOut:
 
             attempts.append(attempts_item)
 
-        created_at = isoparse(d.pop("created_at"))
+        created_at = datetime.datetime.fromisoformat(d.pop("created_at"))
 
         id = d.pop("id")
 
