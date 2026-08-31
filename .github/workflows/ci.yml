@@ -30,7 +30,7 @@ jobs:
     # comes up — and should stop burning runner time rather than sit there.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
@@ -69,7 +69,7 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           # Pinned because [tool.coverage.run] core = "sysmon" needs CPython
@@ -115,7 +115,7 @@ jobs:
       # never calls the guard — a documented carve-out, not an oversight.
       DATABASE_URL: postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_migrations_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
