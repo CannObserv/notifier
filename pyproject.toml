@@ -9,7 +9,7 @@ dependencies = [
     # Every model in src/api/schemas/ imports it. Arrived transitively via
     # fastapi (>=2.9.0) until #32 — a floor for our own code set by someone
     # else's packaging.
-    "pydantic>=2.9,<3",
+    "pydantic>=2.13.4,<3",
     "python-json-logger>=4.0.0,<5",
     "uvicorn>=0.34.0,<0.47",
     "sqlalchemy[asyncio]>=2.0,<3",
