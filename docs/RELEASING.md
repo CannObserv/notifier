@@ -11,7 +11,7 @@ Design: [`docs/plans/2026-09-01-sdk-release-propagation-design.md`](plans/2026-0
 **SemVer, 0.x line.** Breaking change to the API surface or the SDK's public
 surface → MINOR (`0.3.x` → `0.4.0`); additive or fix → PATCH.
 
-**One version, five sites.** All five move together, in one commit:
+**One version, mirrored in several files.** All of them move together, in one commit:
 
 | Site | What reads it |
 |---|---|
@@ -36,7 +36,7 @@ SDK-only release cheap for a consumer to read.
 **A server version bump does not dirty `generated/`.** `regen.sh` runs
 `openapi-python-client` with `--meta none`, and no generated file carries a
 version string — the spec's `info.version` is not consumed by the generator.
-So the five sites bump in any order in one commit, with no regen step wedged
+So the sites bump in any order in one commit, with no regen step wedged
 between them.
 
 ## Cutting a release
@@ -45,7 +45,7 @@ From a clean `main`, CI green:
 
 1. **Choose the bump** from what merged since the last tag.
 
-2. **Bump all five sites** to `X.Y.Z`.
+2. **Bump every site in the table above** to `X.Y.Z`.
 
 3. **Roll `clients/python/CHANGELOG.md`.** New `## X.Y.Z — YYYY-MM-DD` heading
    at the top, entries grouped Breaking / Added / Changed / Removed /
@@ -101,7 +101,7 @@ own, which is why every workflow in this repo still takes
 write`, one privileged grant in the one place that also holds the release
 decision, to save step 6 a line.
 
-- **`test_version_lockstep.py`** — the five sites agree.
+- **`test_version_lockstep.py`** — every version site agrees.
 - **`test_release_tags.py`** — the current version has a tag, *unless* HEAD is
   the commit that introduced it. That single commit of grace is the release
   commit before its tag is pushed; anything past it fails. Under this rule

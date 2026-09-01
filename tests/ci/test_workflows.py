@@ -23,6 +23,11 @@ filed about. The rest are conditions a reader cannot see in the YAML:
 * **Dependencies must install from the lockfile.** ``coverage`` is pinned
   nowhere in ``pyproject.toml`` but sysmon needs >= 7.10, so an unlocked
   resolve can change what the coverage gate measures.
+* **The test job must check out full history and tags.**
+  ``actions/checkout`` defaults to ``fetch-depth: 1``, which fetches
+  neither. ``test_release_tags.py`` would then find no tag, find no
+  ``HEAD~1`` to compare against, and report green — a gate that has
+  silently stopped being one (#50).
 """
 
 import shlex

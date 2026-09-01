@@ -31,7 +31,7 @@ uv add "notifier-client @ git+https://github.com/CannObserv/notifier.git@v0.3.1#
 The SDK and the server carry **one version**: `notifier-client` `X.Y.Z` is
 generated from notifier server `X.Y.Z`, and the tag `vX.Y.Z` is the pin.
 This is enforced by `tests/ci/test_version_lockstep.py` in the notifier repo,
-which fails if any of the five version sites disagree — it is a gate, not a
+which fails if any version site disagrees — it is a gate, not a
 convention. A second gate refuses a release whose tag was never cut.
 
 Both directions cost a release: a change to the server's schema and a change

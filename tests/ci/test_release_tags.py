@@ -57,6 +57,12 @@ def version_at(rev: str) -> str | None:
     rather than ``[project].version`` specifically — correct only for as long as
     ``[project]`` stays the first table that declares one, which is a property of
     the file's layout rather than of the field being asked for.
+
+    **None means the revision has no pyproject at all.** A pyproject that exists
+    but does not parse, or parses without ``[project].version``, raises instead —
+    that is a repo state to fail loudly on, not one to hand the caller's grace
+    case. Returning None for it would silently grant the release commit's
+    exemption to a tree that never declared a version.
     """
     result = git("show", f"{rev}:pyproject.toml")
     if result.returncode != 0:

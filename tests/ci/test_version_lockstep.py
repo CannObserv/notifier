@@ -1,4 +1,4 @@
-"""One version, five sites — the repo-wide half of the lockstep (#50).
+"""One version, every site that mirrors it — the repo-wide half of the lockstep (#50).
 
 The SDK and the server move together. That was already claimed in prose and
 already false: three files said the SDK was "pinned 1:1 with the notifier
@@ -7,7 +7,7 @@ enforcing anything read the SDK's three copies of *its own* version against
 each other (#49). A rule that lives only in prose drifts, and the drift is
 invisible until a consumer reads the sentence and believes it.
 
-Five sites carry the version. Two are the server's, three are the SDK's:
+The sites that carry it — the server's, then the SDK's:
 
 * ``pyproject.toml`` — the distribution version
 * ``src/api/main.py`` — FastAPI's ``version=``, which becomes the OpenAPI
@@ -113,11 +113,15 @@ def sites() -> dict[str, str]:
     }
 
 
-def test_all_five_version_sites_agree():
+def test_version_sites_agree():
     """Covers both pairs #49 named: the server/SDK split, and ``pyproject.toml``
     against ``src/api/main.py`` — the second lockstep, which nothing read before.
     A failure prints every site with its value, so the cause is legible from the
     message without a narrower assertion restating it.
+
+    ``sites()`` is the only place the set is enumerated, and this name no longer
+    counts them: a name carrying a cardinality goes stale the moment a site is
+    added, and every doc repeating that number goes stale with it.
     """
     found = sites()
     distinct = set(found.values())
