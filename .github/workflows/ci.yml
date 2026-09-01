@@ -70,6 +70,13 @@ jobs:
       TEST_DATABASE_URL: postgresql+asyncpg://notifier:notifier@localhost:5432/notifier_test
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Full history and tags. The default (fetch-depth: 1) fetches
+          # neither, and tests/ci/test_release_tags.py would then find no tag,
+          # find no HEAD~1 to compare against, and pass vacuously — the gate
+          # silently stops being one. The test refuses a shallow checkout
+          # rather than reporting green; this is what keeps it from having to.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
         with:
           # Pinned because [tool.coverage.run] core = "sysmon" needs CPython

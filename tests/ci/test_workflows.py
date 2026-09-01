@@ -265,3 +265,25 @@ def test_database_services_are_waited_for(ci, job_name):
     """Without a health check the job races container startup, and the failure
     surfaces as an intermittent red — the hardest kind to attribute."""
     assert "pg_isready" in postgres(ci["jobs"][job_name])["options"]
+
+
+def test_test_job_checks_out_full_history_and_tags(ci):
+    """`tests/ci/test_release_tags.py` needs tags and history to mean anything.
+
+    actions/checkout defaults to `fetch-depth: 1`, which fetches no tags and no
+    parent commit. Under that default the tag gate finds no tag, finds no
+    `HEAD~1` to compare against, and reports green — a gate that has quietly
+    stopped being one, with nothing in the log to notice. The test itself
+    refuses a shallow checkout rather than passing vacuously; this asserts the
+    workflow keeps handing it a checkout it can accept.
+    """
+    checkouts = [
+        step
+        for step in steps(ci["jobs"]["test"])
+        if str(step.get("uses", "")).startswith("actions/checkout")
+    ]
+    assert checkouts, "the test job has no actions/checkout step"
+    assert all(step.get("with", {}).get("fetch-depth") == 0 for step in checkouts), (
+        "the test job must check out with fetch-depth: 0 — tests/ci/test_release_tags.py "
+        "needs full history and tags to distinguish an untagged release from a shallow clone"
+    )

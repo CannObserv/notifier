@@ -1,6 +1,8 @@
 """notifier-client — async Python SDK for the notifier service.
 
-Pinned 1:1 with notifier server version. See README for usage.
+Versioned in lockstep with the notifier server: this package's version is the
+version of the server it was generated from. Enforced by the repo's
+``tests/ci/test_version_lockstep.py``, not by convention. See README for usage.
 """
 
 from notifier_client.client import NotifierClient

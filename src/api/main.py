@@ -18,7 +18,7 @@ configure_logging()
 logger = get_logger(__name__)
 
 
-app = FastAPI(title="notifier", version="0.1.0")
+app = FastAPI(title="notifier", version="0.3.1")
 
 # Every /api/v1 route inherits require_api_key, so every one of them can fail
 # these two ways. Declaring them here puts both in the OpenAPI spec, which is

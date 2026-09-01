@@ -5,10 +5,31 @@ Async Python SDK for the [notifier](https://github.com/CannObserv/notifier) serv
 ## Install
 
 ```bash
-uv add "notifier-client @ git+ssh://git@github.com/CannObserv/notifier.git@v0.2.1#subdirectory=clients/python"
+uv add "notifier-client @ git+https://github.com/CannObserv/notifier.git@v0.3.1#subdirectory=clients/python"
 ```
 
-Versions are pinned 1:1 with the notifier server. SDK `0.x.y` ⇔ notifier `0.x.y`.
+`CannObserv/notifier` is public, so this needs no credential — no SSH key, no
+deploy token, no index. To adopt a later release, change the tag and re-run
+`uv sync`; to stay put, do nothing.
+
+## Versioning
+
+The SDK and the server carry **one version**: `notifier-client` `X.Y.Z` is
+generated from notifier server `X.Y.Z`, and the tag `vX.Y.Z` is the pin.
+This is enforced by `tests/ci/test_version_lockstep.py` in the notifier repo,
+which fails if any of the five version sites disagree — it is a gate, not a
+convention. A second gate refuses a release whose tag was never cut.
+
+Both directions cost a release: a change to the server's schema and a change
+confined to this package each bump the shared version. The
+[`CHANGELOG.md`](CHANGELOG.md) entry says which — an `Unchanged` section means
+the public API of this package did not move.
+
+**Historical note.** Versions through 0.3.1 predate the lockstep: the server
+declared 0.1.0 while this package reached 0.3.1, and tags `v0.2.0`/`v0.2.1`
+name SDK versions only. 0.3.1 is the first release where the two agree; the
+server's version jumps 0.1.0 → 0.3.1 to meet it, and no server 0.2.x exists.
+Tags are immutable and were not re-pointed.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for version history.
 

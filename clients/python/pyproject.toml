@@ -1,7 +1,7 @@
 [project]
 name = "notifier-client"
 version = "0.3.1"
-description = "Async Python SDK for the notifier service. Generated from notifier's OpenAPI schema; pinned 1:1 with server version."
+description = "Async Python SDK for the notifier service. Generated from notifier's OpenAPI schema; versioned in lockstep with the server."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
