@@ -55,20 +55,34 @@ def _pyproject_version(path: Path) -> str:
 
 
 def _fastapi_version() -> str:
-    """The ``version=`` literal passed to ``FastAPI(...)`` in ``main.py``."""
+    """The ``version=`` literal passed to ``FastAPI(...)`` in ``main.py``.
+
+    Every ``FastAPI(...)`` call is collected rather than the first one taken:
+    ``ast.walk`` is breadth-first, not source order, so with a mounted
+    sub-application "the first call" would be an arbitrary one of the two and
+    this test would silently assert against whichever it happened to reach.
+    More than one is an error to surface, not an ambiguity to resolve quietly.
+    """
     tree = ast.parse(MAIN.read_text())
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
-        if name != "FastAPI":
-            continue
-        for kw in node.keywords:
-            if kw.arg == "version" and isinstance(kw.value, ast.Constant):
-                return kw.value.value
-        pytest.fail(f"{MAIN}: FastAPI(...) has no literal version= keyword")
-    pytest.fail(f"{MAIN}: no FastAPI(...) call found")
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and (node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None))
+        == "FastAPI"
+    ]
+    if not calls:
+        pytest.fail(f"{MAIN}: no FastAPI(...) call found")
+    if len(calls) > 1:
+        pytest.fail(
+            f"{MAIN}: {len(calls)} FastAPI(...) calls found. This test asserts on the "
+            "app's declared version and cannot tell which one is the service's — name "
+            "the right one explicitly here."
+        )
+    for kw in calls[0].keywords:
+        if kw.arg == "version" and isinstance(kw.value, ast.Constant):
+            return kw.value.value
+    pytest.fail(f"{MAIN}: FastAPI(...) has no literal version= keyword")
 
 
 def _sdk_dunder_version() -> str:
@@ -100,19 +114,13 @@ def sites() -> dict[str, str]:
 
 
 def test_all_five_version_sites_agree():
+    """Covers both pairs #49 named: the server/SDK split, and ``pyproject.toml``
+    against ``src/api/main.py`` — the second lockstep, which nothing read before.
+    A failure prints every site with its value, so the cause is legible from the
+    message without a narrower assertion restating it.
+    """
     found = sites()
     distinct = set(found.values())
     assert len(distinct) == 1, "version sites disagree:\n" + "\n".join(
         f"  {site} = {version}" for site, version in found.items()
     )
-
-
-def test_server_pyproject_and_fastapi_agree():
-    """The pair #49 flagged as unguarded in either direction.
-
-    Called out on its own because a failure here has a different cause than a
-    server/SDK split: it means the release bumped the distribution but not the
-    version the OpenAPI spec advertises, so consumers regenerate against a spec
-    that names the wrong version.
-    """
-    assert _pyproject_version(REPO_ROOT / "pyproject.toml") == _fastapi_version()

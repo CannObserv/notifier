@@ -4,13 +4,27 @@ Async Python SDK for the [notifier](https://github.com/CannObserv/notifier) serv
 
 ## Install
 
-```bash
-uv add "notifier-client @ git+https://github.com/CannObserv/notifier.git@v0.3.1#subdirectory=clients/python"
+```toml
+[project]
+dependencies = ["notifier-client"]
+
+[tool.uv.sources]
+notifier-client = { git = "https://github.com/CannObserv/notifier.git", subdirectory = "clients/python", tag = "v0.3.1" }
 ```
 
 `CannObserv/notifier` is public, so this needs no credential — no SSH key, no
 deploy token, no index. To adopt a later release, change the tag and re-run
 `uv sync`; to stay put, do nothing.
+
+This is the canonical form: it is what the notifier repo's
+[`docs/RELEASING.md`](https://github.com/CannObserv/notifier/blob/main/docs/RELEASING.md)
+documents and what the sibling `cannobserv` library uses, so a service
+consuming both pins them the same way. The one-liner below is equivalent and
+writes a direct URL reference instead:
+
+```bash
+uv add "notifier-client @ git+https://github.com/CannObserv/notifier.git@v0.3.1#subdirectory=clients/python"
+```
 
 ## Versioning
 

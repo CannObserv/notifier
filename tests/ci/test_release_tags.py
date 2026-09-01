@@ -28,7 +28,6 @@ checks out with ``fetch-depth: 0``; this file refuses to run at all against a
 shallow checkout rather than reporting green from an empty tag list.
 """
 
-import re
 import subprocess
 import tomllib
 from pathlib import Path
@@ -37,8 +36,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PYPROJECT = REPO_ROOT / "pyproject.toml"
-
-VERSION_LINE = re.compile(r'^version\s*=\s*"([^"]+)"', re.MULTILINE)
 
 
 def git(*args: str) -> subprocess.CompletedProcess:
@@ -53,12 +50,18 @@ def current_version() -> str:
 
 
 def version_at(rev: str) -> str | None:
-    """The declared version at ``rev``, or None when the revision has no pyproject."""
+    """The declared version at ``rev``, or None when the revision has no pyproject.
+
+    Parsed with ``tomllib``, the same way ``current_version()`` reads the working
+    tree. A regex over the file would find the first line-anchored ``version =``
+    rather than ``[project].version`` specifically — correct only for as long as
+    ``[project]`` stays the first table that declares one, which is a property of
+    the file's layout rather than of the field being asked for.
+    """
     result = git("show", f"{rev}:pyproject.toml")
     if result.returncode != 0:
         return None
-    m = VERSION_LINE.search(result.stdout)
-    return m.group(1) if m else None
+    return tomllib.loads(result.stdout)["project"]["version"]
 
 
 @pytest.fixture(scope="module", autouse=True)

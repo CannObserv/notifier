@@ -23,7 +23,7 @@ to main, on PRs, and on manual dispatch. `sdk-staleness.yml` runs on the same
 triggers when `src/api/**`, `scripts/dump_openapi.py`, or `clients/python/**`
 changes.
 
-Two things not to re-derive from the YAML:
+Not to re-derive from the YAML:
 
 - **`pre-commit` runs ruff only, never pytest.** A clean commit hook says
   nothing about correctness — only CI does.
@@ -254,7 +254,7 @@ Vendored skills plus local overrides in `skills/` that shadow the vendor copy. I
 #<number> [type]: <description>      # with issue
 [type]: <description>                # without issue
 ```
-Types: feat, fix, refactor, docs, test, chore
+Types: feat, fix, refactor, docs, test, chore, release (version bumps only — see [docs/RELEASING.md](docs/RELEASING.md))
 
 **Logging:**
 ```python
