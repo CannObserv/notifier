@@ -145,6 +145,21 @@ this repo's `scripts/`, which is why grepping the repo for it comes up empty.
 uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
+## Releasing
+
+Full runbook: [RELEASING.md](RELEASING.md). The service and the SDK share one
+version across five sites; `tests/ci/` fails a mismatch and fails a release
+whose tag was never cut.
+
+```bash
+# Verify the five version sites agree and the current version is tagged
+uv run pytest --no-cov tests/ci/test_version_lockstep.py tests/ci/test_release_tags.py
+
+# Cut a release (after bumping all five sites, rolling the CHANGELOG,
+# and refreshing both lockfiles)
+git commit -am "release: vX.Y.Z" && git tag vX.Y.Z && git push --follow-tags
+```
+
 ## SDK regeneration
 
 ```bash

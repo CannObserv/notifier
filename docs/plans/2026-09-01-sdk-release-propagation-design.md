@@ -178,6 +178,17 @@ against 0.1.0 vs 0.3.1, and the tag gate fails today against the missing
 `v0.3.1` tag — both are red before any fix, which is the intended starting
 state.
 
+Two mechanics found while implementing, both now in `docs/RELEASING.md`:
+
+- **The tag gate needs a non-shallow checkout with tags.**
+  `actions/checkout` defaults to `fetch-depth: 1`, under which the gate finds
+  no tag, finds no `HEAD~1` to compare against, and passes vacuously. `ci.yml`'s
+  test job sets `fetch-depth: 0`; `test_workflows.py` asserts it keeps doing so;
+  and the test refuses a shallow checkout rather than reporting green from one.
+- **A version bump touches both `uv.lock` files.** Each records the project's
+  own version, and every CI job installs with `uv sync --locked` — so a bump
+  without a lock refresh is a red run that reads like a dependency problem.
+
 ## Cross-repo follow-ups
 
 Issues only, never commits — sibling repos own their own review and release
@@ -193,8 +204,14 @@ cadence.
 ## Sequencing
 
 1. Red: `tests/ci/test_version_lockstep.py` and the tag-presence gate.
-2. Green: bump the two server sites to 0.3.1; drop the 1:1 prose from the three
+2. Green: bump the two server sites to 0.3.1; reword the 1:1 prose in the three
    files #49 names.
+
+   **Corrected during implementation.** This step originally read "drop the 1:1
+   prose", carried over from #49's option (1). Under option (2) — the decision
+   actually taken — the claim becomes *true and enforced*, so deleting it would
+   remove an accurate statement consumers depend on. The three files keep the
+   claim, reworded to name the gate that holds it up.
 3. `docs/RELEASING.md`, plus the README install line.
 4. Cut and push `v0.3.1` per the new runbook — the first release to exercise it.
 5. File the two cross-repo issues.

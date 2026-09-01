@@ -295,6 +295,7 @@ The service is consumer-agnostic. Resist these temptations:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for, including `tests/`, `deploy/`, and the skill trees; plus the dependency policy every specifier is held to
 - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
+- [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version across five sites, the two CI gates that enforce it, tag conventions, how a consumer adopts the SDK, and when to graduate off the git-tag transport
 - [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet this VM lives on: node identity, ACL, the bind decision and the boot race it buys, and how to re-join or move the host
 - [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — full SocratiCode tool table, the `ToolSearch` prefetch query, per-tool notes, graph-health guidance, and this repo's measured yield
 - [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendored submodule repos and refresh procedure, full skills inventory
