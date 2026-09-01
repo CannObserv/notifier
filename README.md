@@ -26,4 +26,4 @@ this host's tailnet address only — reachable as `http://notifier:9000` from th
 hand-run uvicorn — `scripts/dev_server.sh` exists because the old recipe
 pointed the dev server at the production database (issue #22).
 
-See `AGENTS.md` for conventions, `docs/ARCHITECTURE.md` for the per-module layout, and `docs/COMMANDS.md` for the full command reference.
+See `AGENTS.md` for conventions, `docs/ARCHITECTURE.md` for the per-module layout, `docs/COMMANDS.md` for the full command reference, and `docs/RELEASING.md` for cutting a release — the service and its Python SDK (`clients/python/`) carry one version, and the tag is what a consumer pins.
