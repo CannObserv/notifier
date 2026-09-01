@@ -1,6 +1,6 @@
 # SDK release and propagation
 
-**Status:** approved design, not yet implemented
+**Status:** implemented — shipped as v0.3.1, the first release cut under the runbook it defines
 **Supersedes:** [#49](https://github.com/CannObserv/notifier/issues/49)
 **Related:** [#44](https://github.com/CannObserv/notifier/issues/44) (Observo provisioning)
 
