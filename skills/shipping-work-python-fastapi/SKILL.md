@@ -74,7 +74,7 @@ If checks fail: stop, report the failure, fix before proceeding. Do not push fai
 bash "<SKILL_SCRIPTS>/doc-check.sh"
 ```
 
-`doc-check.sh` lists files changed on this branch vs the upstream default branch and flags any that match the project's sensitive-path list — by default AGENTS.md, README.md, CHANGELOG.md, pyproject.toml, uv.lock, schema.sql, `alembic/versions/`, `deploy/`, route/model/core dirs, `.env.example`. Entries match path *segments*, so `src/models/` also covers `services/<svc>/src/models/` and `pyproject.toml` covers each workspace member's. When sensitive paths change, the matching doc sections may need updates too. notifier commits its own list at `.skills/doc-sensitive-paths`, which **replaces** those defaults rather than extending them: it drops `schema.sql`, `src/models/` and `.env.example` (dead in this tree) and adds `scripts/`, `.github/workflows/` and `skills/`. `tests/ci/test_doc_sensitive_paths.py` fails on an entry that matches no tracked file, so the dead-entry case is caught in CI rather than here.
+`doc-check.sh` lists files changed on this branch vs the upstream default branch and flags any that match the project's sensitive-path list; when a sensitive path changes, the matching doc sections may need updating too. Entries match path *segments*, so `pyproject.toml` covers `clients/python/`'s as well as the root one. notifier commits its own list at `.skills/doc-sensitive-paths`, which **replaces** the script's generic FastAPI defaults rather than extending them — read that file for what it carries and why. `tests/ci/test_doc_sensitive_paths.py` fails on an entry that matches no tracked file, so the dead-entry case is caught in CI rather than here.
 
 If the script exits 1: review the listed files, decide whether each requires a doc update, and either commit the docs now or note them as deliberate skips. If the script exits 2: an infra/tooling problem prevented the doc check from running — investigate the underlying error rather than proceeding. One exit-2 case is worth naming: when no entry in the list matches any tracked file, the script says so instead of passing, because a list that cannot hit anything would otherwise print the same clean green as a genuinely doc-neutral branch. Fix the list; do not wave the step through.
 
@@ -183,5 +183,6 @@ If nothing applies, omit this step entirely.
   It has drifted twice already: v1.2 against vendor v1.4 (Step 1's script-resolution loop, so Step 1
   failed), then a Step 1.5 paragraph describing a `SENSITIVE_PATHS` array after upstream had moved to
   segment matching and `.skills/doc-sensitive-paths` (#47). **Re-diff this file against vendor whenever
-  the submodule moves.** Upstream's self-budget note is dropped here: the gate it cites
+  the submodule moves** — `skills-vendor/` is in the path list above, so Step 1.5 now says when that is.
+  Upstream's self-budget note is dropped here: the gate it cites
   (`tests/structural/test_skill_self_budget.py`) lives in the vendor repo, not this one

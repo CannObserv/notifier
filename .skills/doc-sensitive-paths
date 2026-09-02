@@ -9,10 +9,14 @@
 #   schema.sql      — schema is Alembic's, never raw SQL
 #   src/models/     — models live in src/core/, under src/core/ below
 #   .env.example    — none tracked; env vars are documented in AGENTS.md
-# Added beyond them, both described in AGENTS.md in enough detail to rot:
-#   scripts/            — Common Commands, Server Lifecycle, dev_server.sh
-#   .github/workflows/  — the Continuous Integration section
+# Added beyond them, each a surface the docs describe in enough detail to rot:
+#   scripts/            — AGENTS.md's Common Commands and Server Lifecycle
+#   .github/workflows/  — AGENTS.md's Continuous Integration section
 #   skills/             — the docs/SKILLS.md inventory and its vendor pins
+#   skills-vendor/      — a submodule bump arrives as this one gitlink path and
+#                         is what silently stales an override's SKILL.md (#47)
+#   .skills/            — this file's own policy, mirrored in docs/SKILLS.md
+#                         and docs/ARCHITECTURE.md
 #
 # tests/ci/test_doc_sensitive_paths.py fails on an entry that matches nothing.
 
@@ -28,3 +32,5 @@ src/core/
 scripts/
 .github/workflows/
 skills/
+skills-vendor/
+.skills/

@@ -32,7 +32,9 @@ A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and
 telemetry, and `.skills/doc-sensitive-paths`, which replaces `doc-check.sh`'s built-in path list for
 this repo (#47). Replacing is wholesale, not additive — a default upstream adds later has to be added
 there by hand — and `tests/ci/test_doc_sensitive_paths.py` fails on any entry that matches no tracked
-file.
+file. Beyond the defaults it names `scripts/`, `.github/workflows/`, `skills/`, `skills-vendor/` and
+`.skills/`: a submodule bump reaches `git diff` as the single gitlink path `skills-vendor/<name>`, so
+without that entry the one event that stales an override would flag nothing.
 
 The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
@@ -71,11 +73,14 @@ upstream alongside the pattern in
 To re-sync an override: diff its `SKILL.md` against the vendor copy, reapply the local deltas
 onto the newer upstream text (not the reverse), and update the pin in the table below.
 
-**What the pin means.** In an override, `metadata.version` records *the vendor version this file
-was last synced from* — not a version of the local file. The two readings diverge the moment
-someone edits an override after syncing, so bump it on every re-sync even when the local deltas
-are unchanged. Where upstream ships no `version:` (obra-superpowers), use `synced-from:` with the
-submodule tag instead.
+**What the pin means.** Every override carries `synced-from:` — the submodule commit its `SKILL.md`
+was last reconciled against — because that is the only pin that answers *is this current?*. Vendor
+shipped the whole #252 rewrite under an unchanged `version: "1.4"`, so a version pin cannot tell a
+synced override from a stale one, and `git log` in the submodule can: anything after the recorded
+commit that touches the skill's directory is unreviewed here. Keep `metadata.version` alongside it as
+the human-readable vendor version this file was last synced from — not a version of the local file,
+so bump it on every re-sync even when the local deltas are unchanged. Where upstream ships no
+`version:` (obra-superpowers), `synced-from:` carries the submodule tag and stands alone.
 
 `init-socraticode` installs its own `SessionStart` entry: `.claude/hooks/socraticode-health.sh`, a symlink into the vendor tree wired by `managing-skills`' shared `install-hook.sh` (`--hook socraticode-health.sh --skill init-socraticode --marker socraticode-health --copy-fallback`; add `--check` to verify without writing). It reports and never repairs — a stopped container, a FAILED last index operation, a degraded graph yield, and since [gregoryfoster/skills#214](https://github.com/gregoryfoster/skills/issues/214) a context artifact declared in `.socraticodecontextartifacts.json` but never indexed, named in the finding. Silent when clean, at most one report per UTC day per project (`.git/socraticode-health.lock` / `.log`), exits 0 on every path. The entry carries an explicit `"timeout": 90` — above the hook's own 60 s driver ceiling (`HEALTH_TIMEOUT_MS`), so a slow check is not killed mid-run. Force a run with `SOCRATICODE_HEALTH_FORCE=1 bash .claude/hooks/socraticode-health.sh`.
 
@@ -98,7 +103,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
-| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.4 (`91db31b`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5's path list is committed at `.skills/doc-sensitive-paths` (#47), guarded by `tests/ci/test_doc_sensitive_paths.py`. See [Override drift](#override-drift) — bump the recorded commit whenever you re-sync |
+| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.4 (`91db31b`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5's path list is committed at `.skills/doc-sensitive-paths` (#47), guarded by `tests/ci/test_doc_sensitive_paths.py`; it flags `skills-vendor/`, so the pointer move that stales this file trips the gate. See [Override drift](#override-drift) — bump the recorded commit whenever you re-sync |
 | `subagent-driven-development` | obra-superpowers symlink | |
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |

@@ -4,8 +4,9 @@
 branch changes that touch files the docs describe. Its built-in defaults are
 written for a generic FastAPI service; this repo replaces them wholesale with
 a committed list, because three defaults (``schema.sql``, ``src/models/``,
-``.env.example``) name nothing that exists here and two surfaces the docs do
-describe in detail (``scripts/``, ``.github/workflows/``) were missing.
+``.env.example``) name nothing that exists here, and four surfaces the docs
+do describe were missing — ``scripts/``, ``.github/workflows/``, ``skills/``
+and, since the review of #47, ``skills-vendor/`` and ``.skills/``.
 
 Replacing the defaults moves their upkeep here, and a sensitive-path list
 fails the same way the bug upstream fixed did (gregoryfoster/skills#252): an
@@ -16,10 +17,12 @@ the one entry that rotted. This test catches a single dead entry, in CI, on
 the commit that kills it — a directory renamed or a file deleted narrows the
 gate silently otherwise.
 
-The matcher is a transcription of ``path_matches()`` in ``doc-check.sh``.
-Keeping a copy is deliberate: the point is to assert the list against the
-tree the *gate* will see, so a divergence between the two matchers is itself
-something worth failing on.
+The matcher is a transcription of ``path_matches()`` in ``doc-check.sh``,
+and nothing here asserts the two still agree — a divergence would be worth
+failing on, but this file does not catch one. Re-read both when either
+moves. Transcribing rather than shelling out to the script is deliberate:
+these entries are checked against the tracked tree, which needs no base ref
+and so returns the same verdict on a branch with nothing to diff.
 """
 
 import subprocess
@@ -65,6 +68,9 @@ def _matches(file: str, entry: str) -> bool:
 
 
 ENTRIES = _entries() if PATH_LIST.exists() else []
+# One snapshot for the module: every entry is then judged against the same
+# tree, and the check costs one subprocess rather than one per entry.
+TRACKED = _tracked()
 
 
 def test_path_list_is_committed() -> None:
@@ -76,8 +82,7 @@ def test_path_list_is_committed() -> None:
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_entry_matches_a_tracked_file(entry: str) -> None:
     """A dead entry narrows the gate without narrowing what it reports."""
-    tracked = _tracked()
-    assert any(_matches(file, entry) for file in tracked), (
+    assert any(_matches(file, entry) for file in TRACKED), (
         f"{entry!r} matches no tracked file, so it can never flag a change. "
         "Drop it from .skills/doc-sensitive-paths or fix the path."
     )
