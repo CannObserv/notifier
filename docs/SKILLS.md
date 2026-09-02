@@ -28,6 +28,12 @@ A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and
 
 `.skills/doctor.sh` (a real file, not a symlink — it diagnoses broken vendor symlinks) is installed and re-synced by the refresh hook's `install-doctor.sh` step, and re-syncs itself on every run. Check the symlink chain by hand with `bash .skills/doctor.sh`.
 
+`.skills/` also holds committed configuration the skills read: the `curating-context` budgets and
+telemetry, and `.skills/doc-sensitive-paths`, which replaces `doc-check.sh`'s built-in path list for
+this repo (#47). Replacing is wholesale, not additive — a default upstream adds later has to be added
+there by hand — and `tests/ci/test_doc_sensitive_paths.py` fails on any entry that matches no tracked
+file.
+
 The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
 ### Override drift
@@ -44,8 +50,15 @@ preferring. `brainstorming` now follows it too. But `SKILL.md` carries the local
 cannot be symlinked, so it is the one file that drifts. `shipping-work`'s sat at v1.2 while
 vendor reached v1.4, missing the Step 1 script-resolution loop upstream added for
 [gregoryfoster/skills#63](https://github.com/gregoryfoster/skills/issues/63); Step 1 failed
-until it was re-synced. `brainstorming`'s had fallen a full restructure behind — 128 lines
-against vendor's 250, predating upstream's Spike/Bounded/Architectural model.
+until it was re-synced. It drifted a second time without the version moving at all: vendor
+rewrote Step 1.5 for [gregoryfoster/skills#252](https://github.com/gregoryfoster/skills/issues/252)
+— segment matching, `.skills/doc-sensitive-paths`, exit 2 on a list that matches nothing — and
+shipped it under the same `version: "1.4"`. The symlinked script updated on the ordinary submodule
+refresh while the committed paragraph went on describing a `SENSITIVE_PATHS` array (#47). So the
+trigger for re-diffing an override is the **submodule pointer moving**, not the vendor version
+changing; the pin below records the commit for that reason. `brainstorming`'s had fallen a full
+restructure behind — 128 lines against vendor's 250, predating upstream's Spike/Bounded/Architectural
+model.
 
 **One caveat on the symlink pattern.** `doctor.sh` globs `"$dir"/*` exactly one level deep under
 `skills` and `.claude/hooks`, so symlinks nested inside an override directory sit below its scan
@@ -85,7 +98,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
-| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **pinned at vendor v1.4** | Loads `/etc/notifier/.env` before delegating. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. See [Override drift](#override-drift) — bump the recorded version whenever you re-sync |
+| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.4 (`91db31b`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5's path list is committed at `.skills/doc-sensitive-paths` (#47), guarded by `tests/ci/test_doc_sensitive_paths.py`. See [Override drift](#override-drift) — bump the recorded commit whenever you re-sync |
 | `subagent-driven-development` | obra-superpowers symlink | |
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |

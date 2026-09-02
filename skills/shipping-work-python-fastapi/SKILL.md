@@ -1,12 +1,13 @@
 ---
 name: shipping-work-python-fastapi
-description: "For Python/FastAPI projects (uv + ruff + pytest): finalizes work by ensuring everything is committed, pushed to the remote, and reflected on GitHub: closes issues, posts summary comments, and presents a completion table. Use when the user says 'ship it', 'push GH', 'close GH', or 'wrap up' and the project is a FastAPI service."
+description: "For Python/FastAPI projects (uv + ruff + pytest; Alembic migrations, systemd service restarts): finalizes work by ensuring everything is committed, pushed to the remote, and reflected on GitHub: closes issues, posts summary comments, and presents a completion table. Use when the user says 'ship it', 'push GH', 'close GH', or 'wrap up' and the project is a FastAPI service."
 compatibility: Designed for Python FastAPI projects using uv, ruff, pytest. Requires git, gh, uv. pytest-cov is optional — pre-ship.sh auto-detects it and adds --no-cov when present.
 metadata:
   author: gregoryfoster
   version: "1.4"
   overrides: gregoryfoster-skills/shipping-work-python-fastapi
-  override-reason: "Sources /etc/notifier/.env and $PROJECT_ROOT/.env before delegating to upstream pre-ship"
+  synced-from: "gregoryfoster-skills v1.4 (91db31b)"
+  override-reason: "Sources /etc/notifier/.env and $PROJECT_ROOT/.env before delegating to upstream pre-ship; names notifier's two systemd units and dev port"
   triggers: ship it, push GH, close GH, wrap up
 ---
 
@@ -46,6 +47,7 @@ Determine which GitHub issue(s) to close (priority order):
 
 ### Step 1 — Run pre-ship checks
 
+<!-- skill:required -->
 ```bash
 N=shipping-work-python-fastapi S=pre-ship.sh SD=
 { [ ! -x .skills/doctor.sh ] || bash .skills/doctor.sh; } || exit 1
@@ -72,9 +74,9 @@ If checks fail: stop, report the failure, fix before proceeding. Do not push fai
 bash "<SKILL_SCRIPTS>/doc-check.sh"
 ```
 
-`doc-check.sh` lists files changed on this branch vs the upstream default branch and flags any that match the project's `SENSITIVE_PATHS` array (AGENTS.md, README.md, CHANGELOG.md, pyproject.toml, uv.lock, schema.sql, `alembic/versions/`, `deploy/`, route/model/core dirs, `.env.example`). When sensitive paths change, the matching doc sections may need updates too.
+`doc-check.sh` lists files changed on this branch vs the upstream default branch and flags any that match the project's sensitive-path list — by default AGENTS.md, README.md, CHANGELOG.md, pyproject.toml, uv.lock, schema.sql, `alembic/versions/`, `deploy/`, route/model/core dirs, `.env.example`. Entries match path *segments*, so `src/models/` also covers `services/<svc>/src/models/` and `pyproject.toml` covers each workspace member's. When sensitive paths change, the matching doc sections may need updates too. notifier commits its own list at `.skills/doc-sensitive-paths`, which **replaces** those defaults rather than extending them: it drops `schema.sql`, `src/models/` and `.env.example` (dead in this tree) and adds `scripts/`, `.github/workflows/` and `skills/`. `tests/ci/test_doc_sensitive_paths.py` fails on an entry that matches no tracked file, so the dead-entry case is caught in CI rather than here.
 
-If the script exits 1: review the listed files, decide whether each requires a doc update, and either commit the docs now or note them as deliberate skips. If the script exits 2: an infra/tooling problem prevented the doc check from running — investigate the underlying error rather than proceeding.
+If the script exits 1: review the listed files, decide whether each requires a doc update, and either commit the docs now or note them as deliberate skips. If the script exits 2: an infra/tooling problem prevented the doc check from running — investigate the underlying error rather than proceeding. One exit-2 case is worth naming: when no entry in the list matches any tracked file, the script says so instead of passing, because a list that cannot hit anything would otherwise print the same clean green as a genuinely doc-neutral branch. Fix the list; do not wave the step through.
 
 ### Step 2 — Ensure a clean working tree
 
@@ -82,7 +84,9 @@ If the script exits 1: review the listed files, decide whether each requires a d
 bash "<SKILL_SCRIPTS>/check-status.sh"
 ```
 
-If uncommitted changes exist, commit them following the project convention. Check AGENTS.md for project-specific overrides. notifier's commit format:
+If the script exits 2, `git status` itself failed: the tree state is **unknown**, which is not the same as clean. Investigate git's error rather than proceeding ([#257](https://github.com/gregoryfoster/skills/issues/257)).
+
+If uncommitted changes exist, commit them following the project convention. notifier's commit format:
 
 ```
 #<number> [type]: <description>       # with GH issue
@@ -157,7 +161,6 @@ After the summary table, review commits and changes shipped to identify any post
 | Category | Trigger | Example action |
 |---|---|---|
 | DB migration (alembic) | `alembic/versions/` changed | `uv run alembic upgrade head`, then the same against `DEV_DATABASE_URL`, then `sudo systemctl restart notifier notifier-dev` |
-| DB migration (raw SQL) | `schema.sql` changed | `apply_schema` or `sudo systemctl restart notifier` |
 | Service restart | Code change (no auto-reload in prod) | `sudo systemctl restart notifier notifier-dev` — both units serve one working tree |
 | Integration tests | New `@pytest.mark.integration` tests | `uv run pytest -m integration` on a real env |
 | Env var / secret | New config key | Add to `/etc/notifier/.env` and restart |
@@ -172,11 +175,13 @@ If nothing applies, omit this step entirely.
 - If `gh` CLI hits errors (e.g., Projects API changes), use `--json` flag workarounds as needed
 - The project's AGENTS.md is authoritative for commit conventions — read it before committing
 - `pre-ship.sh` auto-derives its per-SHA stamp prefix from `$(basename "$(git rev-parse --show-toplevel)")` — resolves to `notifier-tests-clean-<sha>` automatically
-- This is a **local override**, refreshed from vendor v1.4. It is thinner than `managing-skills`'
-  documented complete-replacement rule: `scripts/pre-ship.sh` and this `SKILL.md` are the only real
-  files, and the other five scripts are per-script symlinks into `skills-vendor/`, so they track
-  upstream automatically. `SKILL.md` cannot be symlinked — it carries the notifier deltas — so it is
-  the one file that drifts. It sat at v1.2 while vendor reached v1.4, missing the Step 1 script
-  resolution loop, so it still said `bash scripts/pre-ship.sh` (the old, broken form) and Step 1 failed. Nothing detects this: `doctor.sh`
-  walks symlinks and skips override directories, and the refresh hook only moves the submodule
-  pointer. Re-diff this file against vendor when the submodule moves
+- This is a **local override**, re-synced from vendor `91db31b` (still v1.4). `scripts/pre-ship.sh`
+  and this `SKILL.md` are the only real files; the other five scripts are per-script symlinks into
+  `skills-vendor/`, so they track upstream automatically. `SKILL.md` cannot be symlinked — it carries
+  the notifier deltas — so it is the one file that drifts, and nothing detects that: `doctor.sh` walks
+  symlinks and skips override directories, and the refresh hook only moves the submodule pointer.
+  It has drifted twice already: v1.2 against vendor v1.4 (Step 1's script-resolution loop, so Step 1
+  failed), then a Step 1.5 paragraph describing a `SENSITIVE_PATHS` array after upstream had moved to
+  segment matching and `.skills/doc-sensitive-paths` (#47). **Re-diff this file against vendor whenever
+  the submodule moves.** Upstream's self-budget note is dropped here: the gate it cites
+  (`tests/structural/test_skill_self_budget.py`) lives in the vendor repo, not this one

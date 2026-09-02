@@ -1,0 +1,30 @@
+# Sensitive paths for shipping-work-python-fastapi's Step 1.5 doc check.
+#
+# Replaces doc-check.sh's built-in FastAPI defaults wholesale — it does not
+# extend them, so a default added upstream has to be added here too. Entries
+# match whole path SEGMENTS at any depth: `pyproject.toml` covers the root
+# file and `clients/python/pyproject.toml`, `deploy/` covers `tests/deploy/`.
+#
+# Dropped from the defaults, all three dead in this tree:
+#   schema.sql      — schema is Alembic's, never raw SQL
+#   src/models/     — models live in src/core/, under src/core/ below
+#   .env.example    — none tracked; env vars are documented in AGENTS.md
+# Added beyond them, both described in AGENTS.md in enough detail to rot:
+#   scripts/            — Common Commands, Server Lifecycle, dev_server.sh
+#   .github/workflows/  — the Continuous Integration section
+#   skills/             — the docs/SKILLS.md inventory and its vendor pins
+#
+# tests/ci/test_doc_sensitive_paths.py fails on an entry that matches nothing.
+
+AGENTS.md
+README.md
+CHANGELOG.md
+pyproject.toml
+uv.lock
+alembic/versions/
+deploy/
+src/api/
+src/core/
+scripts/
+.github/workflows/
+skills/
