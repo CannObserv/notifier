@@ -30,6 +30,7 @@ from notifier_client.idempotency import _AutoIdempotencyKey, resolve_idempotency
 from notifier_client.retry import RetryConfig, RetryTransport
 from notifier_client.sub_clients.apprise import AppriseAPI
 from notifier_client.sub_clients.channels import ChannelsAPI
+from notifier_client.sub_clients.monitors import MonitorsAPI
 from notifier_client.sub_clients.templates import TemplatesAPI
 from notifier_client.types import DispatchOut, PreviewResponse
 
@@ -60,6 +61,7 @@ class NotifierClient:
         self.channels = ChannelsAPI(self)
         self.templates = TemplatesAPI(self)
         self.apprise = AppriseAPI(self)
+        self.monitors = MonitorsAPI(self)
 
     def __repr__(self) -> str:
         return f"NotifierClient(base_url={self._base_url!r}, api_key={self._mask!r})"

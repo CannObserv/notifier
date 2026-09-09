@@ -1,0 +1,34 @@
+[Unit]
+Description=Notifier — dead-man's-timer sweep (production)
+After=network.target postgresql.service tailscaled.service
+
+# No [Install] section, and no Restart=. The timer owns the schedule: a
+# transient failure is simply retried at the next tick, and a permanent one
+# leaves a failed unit that `systemctl list-timers` and journald both show.
+# Restart= on a oneshot under a timer would double-fire instead.
+
+[Service]
+Type=oneshot
+User=exedev
+WorkingDirectory=/home/exedev/notifier
+
+# Apprise delivery is network I/O against third-party endpoints. systemd skips
+# a firing while the previous run is still going, so an unbounded sweep held
+# open by a wedged Slack endpoint stops every subsequent check: the timer
+# still looks alive and nothing is being swept. Bound it well inside the
+# 60-second cadence's tolerance.
+TimeoutStartSec=120
+
+# The production database opt-in for src/core/db_safety.py. This MUST stay in
+# the unit and never move into an EnvironmentFile below, for the same reason
+# notifier.service gives: anything in those files is inherited by every shell
+# that sources them (issue #22).
+Environment=NOTIFIER_ALLOW_PROD_DB=1
+
+EnvironmentFile=/etc/notifier/.env
+EnvironmentFile=-/home/exedev/notifier/.env
+
+# Never an inline `uv run` line. The script checks the database URL through
+# src.core.db_safety and refuses to start without NOTIFIER_SECRET_KEY — a
+# second spelling here is a second code path that drifts out from under both.
+ExecStart=/home/exedev/notifier/scripts/sweep.sh

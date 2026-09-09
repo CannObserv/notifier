@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `client.monitors.*` — CRUD for notifier's dead-man's timers plus `checkin()`, the method a consumer calls on every tick of its own probe. Notifier alerts on the *absence* of a check-in, so a probe that only speaks up when it finds something is silent in exactly the cases that matter: a stopped timer, a wedged process, a dead node (CannObserv/notifier#56).
+- `MonitorOut`, `MonitorOutState`, `CheckinResponse`, and `CheckinResponseState` exported from `notifier_client` and `notifier_client.types`.
+- `checkin()` is auto-retried on transport and 5xx failures, alone among the write methods. A dropped heartbeat is indistinguishable from a dead consumer, and the replay is harmless: the second check-in simply overwrites the first.
+
 ## 0.3.1 — 2026-09-01
 
 ### Removed

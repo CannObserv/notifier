@@ -94,8 +94,34 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
 - `client.templates.{list, create, get, update, delete, preview}` → `TemplateOut` / `TemplatePreviewResponse`
 - `client.preview(*, title_template, body_template, variables, variables_schema=None)` → `PreviewResponse` (stateless inline render; rendering failures return 200 OK with `.error` populated, no exception)
 - `client.apprise.{list_plugins, get_plugin, assemble}` → `PluginListItem` / `PluginDetail` / `AssembleResponse`
+- `client.monitors.{list, create, get, update, delete, checkin}` → `MonitorOut` / `CheckinResponse`
 
 `client.dispatch(...)` returns `DispatchOut`. `client.health()` and `client.ready()` continue to return `dict[str, Any]` because the server's response is a free-form key/value bag.
+
+### Monitors and check-ins
+
+A monitor is a dead-man's timer. Notifier alerts when a check-in **fails to arrive** — a findings-only push is silent for a stopped timer, a wedged process, or a dead node, which is indistinguishable from health.
+
+```python
+monitor = await client.monitors.create(
+    name="co-broker",
+    interval_seconds=600,  # you promise to check in this often
+    grace_seconds=1200,  # two ticks may be lost before it counts as an outage
+    channel_ids=[channel_id],
+    title_template="{{ source }}: {{ finding_count }} finding(s)",
+    body_template="{% for f in findings %}{{ f.check }}: {{ f.message }}\n{% endfor %}",
+)
+
+# Every tick, findings or not. The arrival is the signal.
+report = {"source": "co-broker", "finding_count": len(findings), "findings": findings}
+await client.monitors.checkin(
+    monitor.id,
+    status="alert" if findings else "ok",
+    variables=report,
+)
+```
+
+`variables` is opaque to notifier — it is stored verbatim and rendered through your template. `status="alert"` additionally dispatches; `"ok"` only resets the timer. `checkin()` is the one write method that is auto-retried: a dropped heartbeat looks exactly like a dead consumer, and a replay just overwrites the previous check-in.
 
 ### Idempotency
 

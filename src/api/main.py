@@ -9,6 +9,7 @@ from src.api.routes.apprise_plugins import router as apprise_router
 from src.api.routes.channels import router as channels_router
 from src.api.routes.dispatch import router as dispatch_router
 from src.api.routes.health import router as health_router
+from src.api.routes.monitors import router as monitors_router
 from src.api.routes.preview import router as preview_router
 from src.api.routes.templates import router as templates_router
 from src.api.schemas.errors import AuthErrorDetail
@@ -46,6 +47,7 @@ v1_router = APIRouter(
 v1_router.include_router(templates_router)
 v1_router.include_router(channels_router)
 v1_router.include_router(dispatch_router)
+v1_router.include_router(monitors_router)
 v1_router.include_router(preview_router)
 v1_router.include_router(apprise_router)
 

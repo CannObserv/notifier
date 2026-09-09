@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from src.api.schemas.types import ULIDStr
+from src.core.models.dispatch import Dispatch, DispatchAttempt
 
 
 class DispatchRequest(BaseModel):
@@ -46,6 +47,18 @@ class DispatchAttemptOut(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
 
+    @classmethod
+    def from_model(cls, a: DispatchAttempt) -> "DispatchAttemptOut":
+        """Build from the ORM row. Two routes render these (#56)."""
+        return cls(
+            channel_id=str(a.channel_id),
+            status=a.status,
+            reason=a.reason,
+            attempt=a.attempt,
+            started_at=a.started_at,
+            finished_at=a.finished_at,
+        )
+
 
 class DispatchOut(BaseModel):
     """Response body for POST /dispatch and GET /dispatch/{id}."""
@@ -61,3 +74,23 @@ class DispatchOut(BaseModel):
     metadata: dict[str, Any]
     created_at: datetime
     attempts: list[DispatchAttemptOut]
+
+    @classmethod
+    def from_models(cls, d: Dispatch, attempts: list[DispatchAttempt]) -> "DispatchOut":
+        """Build from the ORM rows.
+
+        Lives here rather than in the dispatch route because a monitor
+        check-in returns the same shape, and one spelling is the point (#56).
+        """
+        return cls(
+            id=str(d.id),
+            tenant_id=str(d.tenant_id),
+            template_id=str(d.template_id) if d.template_id else None,
+            idempotency_key=d.idempotency_key,
+            rendered_title=d.rendered_title,
+            rendered_body=d.rendered_body,
+            status=d.status,
+            metadata=d.request_metadata,
+            created_at=d.created_at,
+            attempts=[DispatchAttemptOut.from_model(a) for a in attempts],
+        )

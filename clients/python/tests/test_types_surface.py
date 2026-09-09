@@ -11,10 +11,14 @@ from notifier_client.types import (
     AssembleResponse,
     ChannelOut,
     ChannelTestResponse,
+    CheckinResponse,
+    CheckinResponseState,
     DispatchAttemptOut,
     DispatchAttemptOutStatus,
     DispatchOut,
     DispatchOutStatus,
+    MonitorOut,
+    MonitorOutState,
     PluginDetail,
     PluginListItem,
     PreviewResponse,
@@ -29,8 +33,10 @@ def test_public_type_names_importable():
         AssembleResponse,
         ChannelOut,
         ChannelTestResponse,
+        CheckinResponse,
         DispatchAttemptOut,
         DispatchOut,
+        MonitorOut,
         PluginDetail,
         PluginListItem,
         PreviewResponse,
@@ -129,3 +135,11 @@ def test_top_level_init_re_exports_types():
     assert hasattr(notifier_client, "PluginListItem")
     assert hasattr(notifier_client, "PreviewResponse")
     assert hasattr(notifier_client, "TemplatePreviewResponse")
+
+
+def test_monitor_state_enums_importable():
+    """The dead-man's timer's three states, as the wire spells them (#56)."""
+    assert MonitorOutState.PENDING == "pending"
+    assert MonitorOutState.OK == "ok"
+    assert MonitorOutState.MISSING == "missing"
+    assert CheckinResponseState.OK == "ok"
