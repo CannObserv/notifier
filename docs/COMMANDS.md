@@ -70,6 +70,24 @@ sudo journalctl -u notifier-dev -f
 curl "http://$(tailscale ip -4):9001/health"   # this VM: loopback is NOT bound
 ```
 
+### The dead-man's-timer sweep
+
+Two systemd *timers* fire `scripts/sweep.sh` every 60 seconds — one against
+production, one against `notifier_dev`. Between them they are the only thing
+watching for consumer silence (#56), so a stopped timer is a silent outage of
+the outage detector.
+
+```bash
+systemctl list-timers 'notifier-sweep*'        # is it firing? when next?
+sudo journalctl -u notifier-sweep -f           # checked / alerted / undeliverable
+sudo systemctl start notifier-sweep.service    # force one pass now
+sudo systemctl restart notifier-sweep.timer    # after editing the timer
+
+# Same, dev database
+systemctl status notifier-sweep-dev.timer
+sudo journalctl -u notifier-sweep-dev -f
+```
+
 It launches `scripts/dev_server.sh`, so it inherits every guard that script
 carries: the production opt-in is unset, `DATABASE_URL` comes from
 `DEV_DATABASE_URL`, the URL check is `src.core.db_safety`, and an unmigrated

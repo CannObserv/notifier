@@ -51,10 +51,16 @@ uv sync
 uv run alembic upgrade head
 DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head
 
-# Install systemd units — production on :9000, dev endpoint on :9001
-sudo cp deploy/notifier.service deploy/notifier-dev.service /etc/systemd/system/
+# Install systemd units — production on :9000, dev endpoint on :9001, plus
+# the two dead-man's-timer sweeps (#56). The sweep *timers* are enabled; their
+# .service units are started by the timers and must not be enabled themselves.
+sudo cp deploy/notifier.service deploy/notifier-dev.service \
+        deploy/notifier-sweep.service deploy/notifier-sweep.timer \
+        deploy/notifier-sweep-dev.service deploy/notifier-sweep-dev.timer \
+        /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now notifier notifier-dev
+sudo systemctl enable --now notifier-sweep.timer notifier-sweep-dev.timer
 ```
 
 ## Production database opt-in
@@ -132,7 +138,18 @@ sudo systemctl restart notifier notifier-dev
 # Logs
 sudo journalctl -u notifier -f
 sudo journalctl -u notifier-dev -f
+
+# The sweeps are timers, not services — `systemctl status notifier-sweep`
+# shows the last one-shot pass, which is normally `inactive (dead)`. What
+# matters is that the timer is still scheduled.
+systemctl list-timers 'notifier-sweep*'
+sudo journalctl -u notifier-sweep -f
 ```
+
+Restarting `notifier notifier-dev` picks up merged code for the API. The sweep
+units read the same working tree at each firing, so they need no restart —
+but `systemctl daemon-reload` is still required after editing anything in
+`deploy/`.
 
 ## Health checks
 
@@ -148,6 +165,26 @@ curl http://notifier:9000/health                 # any other tailnet node
 
 `https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops
 there: nothing listens on the interface the proxy forwards to. Deliberate.
+
+## The dead-man's-timer sweep
+
+`notifier-sweep.timer` and `notifier-sweep-dev.timer` fire every 60 seconds
+and are the only thing watching for consumer silence (#56). If a timer stops,
+every dead-man's timer in the service stops with it and nothing says so.
+
+```bash
+systemctl list-timers 'notifier-sweep*'        # is it firing? when next?
+systemctl --failed | grep notifier-sweep       # did a pass fail?
+sudo systemctl start notifier-sweep.service    # force one pass now
+```
+
+The production sweep carries `NOTIFIER_ALLOW_PROD_DB=1` in its unit for the
+same reason `notifier.service` does, and the dev sweep must never carry it:
+inheriting it would have the dev endpoint's timer alerting on production
+monitors and dispatching to production channels to do it.
+`tests/deploy/test_sweep_units.py` asserts both.
+
+Full reference: [reference/monitors.md](reference/monitors.md).
 
 ## The VM split (#43, done)
 

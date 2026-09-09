@@ -6,6 +6,8 @@ Be terse. Prefer fragments over full sentences. Skip filler and preamble. Sacrif
 
 Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templates + JSON-Schema variable bags. Consumers send `{template_id | inline templates, variables, channel_ids}`; the service renders, validates, dispatches, and logs every attempt.
 
+It also runs **dead-man's timers** (#56): a consumer checks in on a cadence, and the *absence* of a check-in is itself an alert. See [docs/reference/monitors.md](docs/reference/monitors.md).
+
 First consumer is the `watcher` project (Cannabis Observer). API is designed to be consumer-agnostic — no domain concepts leak into the service.
 
 ## Development Methodology
@@ -74,6 +76,14 @@ service on port 9000.
 |---|---|---|---|
 | API (live) | FastAPI | 9000 | `systemctl` (`notifier.service`), production DB |
 | API (dev) | FastAPI | 9001 | `systemctl` (`notifier-dev.service`), `notifier_dev` |
+| Sweep (live) | systemd timer, 60s | — | `notifier-sweep.timer` → `.service`, production DB |
+| Sweep (dev) | systemd timer, 60s | — | `notifier-sweep-dev.timer` → `.service`, `notifier_dev` |
+
+The two sweeps are the only thing watching for consumer silence. A timer that
+stops is a silent outage of the outage detector — `systemctl list-timers
+'notifier-sweep*'` is the check. They are timers rather than a task inside the
+API process on purpose: an alerter that rides the thing it watches stops
+reporting exactly when it is needed.
 
 Both always-on. **9001 is the development endpoint consumers point at** — it
 accepts `development`-marked API keys, which 9000 refuses (#24).
@@ -122,6 +132,8 @@ lives in `/etc/watcher/notifier.env` on that host, pointed at
 | Debugging the dev endpoint | `sudo journalctl -u notifier-dev -f` |
 | After editing either unit in `deploy/` | `sudo systemctl daemon-reload && sudo systemctl restart notifier notifier-dev` |
 | After DB model changes | `uv run alembic upgrade head`, then the same against `DEV_DATABASE_URL`, then restart both |
+| Checking the dead-man's sweep | `systemctl list-timers 'notifier-sweep*'`, `sudo journalctl -u notifier-sweep -f` |
+| Forcing a sweep now | `sudo systemctl start notifier-sweep.service` |
 
 **Dev server workflow:** One launch path serves both the unit and the hand-run
 case. `scripts/dev_server.sh` loads secrets, swaps `DATABASE_URL` for
@@ -186,6 +198,7 @@ Currently defined:
 - `BUILD_ID` — (optional) git SHA reported by `/health`; blank or unset both fall back to `"dev"`. Each systemd unit stamps its own file (`/run/notifier/build-id`, `/run/notifier/build-id-dev`) from `git rev-parse` at start
 - `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+- `NOTIFIER_SWEEP_DEV` — `1` tells `scripts/sweep.sh` to load the env files itself and swap `DATABASE_URL` for `DEV_DATABASE_URL`, the same swap `dev_server.sh` performs. Set in `deploy/notifier-sweep-dev.service` only; the production sweep leaves it unset and takes `DATABASE_URL` from its own `EnvironmentFile`
 - `NOTIFIER_BIND_HOST` — **tests and diagnosis only.** Overrides the tailnet
   probe in `scripts/tailnet_bind.sh` with a literal bind address. Never put it
   in an env file or a unit, for the same reason as `NOTIFIER_ALLOW_PROD_DB`: it
@@ -229,6 +242,10 @@ uv run ruff format --check .
 # Run every gate the way pre-commit does
 uv run pre-commit run --all-files
 uv run pre-commit install            # once per clone — installs it as a git hook
+
+# Dead-man's-timer sweep (systemd timers own the schedule; this forces a pass)
+sudo systemctl start notifier-sweep.service
+systemctl list-timers 'notifier-sweep*'
 
 # Database migrations
 uv run alembic upgrade head          # apply all migrations
@@ -288,6 +305,7 @@ The service is consumer-agnostic. Resist these temptations:
 - **Do** validate `variables` against the template's `variables_schema` on dispatch. Reject 422 with a clear field path on miss. The *schema itself* is checked twice: on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which is what catches rows stored before that guard landed (#28).
 - **Do** render with `StrictUndefined` so unbound references fail loudly rather than silently producing empty output.
 - **Do** require `idempotency_key` to be tenant-scoped and unique-where-not-null; replay must be safe.
+- **Do** treat a monitor check-in's `variables` as opaque and its `status` as the consumer's own judgement. Whether a report warrants notifying is consumer taxonomy — a broker maps its `finding_count > 0` onto `alert`. Whether a report *arrived* is the part notifier cannot infer, and is the whole point of #56.
 - **Do** mark every API key with an `environment` (`production` | `development`). A production deployment refuses `development` keys with 403. This is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).
 
 ## Detail Docs
@@ -296,6 +314,7 @@ The service is consumer-agnostic. Resist these temptations:
 - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
 - [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version and every site that mirrors it, the CI gates that enforce it, tag conventions, how a consumer adopts the SDK, and when to graduate off the git-tag transport
+- [docs/reference/monitors.md](docs/reference/monitors.md) — the dead-man's timer: why absence is the alert, the check-in contract and what is opaque in it, the built-in missing/recovery wording, the sweep timers and the three decisions behind them, and the limit that nothing watches the watcher
 - [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet this VM lives on: node identity, ACL, the bind decision and the boot race it buys, and how to re-join or move the host
 - [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — full SocratiCode tool table, the `ToolSearch` prefetch query, per-tool notes, graph-health guidance, and this repo's measured yield
 - [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendored submodule repos and refresh procedure, full skills inventory

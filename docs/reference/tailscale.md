@@ -22,6 +22,9 @@ specific to notifier.
   it, silently.
 - **Consumer node:** `watcher`, tag `tag:watcher`, `100.120.218.69` — the
   `watcher` VM, which also hosts archiver and replicator.
+- **Reporting node:** `broker`, tag `tag:broker` — the `co-broker` VM. It
+  reaches notifier and nothing else, to check in against a dead-man's timer
+  every ten minutes (#56, CannObserv/broker#3).
 - **Also on the tailnet:** `observo-primary`, a *user-owned* node (not tagged),
   reached by a `hosts` entry in the ACL rather than by tag. Relevant when the
   Observo → Notifier path is provisioned: that rule needs `observo-primary` as
@@ -33,17 +36,34 @@ specific to notifier.
 {
   "tagOwners": {
     "tag:notifier": ["autogroup:admin"],
-    "tag:watcher":  ["autogroup:admin"]
+    "tag:watcher":  ["autogroup:admin"],
+    "tag:broker":   ["autogroup:admin"]
   },
   "acls": [
     // Consumer host -> notifier's two API ports, and nothing else. Nothing
     // lists tag:notifier as a *source*: notifier initiates nothing across the
     // tailnet. Its Apprise egress goes straight to the internet.
     { "action": "accept", "src": ["tag:watcher"], "dst": ["tag:notifier:9000,9001"] },
+    // The broker reports bus health here every ten minutes (#56). This is the
+    // rule broker#1's D8 amendment permits — see the note below.
+    { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000,9001"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
 ```
+
+> **`tag:broker` as a `src` is a deliberate amendment, not an oversight.**
+> CannObserv/broker#1 D8 originally said the broker initiates nothing, and its
+> success criteria said `tag:broker` appears in no rule as a source — the
+> reasoning being anti-centrality: nothing should make the broker a client of
+> a bus participant. Notifier is not a bus participant, so the rule as written
+> was stricter than its own reason required. broker#3 amends D8 to "the broker
+> is a client of no bus participant", which this rule satisfies.
+>
+> **Peer visibility follows `acls`, not `ssh`.** A node absent from the peer's
+> netmap does not resolve over MagicDNS at all, so this rule has to exist in
+> the admin console *before* any of the check-in path can be tested — a
+> missing rule looks like a DNS failure, not like a permission denial.
 
 > **ACL granularity is per-VM, not per-service.** One node is one VM, so
 > `tag:watcher` today grants tailnet access to watcher *and* archiver *and*
