@@ -22,9 +22,11 @@ specific to notifier.
   it, silently.
 - **Consumer node:** `watcher`, tag `tag:watcher`, `100.120.218.69` — the
   `watcher` VM, which also hosts archiver and replicator.
-- **Reporting node:** `broker`, tag `tag:broker` — the `co-broker` VM. It
-  reaches notifier and nothing else, to check in against a dead-man's timer
-  every ten minutes (#56, CannObserv/broker#3).
+- **Reporting node:** `broker`, tag `tag:broker`, `100.97.91.19` — the
+  `co-broker` VM. It reaches notifier and nothing else, to check in against a
+  dead-man's timer every ten minutes (#56, CannObserv/broker#3). The rule is
+  one-way: notifier still lists no rule with itself as a `src`, so this host
+  cannot open a connection back to `broker` — verified, not assumed.
 - **Also on the tailnet:** `observo-primary`, a *user-owned* node (not tagged),
   reached by a `hosts` entry in the ACL rather than by tag. Relevant when the
   Observo → Notifier path is provisioned: that rule needs `observo-primary` as
