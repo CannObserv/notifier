@@ -1,6 +1,17 @@
 """Tests for src/api/routes/health.py.
 
-Focus: the build stamp. Both systemd units write it with
+Two things the probes must get right, and one of them is why the other
+exists.
+
+**Which deployment answered** (#58). ``build`` cannot say: the two units
+serve one working tree, so the commit agrees on both ports and always will.
+``database`` and ``environment`` can, and the assertion that matters is that
+the two probes *agree* — ``/health`` classifies the configured URL, ``/ready``
+the live connection, so a match is what says those have not diverged.
+Asserting only that ``environment`` holds one of its two legal values passes
+for either and cannot fail on the bug the feature exists to prevent.
+
+**The build stamp.** Both systemd units write it with
 
     echo BUILD_ID=$(git rev-parse --short HEAD) > /run/notifier/build-id…
 
