@@ -10,9 +10,12 @@ BUILD_ID exactly like a missing one; `os.environ.get(name, default)` does not,
 because the default fires only on absence.
 """
 
+import os
+
 import pytest
 
 from src.api.routes.health import _resolve_build_id, _resolve_database
+from src.core.db_safety import database_name
 
 
 def test_uses_the_stamp_when_one_is_written(monkeypatch):
@@ -73,12 +76,31 @@ async def test_health_payload_carries_the_endpoint_identity(client):
     """`build` agrees across both ports by design; `environment` is the signal."""
     body = (await client.get("/health")).json()
     assert set(body) == {"status", "build", "database", "environment"}
-    assert body["environment"] in {"production", "development"}
 
 
 @pytest.mark.asyncio
 async def test_ready_reports_the_database_actually_connected(client):
-    """Ground truth: `current_database()`, not what DATABASE_URL claims."""
+    """Ground truth: ``current_database()``, not what DATABASE_URL claims."""
     body = (await client.get("/ready")).json()
-    assert body["database"] == "notifier_test"
+    assert body["database"] == database_name(os.environ["TEST_DATABASE_URL"])
     assert body["environment"] == "development"
+
+
+@pytest.mark.asyncio
+async def test_the_two_probes_agree_on_which_database_this_is(client):
+    """The assertion a consumer's wiring-up check ultimately rests on.
+
+    Asserting only that ``environment`` is one of its two legal values passes
+    for either, so a ``/health`` claiming ``production`` while serving
+    ``notifier_test`` would be green — the exact failure #58 exists to make
+    impossible. Agreement is the stronger claim, and it needs no literal
+    database name: ``/health`` reads the configured URL and ``/ready`` reads
+    the live connection, so the two matching is what says those have not
+    diverged.
+    """
+    health = (await client.get("/health")).json()
+    ready = (await client.get("/ready")).json()
+    assert (health["database"], health["environment"]) == (
+        ready["database"],
+        ready["environment"],
+    )
