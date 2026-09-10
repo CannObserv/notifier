@@ -61,7 +61,7 @@ Full tool table, prefetch query, per-tool guidance: [`docs/SOCRATICODE.md`](docs
 
 Two packages, one boundary: `src/api/` is transport (routes, Pydantic schemas, auth deps) and `src/core/` is domain logic (models, crypto, Apprise dispatch, Jinja rendering). Core never imports api.
 
-`/api/v1/` is versioned and auth-guarded; `/health` and `/ready` are root-level and unauthenticated. Both name the database they serve and classify it `production`/`development` (#58) — **`build` agrees across the two ports by design**, one working tree, so `environment` is the field to assert on. `clients/python/src/notifier_client/generated/` is generated from `/openapi.json` — never hand-edit it; `sdk-staleness.yml` fails a stale push to main or PR.
+`/api/v1/` is versioned and auth-guarded; `/health` and `/ready` are root-level, unauthenticated, and name the database they serve — assert on `environment`, never `build` (#58). `clients/python/src/notifier_client/generated/` is generated from `/openapi.json` — never hand-edit it; `sdk-staleness.yml` fails a stale push to main or PR.
 
 Per-module inventory: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
