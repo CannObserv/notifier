@@ -46,14 +46,29 @@ specific to notifier.
     // lists tag:notifier as a *source*: notifier initiates nothing across the
     // tailnet. Its Apprise egress goes straight to the internet.
     { "action": "accept", "src": ["tag:watcher"], "dst": ["tag:notifier:9000,9001"] },
-    // The broker reports bus health here every ten minutes (#56). This is the
-    // rule broker#1's D8 amendment permits — see the note below.
-    { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000,9001"] },
+    // The broker reports bus health here every ten minutes (#56). Port 9000
+    // only, unlike watcher above — see the note below.
+    { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
 ```
 
+> **The broker gets `:9000` only; watcher gets both.** Not an inconsistency.
+> `:9001` exists because #24 made it the endpoint consumers point their
+> *non-production* processes at, and watcher has some. `co-broker`'s probe is
+> a single always-on production unit with no dev counterpart, so a grant
+> covering `:9001` is wider than any use that node has.
+>
+> The rule was first provisioned as `9000,9001` by copying watcher's, and the
+> broker caught it (#56). Worth recording what the probe actually found, since
+> it is narrower than it first looked: `:9001` authenticates against
+> `notifier_dev`, so a production key sent to a mistyped port gets **401**, not
+> a silent success. Landing check-ins in the dev database — which would invert
+> this monitor, alarming "co-broker is dead" while it is healthy — needs the
+> wrong port *and* a `development`-marked key. Both halves are now gone: the
+> port by this rule, the credential by revoking co-broker's dev tenant.
+>
 > **`tag:broker` as a `src` is a deliberate amendment, not an oversight.**
 > CannObserv/broker#1 D8 originally said the broker initiates nothing, and its
 > success criteria said `tag:broker` appears in no rule as a source — the
