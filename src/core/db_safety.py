@@ -64,6 +64,22 @@ def is_non_production(name: str) -> bool:
     return name.endswith(NON_PRODUCTION_SUFFIXES)
 
 
+def environment_label(name: str) -> str:
+    """Classify a database name in the API-key vocabulary.
+
+    One spelling of the rule, because both health probes apply it and their
+    *disagreement* is a documented signal: ``/health`` classifies the
+    configured URL, ``/ready`` the database actually connected, and
+    DEPLOYMENT.md reads a mismatch as those two having diverged. A second
+    spelling would give the pair a way to disagree that means nothing.
+
+    Takes a name rather than reading the environment, so a caller that has
+    already resolved one — from a URL or from ``current_database()`` — does
+    not parse it twice.
+    """
+    return "development" if is_non_production(name) else "production"
+
+
 def serving_production() -> bool:
     """True when this process is serving the production database.
 

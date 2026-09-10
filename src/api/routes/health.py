@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db_session
 from src.api.schemas.health import HealthResponse, ReadyResponse
-from src.core.db_safety import database_name, is_non_production, serving_production
+from src.core.db_safety import database_name, environment_label
 
 router = APIRouter(tags=["health"])
 
@@ -34,8 +34,9 @@ def _resolve_database() -> tuple[str, str]:
     Fails soft, unlike :mod:`src.core.db_safety` itself. ``database_name()``
     raises on any URL it cannot read, and letting that escape at import time
     would mean the app never starts — a worse outcome than the ambiguity this
-    reports. An unreadable URL is therefore ``"unknown"`` and, following
-    ``serving_production()``, the conservative ``"production"``.
+    reports. An unreadable URL is therefore ``"unknown"``, which carries no
+    non-production suffix and so classifies as the conservative
+    ``"production"`` — the same way round as ``serving_production()``.
 
     The name is not redundant with the classification: every non-suffixed name
     classifies as ``production``, so ``notifier`` and ``notifier_staging`` are
@@ -45,7 +46,7 @@ def _resolve_database() -> tuple[str, str]:
         name = database_name(os.environ.get("DATABASE_URL", ""))
     except ValueError:
         name = "unknown"
-    return name, "production" if serving_production() else "development"
+    return name, environment_label(name)
 
 
 BUILD_ID = _resolve_build_id()
@@ -84,7 +85,7 @@ async def ready(session: AsyncSession = Depends(get_db_session)) -> JSONResponse
             status="ready",
             db=True,
             database=name,
-            environment="development" if is_non_production(name) else "production",
+            environment=environment_label(name),
         )
         return JSONResponse(status_code=200, content=payload.model_dump())
     except SQLAlchemyError:

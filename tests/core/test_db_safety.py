@@ -49,6 +49,30 @@ def test_is_non_production_uses_suffix_not_substring(name, non_prod):
     assert db_safety.is_non_production(name) is non_prod
 
 
+@pytest.mark.parametrize(
+    "name,label",
+    [
+        ("notifier", "production"),
+        ("notifier_dev", "development"),
+        ("notifier_test", "development"),
+        # Neither a suffix nor readable — both probes must land on the
+        # conservative label rather than inventing a third.
+        ("notifier_staging", "production"),
+        ("unknown", "production"),
+    ],
+)
+def test_environment_label_speaks_the_api_key_vocabulary(name, label):
+    assert db_safety.environment_label(name) == label
+
+
+def test_environment_label_agrees_with_serving_production(monkeypatch):
+    """The two classifiers must never split, whichever a caller reaches for."""
+    for name in ("notifier", "notifier_dev", "notifier_test", "notifier_staging"):
+        monkeypatch.setenv("DATABASE_URL", f"postgresql+asyncpg://u:p@h/{name}")
+        expected = "production" if db_safety.serving_production() else "development"
+        assert db_safety.environment_label(name) == expected
+
+
 def test_assert_safe_allows_test_database(monkeypatch):
     monkeypatch.delenv(db_safety.ALLOW_PROD_ENV_VAR, raising=False)
     db_safety.assert_safe_database_url("postgresql+asyncpg://u@h/notifier_test")
