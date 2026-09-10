@@ -11,9 +11,13 @@ because the default fires only on absence.
 """
 
 import os
+from collections.abc import AsyncGenerator
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
+from src.api.deps import get_db_session
+from src.api.main import app
 from src.api.routes.health import _resolve_build_id, _resolve_database
 from src.core.db_safety import database_name
 
@@ -104,3 +108,45 @@ async def test_the_two_probes_agree_on_which_database_this_is(client):
         ready["database"],
         ready["environment"],
     )
+
+
+class _DeadSession:
+    """A session that fails at query time, not at acquisition.
+
+    Raising from the dependency itself would escape before the route's own
+    ``try`` and never reach the branch under test. A connection that dies
+    mid-query is also the truer shape of the outage: the pool handed one over
+    and the far end was gone.
+    """
+
+    async def execute(self, *args: object, **kwargs: object) -> None:
+        raise OperationalError("SELECT current_database()", {}, Exception("no connection"))
+
+
+@pytest.mark.asyncio
+async def test_ready_reports_503_without_naming_a_database(client):
+    """The branch that only ever runs during an outage, so it is read once.
+
+    Its payload changed when the probes learned to name their database, and
+    nothing covered it — ``grep "not_ready" tests/`` found nothing before this.
+    An untested error path whose shape moved is exactly where a serialization
+    break waits for the worst moment to surface. There is no connection to ask
+    here, so both new fields must be null rather than guessed at.
+    """
+
+    async def failing_session() -> AsyncGenerator[_DeadSession]:
+        yield _DeadSession()
+
+    app.dependency_overrides[get_db_session] = failing_session
+    try:
+        response = await client.get("/ready")
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "not_ready",
+        "db": False,
+        "database": None,
+        "environment": None,
+    }
