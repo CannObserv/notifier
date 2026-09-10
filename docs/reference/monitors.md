@@ -39,6 +39,10 @@ it the one case the timer stays silent about forever.
 ## The API
 
 ```bash
+# Zero-time setup: confirm which notifier this is, before anything else
+curl -s "http://notifier:9000/health"
+# {"status":"ok","build":"4d949e8","database":"notifier","environment":"production"}
+
 # One-time setup
 curl -sX POST "http://notifier:9000/api/v1/monitors" \
   -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{
@@ -153,6 +157,27 @@ CannObserv/broker#1 specified a flat payload. It maps without loss:
 
 One extra field on the broker's side, in exchange for `findings` and
 `finding_count` never appearing in notifier's OpenAPI document.
+
+## Check the endpoint before the timer
+
+A monitor pointed at the wrong notifier is worse than a broken one. Ordinary
+dispatch fails loudly when it lands on the dev endpoint — wrong tenant's
+channels, or a 401. A dead-man's timer *inverts*: check-ins land in
+`notifier_dev` where the production monitor cannot see them, so the production
+sweep reports a healthy consumer as dead, on a cadence, until someone traces
+it.
+
+Nothing in the payload distinguished the two before #58, and the field that
+looks like it should — `build` — never can: both units serve one working tree,
+so the SHA agrees and will keep agreeing. Assert on `environment`:
+
+```bash
+test "$(curl -s "$NOTIFIER_URL/health" | jq -r .environment)" = production
+```
+
+That check runs before a key exists, which is the point — the authenticated
+half of the same signal is the 403 in `require_api_key`, and a consumer only
+reaches it once its credential works.
 
 ## Related
 

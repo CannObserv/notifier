@@ -83,11 +83,26 @@ class NotifierClient:
     # --- endpoints ---
 
     async def health(self) -> dict[str, Any]:
-        # Free-form server schema; no typed model worth wrapping.
+        """GET /health — liveness, plus which deployment answered.
+
+        Carries ``database`` and ``environment`` since notifier#58: ``build``
+        agrees across notifier's production and dev ports by design, so it can
+        never tell them apart. Check ``environment`` when wiring up, before a
+        key exists to get the authenticated version of the same answer.
+
+        A plain mapping, not the typed ``HealthResponse``: this is the first
+        call a consumer makes against an endpoint it is not yet sure of, and
+        it should not fail on a field a newer server added.
+        """
         return await self._json_request("GET", "/health", retry_safe=True)
 
     async def ready(self) -> dict[str, Any]:
-        # Free-form server schema; no typed model worth wrapping.
+        """GET /ready — DB connectivity, and the database actually connected.
+
+        ``database`` here comes from ``current_database()``, where /health's
+        is read from the server's configured URL. Mapping rather than typed
+        model for the same reason as :meth:`health`.
+        """
         return await self._json_request("GET", "/ready", retry_safe=True)
 
     async def dispatch(

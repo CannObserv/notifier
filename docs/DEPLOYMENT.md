@@ -163,6 +163,25 @@ curl "http://$(tailscale ip -4):9000/health"     # this VM
 curl http://notifier:9000/health                 # any other tailnet node
 ```
 
+Both ports answer, and the payload says which one you reached:
+
+```json
+{"status": "ok", "build": "4d949e8", "database": "notifier",     "environment": "production"}
+{"status": "ok", "build": "4d949e8", "database": "notifier_dev", "environment": "development"}
+```
+
+**`build` is the same on both and always will be** — the two units serve one
+working tree, so a matching SHA confirms nothing about which port answered
+(#58). Read `environment`. `/health` reports it from the configured URL;
+`/ready` reports the database actually connected, via `current_database()`, so
+`/health` and `/ready` disagreeing means the running engine and `DATABASE_URL`
+have diverged — nothing else surfaces that.
+
+Unauthenticated on purpose: the case this serves is a consumer wiring up
+before it has a working key. Neither the names nor the `_dev`/`_test` suffix
+rule is a secret — both are published in this repo — and the ports are
+tailnet-only regardless.
+
 `https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops
 there: nothing listens on the interface the proxy forwards to. Deliberate.
 

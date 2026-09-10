@@ -6,6 +6,10 @@
 - `client.monitors.*` — CRUD for notifier's dead-man's timers plus `checkin()`, the method a consumer calls on every tick of its own probe. Notifier alerts on the *absence* of a check-in, so a probe that only speaks up when it finds something is silent in exactly the cases that matter: a stopped timer, a wedged process, a dead node (CannObserv/notifier#56).
 - `MonitorOut`, `MonitorOutState`, `CheckinResponse`, and `CheckinResponseState` exported from `notifier_client` and `notifier_client.types`.
 - `checkin()` is auto-retried on transport and 5xx failures, alone among the write methods. A dropped heartbeat is indistinguishable from a dead consumer, and the replay is harmless: the second check-in simply overwrites the first.
+- `health()` and `ready()` now return `database` and `environment` alongside the existing fields, and the server documents both in `/openapi.json` as `HealthResponse` and `ReadyResponse`. Nothing distinguished notifier's production endpoint from its dev one in-band before this: both serve one working tree, so `build` reports the same SHA on both and will keep doing so. Check `environment` (`"production"` | `"development"` — the same vocabulary an API key is marked with) when pointing a consumer at a notifier, especially a dead-man's timer, where the wrong endpoint inverts the alert rather than merely breaking it (CannObserv/notifier#58).
+
+### Changed
+- `health()` and `ready()` still return `dict[str, Any]`, deliberately, though a typed model now exists for both. These are the first calls made against an endpoint the caller is not yet sure of; a mapping tolerates a field a newer server added.
 
 ## 0.3.1 — 2026-09-01
 
