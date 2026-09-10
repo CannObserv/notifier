@@ -58,8 +58,7 @@ def sync_detailed(
 
     ``database`` and ``environment`` are read from the configured URL, which
     is what keeps this a no-DB probe; ``/ready`` reports the database actually
-    connected. Why it is safe for this to be unauthenticated:
-    docs/DEPLOYMENT.md § Health checks.
+    connected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -92,8 +91,7 @@ def sync(
 
     ``database`` and ``environment`` are read from the configured URL, which
     is what keeps this a no-DB probe; ``/ready`` reports the database actually
-    connected. Why it is safe for this to be unauthenticated:
-    docs/DEPLOYMENT.md § Health checks.
+    connected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -122,8 +120,7 @@ async def asyncio_detailed(
 
     ``database`` and ``environment`` are read from the configured URL, which
     is what keeps this a no-DB probe; ``/ready`` reports the database actually
-    connected. Why it is safe for this to be unauthenticated:
-    docs/DEPLOYMENT.md § Health checks.
+    connected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -154,8 +151,7 @@ async def asyncio(
 
     ``database`` and ``environment`` are read from the configured URL, which
     is what keeps this a no-DB probe; ``/ready`` reports the database actually
-    connected. Why it is safe for this to be unauthenticated:
-    docs/DEPLOYMENT.md § Health checks.
+    connected.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

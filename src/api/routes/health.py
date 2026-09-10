@@ -63,9 +63,12 @@ async def health() -> HealthResponse:
 
     ``database`` and ``environment`` are read from the configured URL, which
     is what keeps this a no-DB probe; ``/ready`` reports the database actually
-    connected. Why it is safe for this to be unauthenticated:
-    docs/DEPLOYMENT.md § Health checks.
+    connected.
     """
+    # Why it is safe for this to be unauthenticated: docs/DEPLOYMENT.md
+    # § Health checks. Kept out of the docstring, which becomes the OpenAPI
+    # description and ships into the generated SDK, where a repo path is a
+    # signpost the reader cannot follow.
     return HealthResponse(status="ok", build=BUILD_ID, database=DATABASE, environment=ENVIRONMENT)
 
 
