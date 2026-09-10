@@ -52,14 +52,14 @@ def sync_detailed(
 
      Liveness probe — confirms the app process is running. No DB call.
 
-    Unauthenticated, deliberately: the case this serves is a consumer wiring
-    up for the first time, before it has a key that works. Nothing here is a
-    secret — the database names and the ``_dev``/``_test`` suffix rule are
-    published in this repo's AGENTS.md, and both ports bind the tailnet
-    address alone behind an ACL, never ``0.0.0.0``.
+    Unauthenticated, so a consumer can establish which deployment it is
+    talking to before it has a key that works. ``build`` cannot answer that:
+    both endpoints serve one working tree, so the commit agrees on either.
 
-    Read from the configured URL, so it stays a no-DB liveness probe; ``/ready``
-    reports the database actually connected.
+    ``database`` and ``environment`` are read from the configured URL, which
+    is what keeps this a no-DB probe; ``/ready`` reports the database actually
+    connected. Why it is safe for this to be unauthenticated:
+    docs/DEPLOYMENT.md § Health checks.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -86,14 +86,14 @@ def sync(
 
      Liveness probe — confirms the app process is running. No DB call.
 
-    Unauthenticated, deliberately: the case this serves is a consumer wiring
-    up for the first time, before it has a key that works. Nothing here is a
-    secret — the database names and the ``_dev``/``_test`` suffix rule are
-    published in this repo's AGENTS.md, and both ports bind the tailnet
-    address alone behind an ACL, never ``0.0.0.0``.
+    Unauthenticated, so a consumer can establish which deployment it is
+    talking to before it has a key that works. ``build`` cannot answer that:
+    both endpoints serve one working tree, so the commit agrees on either.
 
-    Read from the configured URL, so it stays a no-DB liveness probe; ``/ready``
-    reports the database actually connected.
+    ``database`` and ``environment`` are read from the configured URL, which
+    is what keeps this a no-DB probe; ``/ready`` reports the database actually
+    connected. Why it is safe for this to be unauthenticated:
+    docs/DEPLOYMENT.md § Health checks.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -116,14 +116,14 @@ async def asyncio_detailed(
 
      Liveness probe — confirms the app process is running. No DB call.
 
-    Unauthenticated, deliberately: the case this serves is a consumer wiring
-    up for the first time, before it has a key that works. Nothing here is a
-    secret — the database names and the ``_dev``/``_test`` suffix rule are
-    published in this repo's AGENTS.md, and both ports bind the tailnet
-    address alone behind an ACL, never ``0.0.0.0``.
+    Unauthenticated, so a consumer can establish which deployment it is
+    talking to before it has a key that works. ``build`` cannot answer that:
+    both endpoints serve one working tree, so the commit agrees on either.
 
-    Read from the configured URL, so it stays a no-DB liveness probe; ``/ready``
-    reports the database actually connected.
+    ``database`` and ``environment`` are read from the configured URL, which
+    is what keeps this a no-DB probe; ``/ready`` reports the database actually
+    connected. Why it is safe for this to be unauthenticated:
+    docs/DEPLOYMENT.md § Health checks.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -148,14 +148,14 @@ async def asyncio(
 
      Liveness probe — confirms the app process is running. No DB call.
 
-    Unauthenticated, deliberately: the case this serves is a consumer wiring
-    up for the first time, before it has a key that works. Nothing here is a
-    secret — the database names and the ``_dev``/``_test`` suffix rule are
-    published in this repo's AGENTS.md, and both ports bind the tailnet
-    address alone behind an ACL, never ``0.0.0.0``.
+    Unauthenticated, so a consumer can establish which deployment it is
+    talking to before it has a key that works. ``build`` cannot answer that:
+    both endpoints serve one working tree, so the commit agrees on either.
 
-    Read from the configured URL, so it stays a no-DB liveness probe; ``/ready``
-    reports the database actually connected.
+    ``database`` and ``environment`` are read from the configured URL, which
+    is what keeps this a no-DB probe; ``/ready`` reports the database actually
+    connected. Why it is safe for this to be unauthenticated:
+    docs/DEPLOYMENT.md § Health checks.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
