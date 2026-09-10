@@ -102,6 +102,15 @@ class NotifierClient:
         ``database`` here comes from ``current_database()``, where /health's
         is read from the server's configured URL. Mapping rather than typed
         model for the same reason as :meth:`health`.
+
+        **Raises on a 503**, rather than returning the not-ready body: this
+        method reports success or raises, like every other method here. The
+        server documents that body as ``NotReadyResponse`` and the generated
+        client parses it, so a caller that wants to *read* an unready
+        server's answer rather than catch it should reach for
+        ``notifier_client.generated.api.health.ready_ready_get``. Note the
+        5xx is retried before it is raised, so a raised readiness failure
+        means repeatedly not ready, not momentarily.
         """
         return await self._json_request("GET", "/ready", retry_safe=True)
 

@@ -10,6 +10,7 @@
 
 ### Changed
 - `/ready`'s 200 and 503 are documented as separate models, `ReadyResponse` and `NotReadyResponse`. The 200's `database` and `environment` are non-nullable — one model covering both statuses would have published them as optional on the path where they are always present. The 503 body is unchanged from every prior release: `{"status": "not_ready", "db": false}`.
+- `ready()` raises on a 503 rather than returning the not-ready body, as it always has — now documented, because the server newly models that body and the generated client parses it, so the two layers differ in what a caller can observe. Retry behaviour is unchanged: the 5xx is retried before it is raised.
 - `health()` and `ready()` still return `dict[str, Any]`, deliberately, though a typed model now exists for both. These are the first calls made against an endpoint the caller is not yet sure of; a mapping tolerates a field a newer server added.
 
 ## 0.3.1 — 2026-09-01
