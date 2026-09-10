@@ -127,11 +127,10 @@ class _DeadSession:
 async def test_ready_reports_503_without_naming_a_database(client):
     """The branch that only ever runs during an outage, so it is read once.
 
-    Its payload changed when the probes learned to name their database, and
-    nothing covered it — ``grep "not_ready" tests/`` found nothing before this.
-    An untested error path whose shape moved is exactly where a serialization
-    break waits for the worst moment to surface. There is no connection to ask
-    here, so both new fields must be null rather than guessed at.
+    Nothing covered it — ``grep "not_ready" tests/`` found nothing before this
+    — and it is the branch #58 came closest to reshaping. There is no
+    connection to ask here, so it names no database at all rather than
+    publishing two nulls a caller would have to check for.
     """
 
     async def failing_session() -> AsyncGenerator[_DeadSession]:
@@ -144,9 +143,4 @@ async def test_ready_reports_503_without_naming_a_database(client):
         app.dependency_overrides.pop(get_db_session, None)
 
     assert response.status_code == 503
-    assert response.json() == {
-        "status": "not_ready",
-        "db": False,
-        "database": None,
-        "environment": None,
-    }
+    assert response.json() == {"status": "not_ready", "db": False}

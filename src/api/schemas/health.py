@@ -31,11 +31,27 @@ class ReadyResponse(BaseModel):
 
     ``HealthResponse.database`` is derived from ``DATABASE_URL``; this one
     comes from ``current_database()`` on the live session. The two disagreeing
-    is a misconfiguration no other check would surface. Both are null on a
-    503, where there is no connection to ask.
+    is a misconfiguration no other check would surface.
+
+    Every field is required. Making them optional so one model could also
+    describe the 503 would publish them as nullable on the success path, where
+    they are always present, and hand every generated client a null check it
+    can never need.
     """
 
     status: str
     db: bool
-    database: str | None = None
-    environment: str | None = None
+    database: str
+    environment: str
+
+
+class NotReadyResponse(BaseModel):
+    """The 503 payload — no connection, so nothing to name.
+
+    A separate model rather than a loosened ``ReadyResponse``: the 503 says
+    only that the database could not be reached, and the shape it has carried
+    since before the probes learned to name a database is the honest one.
+    """
+
+    status: str
+    db: bool

@@ -6,41 +6,28 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ReadyResponse")
+T = TypeVar("T", bound="NotReadyResponse")
 
 
 @_attrs_define
-class ReadyResponse:
-    """Readiness payload, naming the database actually connected.
+class NotReadyResponse:
+    """The 503 payload — no connection, so nothing to name.
 
-    ``HealthResponse.database`` is derived from ``DATABASE_URL``; this one
-    comes from ``current_database()`` on the live session. The two disagreeing
-    is a misconfiguration no other check would surface.
-
-    Every field is required. Making them optional so one model could also
-    describe the 503 would publish them as nullable on the success path, where
-    they are always present, and hand every generated client a null check it
-    can never need.
+    A separate model rather than a loosened ``ReadyResponse``: the 503 says
+    only that the database could not be reached, and the shape it has carried
+    since before the probes learned to name a database is the honest one.
 
         Attributes:
-            database (str):
             db (bool):
-            environment (str):
             status (str):
     """
 
-    database: str
     db: bool
-    environment: str
     status: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        database = self.database
-
         db = self.db
-
-        environment = self.environment
 
         status = self.status
 
@@ -48,9 +35,7 @@ class ReadyResponse:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "database": database,
                 "db": db,
-                "environment": environment,
                 "status": status,
             }
         )
@@ -60,23 +45,17 @@ class ReadyResponse:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        database = d.pop("database")
-
         db = d.pop("db")
-
-        environment = d.pop("environment")
 
         status = d.pop("status")
 
-        ready_response = cls(
-            database=database,
+        not_ready_response = cls(
             db=db,
-            environment=environment,
             status=status,
         )
 
-        ready_response.additional_properties = d
-        return ready_response
+        not_ready_response.additional_properties = d
+        return not_ready_response
 
     @property
     def additional_keys(self) -> list[str]:

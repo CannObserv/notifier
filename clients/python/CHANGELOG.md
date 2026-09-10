@@ -9,6 +9,7 @@
 - `health()` and `ready()` now return `database` and `environment` alongside the existing fields, and the server documents both in `/openapi.json` as `HealthResponse` and `ReadyResponse`. Nothing distinguished notifier's production endpoint from its dev one in-band before this: both serve one working tree, so `build` reports the same SHA on both and will keep doing so. Check `environment` (`"production"` | `"development"` — the same vocabulary an API key is marked with) when pointing a consumer at a notifier, especially a dead-man's timer, where the wrong endpoint inverts the alert rather than merely breaking it (CannObserv/notifier#58).
 
 ### Changed
+- `/ready`'s 200 and 503 are documented as separate models, `ReadyResponse` and `NotReadyResponse`. The 200's `database` and `environment` are non-nullable — one model covering both statuses would have published them as optional on the path where they are always present. The 503 body is unchanged from every prior release: `{"status": "not_ready", "db": false}`.
 - `health()` and `ready()` still return `dict[str, Any]`, deliberately, though a typed model now exists for both. These are the first calls made against an endpoint the caller is not yet sure of; a mapping tolerates a field a newer server added.
 
 ## 0.3.1 — 2026-09-01

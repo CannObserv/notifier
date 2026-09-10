@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db_session
-from src.api.schemas.health import HealthResponse, ReadyResponse
+from src.api.schemas.health import HealthResponse, NotReadyResponse, ReadyResponse
 from src.core.db_safety import database_name, environment_label
 
 router = APIRouter(tags=["health"])
@@ -69,7 +69,7 @@ async def health() -> HealthResponse:
     return HealthResponse(status="ok", build=BUILD_ID, database=DATABASE, environment=ENVIRONMENT)
 
 
-@router.get("/ready", response_model=ReadyResponse)
+@router.get("/ready", response_model=ReadyResponse, responses={503: {"model": NotReadyResponse}})
 async def ready(session: AsyncSession = Depends(get_db_session)) -> JSONResponse:
     """Readiness probe — checks DB connectivity. Returns 503 on failure.
 
@@ -89,5 +89,5 @@ async def ready(session: AsyncSession = Depends(get_db_session)) -> JSONResponse
         )
         return JSONResponse(status_code=200, content=payload.model_dump())
     except SQLAlchemyError:
-        payload = ReadyResponse(status="not_ready", db=False)
-        return JSONResponse(status_code=503, content=payload.model_dump())
+        not_ready = NotReadyResponse(status="not_ready", db=False)
+        return JSONResponse(status_code=503, content=not_ready.model_dump())

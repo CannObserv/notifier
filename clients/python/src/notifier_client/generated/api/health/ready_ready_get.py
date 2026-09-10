@@ -5,6 +5,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.not_ready_response import NotReadyResponse
 from ...models.ready_response import ReadyResponse
 from ...types import Response
 
@@ -21,11 +22,16 @@ def _get_kwargs() -> dict[str, Any]:
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ReadyResponse | None:
+) -> NotReadyResponse | ReadyResponse | None:
     if response.status_code == 200:
         response_200 = ReadyResponse.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 503:
+        response_503 = NotReadyResponse.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -35,7 +41,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ReadyResponse]:
+) -> Response[NotReadyResponse | ReadyResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -47,7 +53,7 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ReadyResponse]:
+) -> Response[NotReadyResponse | ReadyResponse]:
     """Ready
 
      Readiness probe — checks DB connectivity. Returns 503 on failure.
@@ -62,7 +68,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ReadyResponse]
+        Response[NotReadyResponse | ReadyResponse]
     """
 
     kwargs = _get_kwargs()
@@ -77,7 +83,7 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-) -> ReadyResponse | None:
+) -> NotReadyResponse | ReadyResponse | None:
     """Ready
 
      Readiness probe — checks DB connectivity. Returns 503 on failure.
@@ -92,7 +98,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ReadyResponse
+        NotReadyResponse | ReadyResponse
     """
 
     return sync_detailed(
@@ -103,7 +109,7 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-) -> Response[ReadyResponse]:
+) -> Response[NotReadyResponse | ReadyResponse]:
     """Ready
 
      Readiness probe — checks DB connectivity. Returns 503 on failure.
@@ -118,7 +124,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ReadyResponse]
+        Response[NotReadyResponse | ReadyResponse]
     """
 
     kwargs = _get_kwargs()
@@ -131,7 +137,7 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-) -> ReadyResponse | None:
+) -> NotReadyResponse | ReadyResponse | None:
     """Ready
 
      Readiness probe — checks DB connectivity. Returns 503 on failure.
@@ -146,7 +152,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ReadyResponse
+        NotReadyResponse | ReadyResponse
     """
 
     return (
