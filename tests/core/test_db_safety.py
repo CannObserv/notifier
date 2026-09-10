@@ -65,12 +65,28 @@ def test_environment_label_speaks_the_api_key_vocabulary(name, label):
     assert db_safety.environment_label(name) == label
 
 
-def test_environment_label_agrees_with_serving_production(monkeypatch):
+@pytest.mark.parametrize(
+    "url,name",
+    [
+        ("postgresql+asyncpg://u:p@h/notifier", "notifier"),
+        ("postgresql+asyncpg://u:p@h/notifier_dev", "notifier_dev"),
+        ("postgresql+asyncpg://u:p@h/notifier_test", "notifier_test"),
+        ("postgresql+asyncpg://u:p@h/notifier_staging", "notifier_staging"),
+        # The case that matters: unreadable, so the two are not two views of
+        # one parse. serving_production() fails safe on the URL; the caller
+        # substitutes a name with no non-production suffix and
+        # environment_label() reaches "production" by its own reasoning.
+        # Everything above this line agrees by construction — only here do
+        # they decide independently, and only here can they split.
+        ("", "unknown"),
+        ("notifier", "unknown"),
+    ],
+)
+def test_environment_label_agrees_with_serving_production(monkeypatch, url, name):
     """The two classifiers must never split, whichever a caller reaches for."""
-    for name in ("notifier", "notifier_dev", "notifier_test", "notifier_staging"):
-        monkeypatch.setenv("DATABASE_URL", f"postgresql+asyncpg://u:p@h/{name}")
-        expected = "production" if db_safety.serving_production() else "development"
-        assert db_safety.environment_label(name) == expected
+    monkeypatch.setenv("DATABASE_URL", url)
+    expected = "production" if db_safety.serving_production() else "development"
+    assert db_safety.environment_label(name) == expected
 
 
 def test_assert_safe_allows_test_database(monkeypatch):

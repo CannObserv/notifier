@@ -23,6 +23,7 @@ because the default fires only on absence.
 
 import os
 from collections.abc import AsyncGenerator
+from typing import NoReturn
 
 import pytest
 from sqlalchemy.exc import OperationalError
@@ -130,7 +131,7 @@ class _DeadSession:
     and the far end was gone.
     """
 
-    async def execute(self, *args: object, **kwargs: object) -> None:
+    async def execute(self, *args: object, **kwargs: object) -> NoReturn:
         raise OperationalError("SELECT current_database()", {}, Exception("no connection"))
 
 
@@ -147,11 +148,15 @@ async def test_ready_reports_503_without_naming_a_database(client):
     async def failing_session() -> AsyncGenerator[_DeadSession]:
         yield _DeadSession()
 
+    healthy_session = app.dependency_overrides[get_db_session]
     app.dependency_overrides[get_db_session] = failing_session
     try:
         response = await client.get("/ready")
     finally:
-        app.dependency_overrides.pop(get_db_session, None)
+        # Restore, not pop: the client fixture installed the override that
+        # binds every request to the savepointed session, and popping would
+        # leave anything appended after this hitting the real factory.
+        app.dependency_overrides[get_db_session] = healthy_session
 
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready", "db": False}
