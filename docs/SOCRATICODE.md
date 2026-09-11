@@ -147,3 +147,14 @@ reports a count and never a name.
 first and third: `skills/` holds first-party overrides (`brainstorming`,
 `shipping-work-python-fastapi`) that are this repo's own content, and its other
 entries are symlinks into the already-excluded `skills-vendor/`.
+
+**Project id is pinned (`.socraticode.json`, #57 D0).** `projectId: "notifier"`,
+so this repo's six Qdrant collections are `codebase_notifier`,
+`codegraph_notifier`, `context_notifier` and the three `notifier_symgraph_*`
+shards — not a hash of the working tree's absolute path. Two consequences worth
+knowing before you re-index: **every worktree now shares one index** instead of
+paying its own full first pass, and a cohort sibling that links this repo
+resolves the same collections wherever its checkout happens to sit.
+`linkedProjects` names the other four repos relatively; a sibling that is not
+cloned locally is skipped **silently** by upstream, and `codebase_search` only
+consults them when called with `includeLinked: true`.
