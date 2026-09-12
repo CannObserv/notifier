@@ -1,1 +1,41 @@
 retarget :: - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for
+tighten :: **Both bind this host's tailnet address alone, never `0.0.0.0`.** Unreachable
+tighten :: from exe.dev's internal `10.42.0.0/16`, from the exe.dev proxy, and from the
+tighten :: internet — the Tailscale ACL decides who gets in. Address resolved by
+tighten :: `scripts/tailnet_bind.sh`, which waits for tailscaled and fails loudly rather
+tighten :: than falling back to a wider bind. Full reference:
+tighten :: [docs/reference/tailscale.md](docs/reference/tailscale.md).
+disproven :: Watcher, the first consumer, is on the separate `watcher` VM (`lax`) with
+disproven :: archiver and replicator; its API is on 8000 there. Its production credential
+disproven :: lives in `/etc/watcher/notifier.env` on that host, pointed at
+disproven :: `http://notifier:9000` (watcher#278).
+tighten :: **Dev server workflow:** One launch path serves both the unit and the hand-run
+tighten :: case. `scripts/dev_server.sh` loads secrets, swaps `DATABASE_URL` for
+tighten :: `DEV_DATABASE_URL`, runs the production-database guard, checks the dev
+tighten :: database is migrated, and only then starts uvicorn on 9001 so the live service
+tighten :: stays up:
+tighten :: Never hand-run uvicorn. The old recipe sourced `/etc/notifier/.env` — which
+tighten :: sets `DATABASE_URL` to **production** — so the "dev" server on 9001 shared one
+tighten :: database with the live service on 9000 (issue #22). Still true on a dedicated
+tighten :: VM: the two endpoints share a host and a cluster, only the database differs. `src/core/db_safety.py`
+tighten :: now refuses any database whose name does not end in `_test` or `_dev`; the
+tighten :: production opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the systemd unit and
+tighten :: must never be added to an env file.
+duplicate :: # Load environment (required before migrations or gh). Leaves DATABASE_URL
+duplicate :: # pointing at production — intended for alembic and systemctl, nothing else.
+duplicate :: # Dead-man's-timer sweep (systemd timers own the schedule; this forces a pass)
+duplicate :: sudo systemctl start notifier-sweep.service
+duplicate :: # FastAPI dev server by hand (port 9001, dev DB, guarded — never hand-run
+duplicate :: # uvicorn). Stop notifier-dev.service first; it holds the port.
+duplicate :: sudo systemctl stop notifier-dev && ./scripts/dev_server.sh
+retarget :: Full reference: `docs/COMMANDS.md`
+tighten :: - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
+tighten :: - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
+tighten :: - [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version and every site that mirrors it, the CI gates that enforce it, tag conventions, how
+tighten :: - [docs/reference/monitors.md](docs/reference/monitors.md) — the dead-man's timer: why absence is the alert, the check-in contract and what is opaque in it, the
+tighten :: - [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet this VM lives on: node identity, ACL, the bind decision and the boot race it buys, an
+tighten :: - [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — full SocratiCode tool table, the `ToolSearch` prefetch query, per-tool notes, graph-health guidance, and this rep
+tighten :: - [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendored submodule repos and refresh procedure, full skills inventory
+# check-counts.sh flagged the bare 'two' as a rot-prone count; the pair is named
+# in the same sentence, so dropping the precision is the prescribed fix.
+tighten :: unit first so the two do not fight over the port.
