@@ -16,6 +16,9 @@ specific to notifier.
 
 - **Tailnet:** `cannobserv.org.github`, tied to the CannObserv GitHub org — so
   nodes are org-owned rather than owned by one person's login.
+- **Index node:** `index`, tag `tag:index`, `100.65.25.88` — the `co-index`
+  VM, which runs the cohort's shared SocratiCode store (#57). The only node
+  this one is a **client of**: see the correction below.
 - **This node:** `notifier`, tag `tag:notifier`, address `100.98.9.17`.
   **Non-ephemeral and tagged**, so it never expires. That matters more here
   than for a fleet worker: an expiring node key would take every dispatch with
@@ -49,6 +52,11 @@ specific to notifier.
     // The broker reports bus health here every ten minutes (#56). Port 9000
     // only, unlike watcher above — see the note below.
     { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000"] },
+    // #57: this host is a CLIENT of the shared index store. Qdrant is TLS +
+    // API-key gated; Ollama has no auth and is gated by this rule alone.
+    { "action": "accept", "src": ["tag:notifier"], "dst": ["tag:index:6333,11434"] },
+    // The store checks in to notifier's dead-man's timer. :9000 only, as above.
+    { "action": "accept", "src": ["tag:index"], "dst": ["tag:notifier:9000"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
@@ -77,6 +85,19 @@ specific to notifier.
 > was stricter than its own reason required. broker#3 amends D8 to "the broker
 > is a client of no bus participant", which this rule satisfies.
 >
+> **Correction (#57): notifier is no longer purely a server.** This file used
+> to say notifier "lists no rule with itself as a `src`: notifier initiates
+> nothing across the tailnet — verified, not assumed." That stopped being true
+> when this host became a client of the shared index store. The claim now is
+> narrower and still worth holding: notifier initiates nothing across the
+> tailnet **on any production path**. The one outbound rule serves developer
+> tooling, whose entire outage budget is "search degrades to `grep`".
+>
+> **Ollama has no authentication**, and none to enable — port 11434 is gated by
+> the ACL alone, so anything in that rule's `src` can pull an arbitrary model
+> onto the shared box. Accepted deliberately (#57 D4) rather than proxied, and
+> written down here so it is a decision rather than an oversight.
+
 > **Peer visibility follows `acls`, not `ssh`.** A node absent from the peer's
 > netmap does not resolve over MagicDNS at all, so this rule has to exist in
 > the admin console *before* any of the check-in path can be tested — a
@@ -198,3 +219,39 @@ The alternative, rejected at the time, was `--accept-dns=false` plus an
 
 Independent secrets for independent hops. A tailnet key never authenticates an
 API call, and the API key is not what gets a host onto the tailnet.
+
+## The index store's certificate
+
+`co-index` serves Qdrant over TLS because SocratiCode **refuses** to send
+`QDRANT_API_KEY` to a non-HTTPS, non-localhost host — so an API-key-gated store
+on a plaintext tailnet port cannot exist, however well WireGuard encrypts the
+hop (#57 D14).
+
+The certificate is Tailscale's own, issued on that host for its **full**
+MagicDNS name:
+
+```bash
+sudo tailscale cert --cert-file /etc/socraticode/tls/qdrant.crt \
+                    --key-file  /etc/socraticode/tls/qdrant.key \
+                    index.taild0fb76.ts.net
+```
+
+Two things to know before touching it.
+
+**Clients must use the full name.** `index` is not in the certificate's SAN, so
+`https://index:6333` fails with `no alternative certificate subject name
+matches target host name 'index'`. Every cohort client uses
+`https://index.taild0fb76.ts.net:6333`.
+
+**Issuing needs `DNS → HTTPS Certificates` enabled for the tailnet.** With it
+off, `tailscale cert` fails with `your Tailscale account does not support
+getting TLS certs`, which reads like a plan limit and is not one.
+
+**Renewal is ours.** Tailscale renews automatically only where it also owns the
+install location; a cert written to files by `tailscale cert` is the operator's,
+and Let's Encrypt means 90 days. Left alone, the cohort's search would stop on a
+date three months out **with no failed unit anywhere** — Qdrant would keep
+serving while every client failed verification. `qdrant-cert-renew.timer` on
+that host renews weekly and restarts Qdrant only when the file actually
+changed, and the check-in reports a cert inside 21 days of expiry so a stopped
+timer alerts rather than surprises.

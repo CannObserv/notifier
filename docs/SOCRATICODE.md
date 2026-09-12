@@ -111,22 +111,24 @@ index if left in, and vendored prose outranks first-party code in
 
 ## Repo-specific notes
 
-**Measured yield (2026-08-22).** `verdict: ok` — 286 edges across 162 files =
-1.765 edges/file, 919 symbols, 2,868 call edges, 77.7% unresolved. The policy
+**Measured yield (2026-09-12, on the shared store).** `verdict: ok` — **541
+edges across 237 files = 2.283 edges/file**, 1,611 symbols, 5,355 call edges,
+74.8% unresolved. Denser than the 1.765 edges/file measured 2026-08-22, so the
+move to `co-index` restored the index and then some. A **from-empty index takes
+516 s** (D6: the restore path for this store is a re-index, and that is the
+number the runbook rests on). The policy
 block in `AGENTS.md` is therefore on **variant A** (standard). The unresolved
 figure clears the 50% reporting threshold, so `socraticode-health.sh` prints it
 as a daily line that says in its own text it is a statistic, not a defect — a
 FastAPI service calling into Starlette, SQLAlchemy, Apprise and Jinja runs high
 by construction. Judge this graph on edges/file.
 
-**Import graph verified exact (2026-08-22).** The differential the section
-above prescribes was run: `codebase_graph_query src/core/logging.py` returned
-five importers (`src/api/main.py`, `src/core/database.py`,
-`src/core/notifications/apprise_builder.py`,
-`src/core/notifications/dispatcher.py`, `tests/core/test_logging.py`) and an
-`rg` sweep over every spelling of that import returned the same five files.
-The 77.7% figure is about call edges, not imports — trust
-`codebase_graph_query` here.
+**Import graph verified exact, and current (2026-09-12).**
+`codebase_graph_query src/core/logging.py` now returns **seven** importers
+where 2026-08-22 recorded five; the two additions are `src/core/monitors.py`
+and `scripts/sweep_monitors.py`, both #56's. That is the useful check: an index
+that reproduced the old answer would be stale, not healthy. The unresolved
+figure is about call edges, not imports — trust `codebase_graph_query` here.
 
 **Context artifacts (5).** All five are knowledge `codebase_search` cannot
 reach from source alone:
@@ -158,3 +160,53 @@ resolves the same collections wherever its checkout happens to sit.
 `linkedProjects` names the other four repos relatively; a sibling that is not
 cloned locally is skipped **silently** by upstream, and `codebase_search` only
 consults them when called with `includeLinked: true`.
+
+## The shared store (#57)
+
+Everything persisted lives in Qdrant on `co-index` — chunks, the dependency
+graph, the symbol graph and the context artifacts alike. **Nothing is on this
+disk**, so a lost VM loses no index, which is the whole point: the last
+per-VM install vanished for nine days and only a log noticed.
+
+Configuration is the `env` block in `.claude/settings.json`, with
+`QDRANT_API_KEY` in the git-ignored `.claude/settings.local.json`. Four things
+about it are easy to get wrong and expensive to debug:
+
+- **`QDRANT_URL` must be the full MagicDNS name**,
+  `https://index.taild0fb76.ts.net:6333`. The certificate's SAN does not carry
+  the short name, so `https://index:6333` fails verification.
+- **TLS is mandatory, not decoration.** SocratiCode refuses to send
+  `QDRANT_API_KEY` to a non-HTTPS, non-localhost host. Plain HTTP is not a
+  degraded mode here; it is a refusal.
+- **The `env` block applies only after the folder is trusted.** Until then
+  `QDRANT_MODE` falls back to `managed` and SocratiCode tries to start **Docker
+  containers** on a host that has none, rather than reporting a missing
+  configuration.
+- **`QDRANT_COLLECTION_PREFIX` and `SOCRATICODE_BRANCH_AWARE` must stay
+  unset.** The first splits the cohort namespace including the global metadata
+  collection; the second gives every branch its own six collections.
+  `tests/deploy/test_socraticode_config.py` asserts both.
+
+### Cross-repo search
+
+`codebase_search` with **`includeLinked: true`** spans the cohort; it defaults
+to false, so it must be named. `.socraticode.json` lists the siblings
+relatively, and a sibling that is not cloned locally is skipped **silently** —
+the path must exist on disk even though the data is remote.
+
+**It reaches `codebase_search` and nothing else.** `codebase_impact`,
+`codebase_graph_query`, `codebase_flow` and `codebase_context_search` are
+single-project however many repos the store holds. The honest claim is
+cross-repo *semantic code search*, never cross-repo impact analysis.
+
+**Do not compare scores across the two modes.** A linked search ranks by raw
+cosine so results from different collections can be ordered against each other;
+an unlinked one returns the single-collection hybrid score. The numbers are on
+different scales.
+
+### Two corrections to the table above
+
+- **`codebase_impact` takes `target`**, not a file-path argument. Passing
+  `filePath` returns `Missing required argument: target or symbolId`.
+- **`codebase_graph_remove` removing "a project's persisted code graph"** means
+  removing Qdrant collections, not files. There is no on-disk graph to clean up.

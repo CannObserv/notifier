@@ -37,8 +37,10 @@ Never re-derive these from the YAML:
 <!-- BEGIN socraticode-policy -->
 ## Code Exploration Policy
 
-SocratiCode is the preferred semantic-search tool here once indexed (local
-Qdrant store + on-disk graph; manifest `.socraticodecontextartifacts.json`).
+SocratiCode is the preferred semantic-search tool here once indexed. The store
+is **shared, on `co-index`** (#57), and holds everything persisted — chunks,
+graph and context artifacts alike. Manifest:
+`.socraticodecontextartifacts.json`.
 Its MCP tools are **deferred** — schemas load only after the `ToolSearch`
 prefetch that `.claude/hooks/socraticode-reminder.sh` prints each session.
 
@@ -52,7 +54,11 @@ semantic search.
 |------|------|
 | Where is X defined / how does Y work / what touches Z | `codebase_search` |
 | Exact string or regex (errors, log lines, known symbols) | `grep` / `rg` |
-| Imports/dependents of a file · blast radius of a change | `codebase_graph_query` / `codebase_impact` |
+| Imports/dependents of a file · blast radius of a change | `codebase_graph_query` / `codebase_impact` (takes `target`) |
+| The same question **across cohort repos** | `codebase_search` with `includeLinked: true` |
+
+`includeLinked` defaults to **false** and reaches `codebase_search` alone;
+every other tool is single-project however many repos the store holds.
 
 Full tool table, prefetch query, per-tool guidance: [`docs/SOCRATICODE.md`](docs/SOCRATICODE.md).
 <!-- END socraticode-policy -->
@@ -79,6 +85,10 @@ service on port 9000.
 | Sweep (live) | systemd timer, 60s | — | `notifier-sweep.timer` → `.service`, production DB |
 | Sweep (dev) | systemd timer, 60s | — | `notifier-sweep-dev.timer` → `.service`, `notifier_dev` |
 
+A fifth cohort VM, `co-index`, runs the shared SocratiCode store (#57). **No
+production path touches it**: its outage degrades search to `grep` and stops
+no service. It checks in to a dead-man's timer here like any other consumer.
+
 The two sweeps are the only thing watching for consumer silence. A timer that
 stops is a silent outage of the outage detector — `systemctl list-timers
 'notifier-sweep*'` is the check. They are timers rather than a task inside the
@@ -97,20 +107,10 @@ internet — the Tailscale ACL decides who gets in. Address resolved by
 than falling back to a wider bind. Full reference:
 [docs/reference/tailscale.md](docs/reference/tailscale.md).
 
-Reachable by MagicDNS from any node on the `cannobserv.org.github` tailnet:
-
-| From | Live | Dev |
-|---|---|---|
-| Another tailnet node | `http://notifier:9000` | `http://notifier:9001` |
-| **This VM itself** | `http://$(tailscale ip -4):9000` | same, `:9001` |
-
-**On this VM both `127.0.0.1:9000` and `http://notifier:9000` fail** — Ubuntu's
-`/etc/hosts` maps the hostname `notifier` to `127.0.1.1`, which nothing binds.
-Use the tailnet address:
-
-```bash
-curl "http://$(tailscale ip -4):9000/health"
-```
+Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
+`127.0.0.1:9000` and `http://notifier:9000` fail** — `/etc/hosts` maps
+`notifier` to `127.0.1.1`, which nothing binds. Use `curl
+"http://$(tailscale ip -4):9000/health"`. Per-host table in the reference doc.
 
 `https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops:
 nothing listens on the interface the proxy forwards to. Deliberate, not broken.
@@ -148,10 +148,9 @@ sudo systemctl start notifier-dev  # hand it back
 ```
 
 `deploy/notifier-dev.service` runs that same script with
-`NOTIFIER_DEV_RELOAD=0`. Under systemd the reloader is wrong twice over: an
-edit mid-request drops a consumer's connection, and a syntax error on `main`
-leaves the reloader wedged and *running*, so `Restart=on-failure` never fires
-and the endpoint is silently dead.
+`NOTIFIER_DEV_RELOAD=0` — a wedged reloader keeps *running* after a syntax
+error, so the unit looks active while the endpoint is dead. Full reasoning and
+the restart bounds: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 Never hand-run uvicorn. The old recipe sourced `/etc/notifier/.env` — which
 sets `DATABASE_URL` to **production** — so the "dev" server on 9001 shared one
