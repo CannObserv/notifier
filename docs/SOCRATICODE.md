@@ -163,10 +163,10 @@ consults them when called with `includeLinked: true`.
 
 ## The shared store
 
-Stood up in #57. Everything persisted lives in Qdrant on `co-index` — chunks, the dependency
-graph, the symbol graph and the context artifacts alike. **Nothing is on this
-disk**, so a lost VM loses no index, which is the whole point: the last
-per-VM install vanished for nine days and only a log noticed.
+Stood up in #57. Everything persisted lives in Qdrant on `co-index` — chunks,
+the dependency graph, the symbol graph and the context artifacts alike.
+**Nothing is on this disk**, so a lost VM loses no index, which is the whole
+point: the last per-VM install vanished for nine days and only a log noticed.
 
 Configuration is the `env` block in `.claude/settings.json`, with
 `QDRANT_API_KEY` in the git-ignored `.claude/settings.local.json`. Four things
