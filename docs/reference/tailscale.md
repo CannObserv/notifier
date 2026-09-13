@@ -42,7 +42,8 @@ specific to notifier.
   "tagOwners": {
     "tag:notifier": ["autogroup:admin"],
     "tag:watcher":  ["autogroup:admin"],
-    "tag:broker":   ["autogroup:admin"]
+    "tag:broker":   ["autogroup:admin"],
+    "tag:index":    ["autogroup:admin"]
   },
   "acls": [
     // Consumer host -> notifier's two API ports, and nothing else. Nothing
@@ -52,9 +53,12 @@ specific to notifier.
     // The broker reports bus health here every ten minutes (#56). Port 9000
     // only, unlike watcher above — see the note below.
     { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000"] },
-    // #57: this host is a CLIENT of the shared index store. Qdrant is TLS +
-    // API-key gated; Ollama has no auth and is gated by this rule alone.
-    { "action": "accept", "src": ["tag:notifier"], "dst": ["tag:index:6333,11434"] },
+    // #57: the cohort's service VMs are CLIENTS of the shared index store.
+    // Qdrant is TLS + API-key gated; Ollama has no auth and is gated by this
+    // rule alone. This is the one rule listing tag:notifier as a source.
+    { "action": "accept",
+      "src": ["tag:notifier", "tag:watcher", "tag:archiver", "tag:replicator", "tag:broker"],
+      "dst": ["tag:index:6333,11434"] },
     // The store checks in to notifier's dead-man's timer. :9000 only, as above.
     { "action": "accept", "src": ["tag:index"], "dst": ["tag:notifier:9000"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
@@ -103,14 +107,32 @@ specific to notifier.
 > the admin console *before* any of the check-in path can be tested — a
 > missing rule looks like a DNS failure, not like a permission denial.
 
-> **ACL granularity is per-VM, not per-service.** One node is one VM, so
-> `tag:watcher` today grants tailnet access to watcher *and* archiver *and*
-> replicator. Acceptable because notifier's `X-API-Key` still partitions
-> tenants — but per-service rules only become possible once those three split
-> onto their own hosts.
+> **ACL granularity is per-VM, not per-service.** One node is one VM. That
+> used to mean `tag:watcher` granted tailnet access to watcher *and* archiver
+> *and* replicator; archiver and replicator have since moved to `co-registrar`
+> and `co-replicator`, so the tags now separate the services they name. The
+> client rule above lists `tag:archiver` and `tag:replicator` on that
+> assumption — **unverified from this host**, which has no ACL edge to either
+> VM and therefore cannot see their tags. A wrong name there admits nobody
+> while reading correctly, and surfaces on their side as a DNS failure.
 
-Note the ACL does **not** open port 22. Administering this host goes over the
-public `ssh notifier.exe.xyz`, not the tailnet.
+Note the ACL does **not** open port 22 on any tagged node. Administering this
+host goes over the public `ssh notifier.exe.xyz`, not the tailnet, and `index`
+is the same — `ssh co-index.exe.xyz`.
+
+> **`tag:index` briefly had a port-22 edge, and it is gone (#57 D13).** A
+> `tag:notifier → tag:index:22` rule plus a matching `ssh` block existed so
+> that `co-index` could be built at all: exe.dev VMs are isolated from one
+> another, so without a tailnet edge there is no host from which to provision
+> it. Both were retired 2026-09-13 once the store was soaked. Consequence worth
+> stating: **no agent session on this host can reach `co-index` any more**. Its
+> health arrives here as D10's dead-man's check-in and nothing else, which is
+> what that timer was built to be.
+>
+> The `autogroup:member → *:*` rule below is why this does not lock *people*
+> out: a user-owned device still has the network path to `index:22`. What the
+> retired `ssh` block took with it is Tailscale SSH's identity-based auth on
+> that node, not reachability.
 
 ## The bind, and the boot race it buys
 
