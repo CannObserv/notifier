@@ -30,3 +30,17 @@ docs/SOCRATICODE.md :: Detail doc for the `## Code Exploration Policy` block in 
 docs/SOCRATICODE.md :: heading down there, not in `AGENTS.md`.
 docs/SOCRATICODE.md :: `AGENTS.md` block should be on its degraded variant.
 docs/SOCRATICODE.md :: block in `AGENTS.md` is therefore on **variant A** (standard).
+# Judged 2026-09-12 during the #57 curation.
+# AGENTS.md's API Boundary Principles did NOT move in this run, so these two
+# pointers still resolve to the section they name.
+docs/reference/monitors.md :: taxonomy is the thing AGENTS.md's API Boundary Principles forbid.
+docs/reference/monitors.md :: [AGENTS.md § API Boundary Principles](../../AGENTS.md#api-boundary-principles)
+# Pre-existing heading, untouched by this run. Renaming it would break any
+# anchor already pointing at it, for no gain this curation needs.
+docs/DEPLOYMENT.md :: The VM split (#43, done)
+# Judged 2026-09-12, #57 curation, against --file docs/DEPLOYMENT.md.
+# This run only ADDED to DEPLOYMENT.md; nothing left it, so every pointer at it
+# still resolves to what it names.
+docs/SOCRATICODE.md :: | `deployment-architecture` | `docs/DEPLOYMENT.md` |
+docs/reference/monitors.md :: - [DEPLOYMENT.md](../DEPLOYMENT.md) — installing and enabling the timers
+docs/reference/tailscale.md :: to [DEPLOYMENT.md](../DEPLOYMENT.md).

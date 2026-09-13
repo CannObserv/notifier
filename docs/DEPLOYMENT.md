@@ -120,6 +120,39 @@ sudo systemctl stop notifier-dev
 sudo systemctl start notifier-dev
 ```
 
+## Environment variables
+
+The per-variable reference. The two-file model, and the trap that
+`. scripts/load_env.sh` leaves `DATABASE_URL` pointing at **production**, are
+in the policy file instead — nearly every task needs those two facts and almost
+none needs this list.
+
+Currently defined:
+- `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)
+- `GH_TOKEN` — GitHub personal access token (in `.env`)
+- `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
+- `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it, so `notifier-dev.service` does too
+- `NOTIFIER_DEV_RELOAD` — `0` disables uvicorn's reloader in `scripts/dev_server.sh`; set in `deploy/notifier-dev.service` only, defaults to on for a hand-run server
+- `DEV_TENANT_API_KEY` — API key for the `dev` tenant in `notifier_dev` (in `.env`); marked `development`, so production refuses it
+- `NOTIFIER_ALLOW_PROD_DB` — the production opt-in, and the one variable that must never reach an env file. Rule and reasoning: [Production database opt-in](#production-database-opt-in) above
+- `BUILD_ID` — (optional) git SHA reported by `/health`; blank or unset both fall back to `"dev"`. Each systemd unit stamps its own file (`/run/notifier/build-id`, `/run/notifier/build-id-dev`) from `git rev-parse` at start
+- `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
+- `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+- `NOTIFIER_SWEEP_DEV` — `1` tells `scripts/sweep.sh` to load the env files itself and swap `DATABASE_URL` for `DEV_DATABASE_URL`, the same swap `dev_server.sh` performs. Set in `deploy/notifier-sweep-dev.service` only; the production sweep leaves it unset and takes `DATABASE_URL` from its own `EnvironmentFile`
+- `NOTIFIER_BIND_HOST` — **tests and diagnosis only.** Overrides the tailnet
+  probe in `scripts/tailnet_bind.sh` with a literal bind address. Never put it
+  in an env file or a unit, for the same reason as `NOTIFIER_ALLOW_PROD_DB`: it
+  would move the bind off the tailnet silently while every health check stayed
+  green. CI sets it because CI has no tailnet;
+  `tests/deploy/test_systemd_unit.py` asserts neither unit nor either env file
+  carries it
+- `NOTIFIER_TAILNET_WAIT_SECONDS` — how long `scripts/tailnet_bind.sh` waits for
+  tailscaled to assign an address before failing the start (default 60). The
+  unit's `StartLimit*` bound is sized around it
+
+Reserved, not set:
+- `PROCRASTINATE_DATABASE_URL` — libpq-style DSN for the future async dispatch worker. Set nowhere, read by nothing; procrastinate is uninstalled (#29). **Not covered by the `db_safety` guard** — it crosses no chokepoint, so route it through `assert_safe_database_url` when the worker lands.
+
 ## Routine ops
 
 ```bash

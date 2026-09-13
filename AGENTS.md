@@ -98,14 +98,13 @@ reporting exactly when it is needed.
 Both always-on. **9001 is the development endpoint consumers point at** — it
 accepts `development`-marked API keys, which 9000 refuses (#24).
 `./scripts/dev_server.sh` still runs a worktree or branch by hand; stop the dev
-unit first so the two do not fight over the port.
+unit first so they do not fight over the port.
 
-**Both bind this host's tailnet address alone, never `0.0.0.0`.** Unreachable
-from exe.dev's internal `10.42.0.0/16`, from the exe.dev proxy, and from the
-internet — the Tailscale ACL decides who gets in. Address resolved by
-`scripts/tailnet_bind.sh`, which waits for tailscaled and fails loudly rather
-than falling back to a wider bind. Full reference:
-[docs/reference/tailscale.md](docs/reference/tailscale.md).
+**Both bind this host's tailnet address alone, never `0.0.0.0`** — unreachable
+from exe.dev's internal `10.42.0.0/16`, from the proxy, and from the internet;
+the Tailscale ACL decides who gets in. `scripts/tailnet_bind.sh` resolves the
+address and fails loudly rather than falling back to a wider bind. Why, and the
+boot race it buys: [docs/reference/tailscale.md](docs/reference/tailscale.md).
 
 Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 `127.0.0.1:9000` and `http://notifier:9000` fail** — `/etc/hosts` maps
@@ -115,10 +114,10 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 `https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops:
 nothing listens on the interface the proxy forwards to. Deliberate, not broken.
 
-Watcher, the first consumer, is on the separate `watcher` VM (`lax`) with
-archiver and replicator; its API is on 8000 there. Its production credential
-lives in `/etc/watcher/notifier.env` on that host, pointed at
-`http://notifier:9000` (watcher#278).
+Watcher, the first consumer, is on the `watcher` VM (`lax`) — its own, since
+archiver and replicator left for `co-registrar` and `co-replicator`. Its API is
+on 8000 there; its production credential is `/etc/watcher/notifier.env`,
+pointed at `http://notifier:9000` (watcher#278).
 
 ## Server Lifecycle
 
@@ -135,11 +134,10 @@ lives in `/etc/watcher/notifier.env` on that host, pointed at
 | Checking the dead-man's sweep | `systemctl list-timers 'notifier-sweep*'`, `sudo journalctl -u notifier-sweep -f` |
 | Forcing a sweep now | `sudo systemctl start notifier-sweep.service` |
 
-**Dev server workflow:** One launch path serves both the unit and the hand-run
-case. `scripts/dev_server.sh` loads secrets, swaps `DATABASE_URL` for
-`DEV_DATABASE_URL`, runs the production-database guard, checks the dev
-database is migrated, and only then starts uvicorn on 9001 so the live service
-stays up:
+**Dev server workflow:** one launch path serves both the unit and the hand-run
+case. `scripts/dev_server.sh` swaps in `DEV_DATABASE_URL`, runs the
+production-database guard, checks the dev database is migrated, and only then
+starts uvicorn on 9001, so the live service stays up:
 
 ```bash
 sudo systemctl stop notifier-dev   # the unit owns 9001; take it first
@@ -152,15 +150,15 @@ sudo systemctl start notifier-dev  # hand it back
 error, so the unit looks active while the endpoint is dead. Full reasoning and
 the restart bounds: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-Never hand-run uvicorn. The old recipe sourced `/etc/notifier/.env` — which
-sets `DATABASE_URL` to **production** — so the "dev" server on 9001 shared one
-database with the live service on 9000 (issue #22). Still true on a dedicated
-VM: the two endpoints share a host and a cluster, only the database differs. `src/core/db_safety.py`
-now refuses any database whose name does not end in `_test` or `_dev`; the
-production opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the systemd unit and
-must never be added to an env file.
+**Never hand-run uvicorn.** The old recipe sourced `/etc/notifier/.env`, which
+sets `DATABASE_URL` to **production**, so the "dev" server shared one database
+with the live one (#22) — still the risk on a dedicated VM, where both
+endpoints share a host and a cluster and only the database differs.
+`src/core/db_safety.py` refuses any database not ending `_test` or `_dev`, and
+its opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the unit and never in an env
+file.
 
-**After finishing work:** Always restart both services to pick up changes merged to main — they serve one working tree, so restarting only the live one leaves the dev endpoint answering from stale code:
+**After finishing work:** always restart both — they serve one working tree, so restarting only the live one leaves dev answering from stale code:
 
 ```bash
 sudo systemctl restart notifier notifier-dev
@@ -186,31 +184,7 @@ spaces or quotes:
 `./scripts/dev_server.sh` for a server; `pytest` pins `DATABASE_URL` to the
 test database itself.
 
-Currently defined:
-- `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)
-- `GH_TOKEN` — GitHub personal access token (in `.env`)
-- `TEST_DATABASE_URL` — PostgreSQL connection string for the test database `notifier_test` (in `.env`); `tests/conftest.py` pins `DATABASE_URL` to it for the whole session
-- `DEV_DATABASE_URL` — PostgreSQL connection string for the dev database `notifier_dev` (in `.env`); `scripts/dev_server.sh` requires it, so `notifier-dev.service` does too
-- `NOTIFIER_DEV_RELOAD` — `0` disables uvicorn's reloader in `scripts/dev_server.sh`; set in `deploy/notifier-dev.service` only, defaults to on for a hand-run server
-- `DEV_TENANT_API_KEY` — API key for the `dev` tenant in `notifier_dev` (in `.env`); marked `development`, so production refuses it
-- `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only** to let a process open the production database; see `src/core/db_safety.py`
-- `BUILD_ID` — (optional) git SHA reported by `/health`; blank or unset both fall back to `"dev"`. Each systemd unit stamps its own file (`/run/notifier/build-id`, `/run/notifier/build-id-dev`) from `git rev-parse` at start
-- `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
-- `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
-- `NOTIFIER_SWEEP_DEV` — `1` tells `scripts/sweep.sh` to load the env files itself and swap `DATABASE_URL` for `DEV_DATABASE_URL`, the same swap `dev_server.sh` performs. Set in `deploy/notifier-sweep-dev.service` only; the production sweep leaves it unset and takes `DATABASE_URL` from its own `EnvironmentFile`
-- `NOTIFIER_BIND_HOST` — **tests and diagnosis only.** Overrides the tailnet
-  probe in `scripts/tailnet_bind.sh` with a literal bind address. Never put it
-  in an env file or a unit, for the same reason as `NOTIFIER_ALLOW_PROD_DB`: it
-  would move the bind off the tailnet silently while every health check stayed
-  green. CI sets it because CI has no tailnet;
-  `tests/deploy/test_systemd_unit.py` asserts neither unit nor either env file
-  carries it
-- `NOTIFIER_TAILNET_WAIT_SECONDS` — how long `scripts/tailnet_bind.sh` waits for
-  tailscaled to assign an address before failing the start (default 60). The
-  unit's `StartLimit*` bound is sized around it
-
-Reserved, not set:
-- `PROCRASTINATE_DATABASE_URL` — libpq-style DSN for the future async dispatch worker. Set nowhere, read by nothing; procrastinate is uninstalled (#29). **Not covered by the `db_safety` guard** — it crosses no chokepoint, so route it through `assert_safe_database_url` when the worker lands.
+Every variable, what sets it and why: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#environment-variables).
 
 ## Common Commands
 
@@ -218,8 +192,8 @@ Reserved, not set:
 # Install dependencies
 uv sync
 
-# Load environment (required before migrations or gh). Leaves DATABASE_URL
-# pointing at production — intended for alembic and systemctl, nothing else.
+# Load environment first — pytest needs TEST_DATABASE_URL, alembic needs
+# DATABASE_URL. Leaves DATABASE_URL on production; see below.
 . scripts/load_env.sh
 
 # Run tests
@@ -242,20 +216,12 @@ uv run ruff format --check .
 uv run pre-commit run --all-files
 uv run pre-commit install            # once per clone — installs it as a git hook
 
-# Dead-man's-timer sweep (systemd timers own the schedule; this forces a pass)
-sudo systemctl start notifier-sweep.service
-systemctl list-timers 'notifier-sweep*'
-
 # Database migrations
 uv run alembic upgrade head          # apply all migrations
 uv run alembic revision --autogenerate -m "description"  # generate new migration
-
-# FastAPI dev server by hand (port 9001, dev DB, guarded — never hand-run
-# uvicorn). Stop notifier-dev.service first; it holds the port.
-sudo systemctl stop notifier-dev && ./scripts/dev_server.sh
 ```
 
-Full reference: `docs/COMMANDS.md`
+Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Agent Skills
 
@@ -309,11 +275,11 @@ The service is consumer-agnostic. Resist these temptations:
 
 ## Detail Docs
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory: what every tracked directory and significant file is responsible for, including `tests/`, `deploy/`, and the skill trees; plus the dependency policy every specifier is held to
-- [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with flags: setup, migrations, test tiers, lint gates, SDK regeneration, tenant provisioning
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — first-time VM setup, systemd unit install, routine restart/migrate ops
-- [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version and every site that mirrors it, the CI gates that enforce it, tag conventions, how a consumer adopts the SDK, and when to graduate off the git-tag transport
-- [docs/reference/monitors.md](docs/reference/monitors.md) — the dead-man's timer: why absence is the alert, the check-in contract and what is opaque in it, the built-in missing/recovery wording, the sweep timers and the three decisions behind them, and the limit that nothing watches the watcher
-- [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet this VM lives on: node identity, ACL, the bind decision and the boot race it buys, and how to re-join or move the host
-- [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — full SocratiCode tool table, the `ToolSearch` prefetch query, per-tool notes, graph-health guidance, and this repo's measured yield
-- [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendored submodule repos and refresh procedure, full skills inventory
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — per-module inventory including `tests/` and `deploy/`, and the dependency policy every specifier is held to
+- [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with its flags
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — VM setup, unit install, routine ops, and the environment-variable reference
+- [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version, every site mirroring it, the CI gates, and how a consumer adopts the SDK
+- [docs/reference/monitors.md](docs/reference/monitors.md) — the dead-man's timer: why absence is the alert, the check-in contract, and what nothing watches
+- [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet: node identity, ACL, the bind decision and the boot race it buys
+- [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — tool table, prefetch query, graph-health guidance, the shared store's traps, and this repo's measured yield
+- [docs/SKILLS.md](docs/SKILLS.md) — skill layout, vendored submodules and refresh procedure, full inventory
