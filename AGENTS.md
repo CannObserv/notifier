@@ -185,6 +185,7 @@ spaces or quotes:
 test database itself.
 
 Every variable, what sets it and why: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#environment-variables).
+
 ## Common Commands
 
 ```bash
