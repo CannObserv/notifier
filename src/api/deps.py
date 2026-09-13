@@ -1,6 +1,5 @@
 """FastAPI dependencies — database session and API-key authentication."""
 
-import hashlib
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 
@@ -9,6 +8,7 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.api_keys import hash_key
 from src.core.database import get_session_factory
 from src.core.db_safety import serving_production
 from src.core.models.api_key import ApiKey
@@ -36,7 +36,7 @@ async def require_api_key(
     """
     if raw_key is None:
         raise HTTPException(status_code=403, detail="Not authenticated")
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_hash = hash_key(raw_key)
     result = await session.execute(select(ApiKey).where(ApiKey.key_hash == key_hash))
     api_key = result.scalar_one_or_none()
     if api_key is None:
