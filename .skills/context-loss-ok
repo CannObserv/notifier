@@ -42,3 +42,9 @@ tighten :: unit first so the two do not fight over the port.
 # pytest, which is the first command in the block that fails without it.
 tighten :: # Load environment (required before migrations or gh). Leaves DATABASE_URL
 tighten :: # pointing at production — intended for alembic and systemctl, nothing else.
+# CR finding 3. The catalogue entry restated a rule this same doc already gives
+# in full under "Production database opt-in"; it is now a pointer to it.
+tighten :: - `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.service` only**
+# CR round: reclaiming the tokens CR 1's restore cost. Same rule, same reason,
+# fewer words; "changes merged to main" is what a restart always picks up.
+tighten :: **After finishing work:** Always restart both services to pick up changes merged to main

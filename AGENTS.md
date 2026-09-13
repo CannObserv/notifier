@@ -158,7 +158,7 @@ endpoints share a host and a cluster and only the database differs.
 its opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the unit and never in an env
 file.
 
-**After finishing work:** Always restart both services to pick up changes merged to main — they serve one working tree, so restarting only the live one leaves the dev endpoint answering from stale code:
+**After finishing work:** always restart both — they serve one working tree, so restarting only the live one leaves dev answering from stale code:
 
 ```bash
 sudo systemctl restart notifier notifier-dev
@@ -192,9 +192,8 @@ Every variable, what sets it and why: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#en
 # Install dependencies
 uv sync
 
-# Load environment. Required before anything below that touches a database:
-# pytest needs TEST_DATABASE_URL and alembic needs DATABASE_URL. Leaves
-# DATABASE_URL pointing at production — intended for alembic and systemctl.
+# Load environment first — pytest needs TEST_DATABASE_URL, alembic needs
+# DATABASE_URL. Leaves DATABASE_URL on production; see below.
 . scripts/load_env.sh
 
 # Run tests
