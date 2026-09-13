@@ -191,6 +191,11 @@ Every variable, what sets it and why: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#en
 # Install dependencies
 uv sync
 
+# Load environment. Required before anything below that touches a database:
+# pytest needs TEST_DATABASE_URL and alembic needs DATABASE_URL. Leaves
+# DATABASE_URL pointing at production — intended for alembic and systemctl.
+. scripts/load_env.sh
+
 # Run tests
 uv run pytest
 

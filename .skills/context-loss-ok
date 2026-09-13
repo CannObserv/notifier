@@ -21,8 +21,6 @@ tighten :: VM: the two endpoints share a host and a cluster, only the database d
 tighten :: now refuses any database whose name does not end in `_test` or `_dev`; the
 tighten :: production opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the systemd unit and
 tighten :: must never be added to an env file.
-duplicate :: # Load environment (required before migrations or gh). Leaves DATABASE_URL
-duplicate :: # pointing at production — intended for alembic and systemctl, nothing else.
 duplicate :: # Dead-man's-timer sweep (systemd timers own the schedule; this forces a pass)
 duplicate :: sudo systemctl start notifier-sweep.service
 duplicate :: # FastAPI dev server by hand (port 9001, dev DB, guarded — never hand-run
@@ -39,3 +37,8 @@ tighten :: - [docs/SKILLS.md](docs/SKILLS.md) — skill directory layout, vendor
 # check-counts.sh flagged the bare 'two' as a rot-prone count; the pair is named
 # in the same sentence, so dropping the precision is the prescribed fix.
 tighten :: unit first so the two do not fight over the port.
+# CR finding 1. The line is restored, but its comment now names WHY each command
+# below needs it — the original said "migrations or gh" and never mentioned
+# pytest, which is the first command in the block that fails without it.
+tighten :: # Load environment (required before migrations or gh). Leaves DATABASE_URL
+tighten :: # pointing at production — intended for alembic and systemctl, nothing else.
