@@ -111,10 +111,12 @@ specific to notifier.
 > used to mean `tag:watcher` granted tailnet access to watcher *and* archiver
 > *and* replicator; archiver and replicator have since moved to `co-registrar`
 > and `co-replicator`, so the tags now separate the services they name. The
-> client rule above lists `tag:archiver` and `tag:replicator` on that
-> assumption — **unverified from this host**, which has no ACL edge to either
-> VM and therefore cannot see their tags. A wrong name there admits nobody
-> while reading correctly, and surfaces on their side as a DNS failure.
+> client rule above lists `tag:archiver` and `tag:replicator`, **confirmed
+> 2026-09-13** as the real tags on `co-registrar` and `co-replicator`. Not
+> checkable from this host, which has no ACL edge to either VM and so cannot
+> see their tags — it was confirmed in the admin console. Worth the check: a
+> wrong name admits nobody while reading correctly, and surfaces on their side
+> as a DNS failure rather than a permission denial.
 
 Note the ACL does **not** open port 22 on any tagged node. Administering this
 host goes over the public `ssh notifier.exe.xyz`, not the tailnet, and `index`
