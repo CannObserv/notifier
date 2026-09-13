@@ -135,6 +135,28 @@ async def key_count(session: AsyncSession, tenant_id: str) -> int:
     return int(result.scalar_one())
 
 
+async def keys_for(session: AsyncSession, tenant_id: str) -> list[KeyRecord]:
+    """Return *tenant_id*'s keys, oldest first, as snapshots.
+
+    Revoking takes a key id, and until this existed there was no sanctioned
+    way to read one — which sends an operator back to the ad-hoc SQL #62 is
+    trying to retire. Snapshots rather than rows, because nothing downstream
+    should be able to mutate a key by accident while reading the list.
+
+    Raises :class:`TenantNotFoundError` rather than returning an empty list
+    for an id that does not exist: to an operator about to rotate, "no keys"
+    and "no such tenant" are the difference between a consumer that is already
+    down and a typo in the argument they just pasted.
+    """
+    tenant = await session.get(Tenant, tenant_id)
+    if tenant is None:
+        raise TenantNotFoundError(f"no tenant with id {ulid_str(tenant_id)}")
+    result = await session.execute(
+        select(ApiKey).where(ApiKey.tenant_id == tenant_id).order_by(ApiKey.created_at, ApiKey.id)
+    )
+    return [KeyRecord.of(key) for key in result.scalars().all()]
+
+
 async def mint(
     session: AsyncSession,
     tenant_id: str,

@@ -1,0 +1,442 @@
+"""Attach, revoke, and rotate API keys on a tenant that already exists.
+
+``seed_tenant.py`` always creates a new tenant, so until #62 there was no
+sanctioned way to give an existing consumer a second credential, and none at
+all to rotate one. The rotation that forced the issue — a key exposed during
+#57 — went through a program written against the ORM while the credential was
+live. It was reviewed as it was written and it was correct. The defect is that
+it had to be composed under time pressure at all: the next person, in the same
+hurry, reaches for ``INSERT INTO api_keys …`` instead, and does it to
+production with no dry run, no confirmation of which row they just deleted,
+and no record.
+
+Three operations, one script::
+
+    # attach a second key to an existing tenant
+    rotate_key.py --tenant-id <id> --new-label backup
+
+    # revoke one, naming it explicitly
+    rotate_key.py --tenant-id <id> --revoke <key-id>
+
+    # rotate: both halves, one transaction
+    rotate_key.py --tenant-id <id> --new-label new --revoke <old-key-id>
+
+Usage (dev database — served by notifier-dev.service on :9001)::
+
+    . scripts/load_env.sh
+    DATABASE_URL="$DEV_DATABASE_URL" uv run python scripts/rotate_key.py …
+
+Usage (production — deliberate, opt-in)::
+
+    . scripts/load_env.sh
+    NOTIFIER_ALLOW_PROD_DB=1 uv run python scripts/rotate_key.py …
+
+The connection is opened through ``src.core.database``, so the guard in
+``src/core/db_safety.py`` applies unchanged: production requires the opt-in
+above, on the command line, for the single invocation — never in an env file.
+
+Four things this does that the ad-hoc program could not:
+
+* **One transaction.** The mint and the revoke commit together, so an
+  interrupted rotation cannot leave a tenant holding a key nobody has.
+* **Names the victim.** Revocation takes a key id, never "the other one",
+  which silently does the wrong thing to a tenant holding three. The key's
+  prefix, label and ``last_used_at`` are printed before it goes — the last of
+  those being the field that says whether something is actively using it.
+* **``--dry-run``.** Rehearses the whole operation, refusals included, and
+  rolls back.
+* **``--verify``.** Proves the new key authenticates against the real
+  endpoint. A rotation nobody verified is a rotation that might have revoked
+  the wrong row.
+
+Verification is deliberately asymmetric. The script always holds the raw key
+it just minted, so it can always prove that one works. It only ever held the
+*hash* of the key it revoked, so proving the old one is dead needs the
+operator to supply it — which they have in an exposure incident, and do not
+in a routine rotation. ``--verify-old`` is that half, and its absence is
+reported rather than passed over.
+"""
+
+import argparse
+import asyncio
+import sys
+from dataclasses import dataclass
+
+import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core.api_keys import (
+    ENVIRONMENTS,
+    KeyRecord,
+    LastKeyError,
+    key_count,
+    keys_for,
+    mint,
+    revoke,
+    ulid_str,
+)
+from src.core.database import get_session_factory
+
+#: An authenticated endpoint that costs a tenant with no data nothing to
+#: serve. Its job is to exercise ``require_api_key``, not to return rows.
+VERIFY_PATH = "/api/v1/templates"
+
+#: How long a verification request may take before it is a failed check.
+VERIFY_TIMEOUT_SECONDS = 10.0
+
+#: Exit codes, distinguished so a caller can tell the three apart. A refusal
+#: means the database is untouched; a failed verification means it is not.
+OK = 0
+NOT_VERIFIED = 1
+REFUSED = 2
+ABORTED = 3
+
+
+@dataclass(frozen=True, slots=True)
+class Outcome:
+    """What a run did, or would have done under ``--dry-run``."""
+
+    tenant_id: str
+    minted: KeyRecord | None
+    raw_key: str | None
+    revoked: KeyRecord | None
+    dry_run: bool
+    remaining_keys: int
+
+
+@dataclass(frozen=True, slots=True)
+class Check:
+    """One post-rotation probe against the live endpoint."""
+
+    name: str
+    ok: bool
+    detail: str
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Return the argument parser. Split out so tests can read its help."""
+    parser = argparse.ArgumentParser(
+        prog="rotate_key.py",
+        description="Attach, revoke, or rotate an API key on an existing tenant.",
+    )
+    parser.add_argument(
+        "--tenant-id",
+        required=True,
+        help="the tenant to act on. Its id, never its name — a name is a label an operator renames",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="print this tenant's keys and exit. Read-only; the id you need to --revoke is here",
+    )
+    parser.add_argument("--new-label", help="mint a key with this label")
+    parser.add_argument(
+        "--environment",
+        default="production",
+        choices=ENVIRONMENTS,
+        help="which deployment the new key is for (default: production)",
+    )
+    parser.add_argument("--revoke", metavar="KEY_ID", help="delete this key, named explicitly")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="permit revoking a tenant's last key, leaving that consumer unable to authenticate",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="rehearse the whole operation, refusals included, and roll back",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="skip the confirmation prompt. Required when stdin is not a terminal",
+    )
+    parser.add_argument(
+        "--verify",
+        metavar="BASE_URL",
+        help=f"after committing, GET {VERIFY_PATH} there and check the new key is accepted",
+    )
+    parser.add_argument(
+        "--verify-old",
+        metavar="RAW_KEY",
+        help=(
+            "the raw key being revoked, so its 401 can be proven too. The script never held it, "
+            "only its hash"
+        ),
+    )
+    return parser
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse *argv*, rejecting flag combinations that cannot mean anything.
+
+    Every refusal here is a flag that would otherwise be silently ignored, and
+    a silently ignored flag in an incident tool is an operator believing they
+    asked for something they did not get.
+    """
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    writes = (args.new_label, args.revoke, args.force or None, args.verify)
+    if args.list and any(w is not None for w in writes):
+        parser.error("--list is the read you do before deciding; run it on its own")
+    if not args.list and args.new_label is None and args.revoke is None:
+        parser.error("nothing to do: pass --list, --new-label, --revoke, or both to rotate")
+    if args.new_label is None and "--environment" in argv:
+        parser.error(
+            "--environment applies to a key being minted; it does not retag an existing one"
+        )
+    if args.verify_old is not None and args.revoke is None:
+        parser.error("--verify-old proves a revoked key is dead; nothing is being revoked")
+    if args.verify_old is not None and args.verify is None:
+        parser.error("--verify-old needs --verify: there is nowhere to send the request")
+    return args
+
+
+async def apply(
+    session: AsyncSession,
+    *,
+    tenant_id: str,
+    new_label: str | None = None,
+    environment: str = "production",
+    revoke_id: str | None = None,
+    force: bool = False,
+    dry_run: bool = True,
+) -> Outcome:
+    """Perform the requested operations in one transaction; return what happened.
+
+    Order matters. The mint goes first and flushes, so by the time the revoke
+    counts the tenant's keys the replacement is already there — which is why
+    the last-key guard never fires on a rotation, and why ``--force`` is not
+    reachable on that path.
+
+    ``dry_run`` rolls back instead of committing, and is the default here so a
+    caller that forgets to pass it writes nothing. Every refusal still fires:
+    a dry run that passes where the real run would fail is a rehearsal that
+    certifies the wrong thing.
+    """
+    tenant_id = ulid_str(tenant_id)
+    minted: KeyRecord | None = None
+    raw: str | None = None
+    revoked: KeyRecord | None = None
+
+    try:
+        if new_label is not None:
+            key, raw = await mint(session, tenant_id, new_label, environment)
+            minted = KeyRecord.of(key)
+        if revoke_id is not None:
+            revoked = await revoke(session, tenant_id, revoke_id, allow_last=force)
+        remaining = await key_count(session, tenant_id)
+    except Exception:
+        await session.rollback()
+        raise
+
+    if dry_run:
+        await session.rollback()
+        raw = None
+    else:
+        await session.commit()
+
+    return Outcome(
+        tenant_id=tenant_id,
+        minted=minted,
+        raw_key=raw,
+        revoked=revoked,
+        dry_run=dry_run,
+        remaining_keys=remaining,
+    )
+
+
+def render(outcome: Outcome) -> list[str]:
+    """Return the lines to print for *outcome*.
+
+    ``tenant_id=`` / ``raw_key=`` / ``environment=`` keep the shape
+    ``seed_tenant.py`` prints, so an operator's eye lands in the same place
+    and an existing habit of copying one line still works. The raw key appears
+    exactly once and nowhere else — not in a log, not in a summary.
+    """
+    lines: list[str] = []
+    if outcome.dry_run:
+        lines.append("DRY RUN — nothing was written")
+    lines.append(f"tenant_id={outcome.tenant_id}")
+
+    if outcome.revoked is not None:
+        r = outcome.revoked
+        lines.append("revoked:")
+        lines.append(f"  key_id={r.id}")
+        lines.append(f"  label={r.label}")
+        lines.append(f"  key_prefix={r.key_prefix}")
+        lines.append(f"  environment={r.environment}")
+        lines.append(f"  created_at={r.created_at}")
+        lines.append(f"  last_used_at={r.last_used_at}")
+
+    if outcome.minted is not None:
+        lines.append("minted:")
+        lines.append(f"  key_id={outcome.minted.id}")
+        lines.append(f"  label={outcome.minted.label}")
+        lines.append(f"  environment={outcome.minted.environment}")
+
+    if outcome.raw_key is not None:
+        lines.append(f"raw_key={outcome.raw_key}")
+        lines.append("The raw key is shown ONCE. Store it in the consumer's secrets now.")
+    elif outcome.minted is not None:
+        lines.append("raw_key withheld — the dry run rolled this key back; it would never work")
+
+    lines.append(f"keys_remaining={outcome.remaining_keys}")
+    if outcome.remaining_keys == 0:
+        lines.append("WARNING: this tenant now holds no keys and cannot authenticate at all")
+    return lines
+
+
+def render_list(tenant_id: str, records: list[KeyRecord]) -> list[str]:
+    """Return the lines for ``--list``.
+
+    Never prints ``key_hash``. The prefix is what identifies a key to a human;
+    the hash is what verifies it, and putting an offline-crackable digest in a
+    terminal buffer is not a thing a credential tool should do casually.
+    """
+    lines = [f"tenant_id={ulid_str(tenant_id)}"]
+    if not records:
+        lines.append("This tenant holds no keys and cannot authenticate at all.")
+        return lines
+    lines.append(f"{len(records)} key(s), oldest first:")
+    for record in records:
+        lines.append(f"  key_id={record.id}")
+        lines.append(f"    label={record.label}")
+        lines.append(f"    key_prefix={record.key_prefix}")
+        lines.append(f"    environment={record.environment}")
+        lines.append(f"    created_at={record.created_at}")
+        lines.append(f"    last_used_at={record.last_used_at}")
+    return lines
+
+
+def verify(
+    base_url: str,
+    *,
+    new_raw: str | None = None,
+    old_raw: str | None = None,
+    client: httpx.Client | None = None,
+) -> list[Check]:
+    """Probe *base_url* and report what the keys actually do there.
+
+    The rotation has already committed by the time this runs, so a transport
+    failure is a failed check and never an exception — a traceback here would
+    leave an operator unsure whether the write landed.
+
+    The old key's check insists on **401** specifically. A 403 means the key
+    was refused for being a ``development`` key against a production
+    deployment, which is a perfectly *valid* key being turned away; treating
+    that as proof of revocation would certify a rotation that never happened.
+    """
+    owned = client is None
+    client = client or httpx.Client(timeout=VERIFY_TIMEOUT_SECONDS)
+    checks: list[Check] = []
+    try:
+        if new_raw is not None:
+            checks.append(_probe(client, base_url, new_raw, "new key accepted", expected=200))
+        if old_raw is not None:
+            checks.append(_probe(client, base_url, old_raw, "old key rejected", expected=401))
+    finally:
+        if owned:
+            client.close()
+    return checks
+
+
+def _probe(client: httpx.Client, base_url: str, raw_key: str, name: str, *, expected: int) -> Check:
+    url = base_url.rstrip("/") + VERIFY_PATH
+    try:
+        response = client.get(url, headers={"X-API-Key": raw_key})
+    except httpx.HTTPError as exc:
+        return Check(name=name, ok=False, detail=f"{url} unreachable: {exc}")
+    ok = response.status_code == expected
+    detail = f"{url} returned {response.status_code}, expected {expected}"
+    return Check(name=name, ok=ok, detail=detail)
+
+
+def _describe(args: argparse.Namespace) -> str:
+    """One line naming exactly what is about to happen, for the prompt."""
+    parts = []
+    if args.new_label is not None:
+        parts.append(f"mint a {args.environment} key labelled {args.new_label!r}")
+    if args.revoke is not None:
+        parts.append(f"permanently delete key {ulid_str(args.revoke)}")
+    return f"About to {' and '.join(parts)} on tenant {ulid_str(args.tenant_id)}."
+
+
+def _confirm(args: argparse.Namespace) -> bool:
+    """Ask before writing. ``--yes`` skips; a non-terminal stdin must pass it."""
+    if args.yes:
+        return True
+    print(_describe(args), file=sys.stderr)
+    if not sys.stdin.isatty():
+        print(
+            "Refusing to act unattended: stdin is not a terminal and --yes was not passed.",
+            file=sys.stderr,
+        )
+        return False
+    return input("Type 'yes' to proceed: ").strip() == "yes"
+
+
+async def main(args: argparse.Namespace) -> int:
+    """Run the requested operation and print the result. Returns an exit code."""
+    if args.list:
+        factory = get_session_factory()
+        try:
+            async with factory() as session:
+                records = await keys_for(session, args.tenant_id)
+        except LookupError as exc:
+            print(f"refused: {exc}", file=sys.stderr)
+            return REFUSED
+        for line in render_list(args.tenant_id, records):
+            print(line)
+        return OK
+
+    if not args.dry_run and not _confirm(args):
+        print("Aborted; nothing was written.", file=sys.stderr)
+        return ABORTED
+
+    factory = get_session_factory()
+    try:
+        async with factory() as session:
+            outcome = await apply(
+                session,
+                tenant_id=args.tenant_id,
+                new_label=args.new_label,
+                environment=args.environment,
+                revoke_id=args.revoke,
+                force=args.force,
+                dry_run=args.dry_run,
+            )
+    except (LookupError, LastKeyError, ValueError) as exc:
+        # Every one of these is raised before or instead of a write, and
+        # apply() has rolled back. Say so in a line: a traceback here reads
+        # like the script broke rather than like it declined, and an operator
+        # mid-incident resolves that ambiguity by reaching for psql.
+        print(f"refused: {exc}", file=sys.stderr)
+        print("Nothing was written.", file=sys.stderr)
+        return REFUSED
+
+    for line in render(outcome):
+        print(line)
+
+    if args.verify is None or outcome.dry_run:
+        if args.verify is not None:
+            print("verification skipped — a dry run has nothing live to check")
+        elif not outcome.dry_run:
+            print("NOT VERIFIED — pass --verify <base-url> to prove the new key works")
+        return OK
+
+    checks = verify(args.verify, new_raw=outcome.raw_key, old_raw=args.verify_old)
+    for check in checks:
+        print(f"{'PASS' if check.ok else 'FAIL'} {check.name}: {check.detail}")
+    if args.verify_old is None and outcome.revoked is not None:
+        print(
+            "old key not checked — this script only ever held its hash. "
+            "Pass --verify-old <raw> to prove it now returns 401."
+        )
+    return OK if all(check.ok for check in checks) else NOT_VERIFIED
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main(parse_args(sys.argv[1:]))))

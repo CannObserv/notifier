@@ -25,8 +25,13 @@ deployment refuses development keys at the auth layer, so a key minted for a
 consumer's test suite cannot reach production notifier even if it leaks into
 the wrong config (issue #22, finding 3).
 
-Prints ``tenant_id`` and the raw API key. **The raw key is shown ONCE** — store
-it in the consumer's secrets immediately. Only the SHA-256 hash is persisted.
+Prints ``tenant_id``, ``key_id`` and the raw API key. **The raw key is shown
+ONCE** — store it in the consumer's secrets immediately. Only the SHA-256 hash
+is persisted.
+
+``key_id`` is what ``rotate_key.py --revoke`` takes. Minting a credential and
+never printing the handle needed to retire it is what sends the next operator
+to ad-hoc SQL to find it (#62).
 
 The argv shape here is load-bearing beyond an operator's hands:
 ``clients/python/tests/conftest.py`` shells this script positionally and parses
@@ -48,9 +53,11 @@ async def main(tenant_name: str, key_label: str, environment: str) -> None:
         tenant = Tenant(name=tenant_name)
         session.add(tenant)
         await session.flush()
-        _key, raw = await mint(session, tenant.id, key_label, environment)
+        key, raw = await mint(session, tenant.id, key_label, environment)
+        key_id = str(key.id)
         await session.commit()
         print(f"tenant_id={tenant.id}")
+        print(f"key_id={key_id}")
         print(f"raw_key={raw}")
         print(f"environment={environment}")
 

@@ -1,0 +1,540 @@
+"""Tests for scripts/rotate_key.py.
+
+The rotation this script exists for was performed once already, during #57,
+as an ad-hoc program written under time pressure while a credential was
+exposed. It was correct. The defect is that it had to be composed at all —
+the next person, in the same hurry, writes the raw SQL instead (#62).
+
+So the tests here are mostly about what the script *refuses* to do, and about
+the one thing the ad-hoc program could not do at all: put the mint and the
+revoke in a single transaction.
+"""
+
+import secrets
+
+import httpx
+import pytest
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from scripts.rotate_key import (
+    ABORTED,
+    REFUSED,
+    VERIFY_PATH,
+    Outcome,
+    apply,
+    main,
+    parse_args,
+    render,
+    render_list,
+    verify,
+)
+from src.core.api_keys import LastKeyError, hash_key, keys_for, mint
+from src.core.models import ApiKey, Tenant
+
+TENANT = "01J0TENANT0000000000000000"
+KEY = "01J0KEY0000000000000000000"
+
+
+@pytest.fixture
+async def live_session(test_engine):
+    """A session that really commits.
+
+    ``apply()`` owns its transaction — that is the guarantee the whole script
+    rests on — so the savepointed ``db_session`` fixture would hide exactly
+    the behaviour under test.
+    """
+    async with AsyncSession(test_engine, expire_on_commit=False) as session:
+        yield session
+
+
+@pytest.fixture
+async def live_tenant(live_session):
+    """Yields the tenant *id as a string*, not the ORM instance.
+
+    ``apply()`` rolls back on a dry run and on any refusal, and a rollback
+    expires every loaded attribute regardless of ``expire_on_commit``. Reading
+    ``tenant.id`` afterwards is then a lazy load outside the greenlet — a
+    failure about SQLAlchemy internals standing in for the behaviour under
+    test.
+    """
+    tenant = Tenant(name=f"rotate-{secrets.token_hex(4)}")
+    live_session.add(tenant)
+    await live_session.commit()
+    tenant_id = str(tenant.id)
+    yield tenant_id
+    await live_session.rollback()
+    await live_session.execute(delete(Tenant).where(Tenant.id == tenant_id))
+    await live_session.commit()
+
+
+async def _count(session, tenant_id) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(ApiKey).where(ApiKey.tenant_id == tenant_id)
+    )
+    return int(result.scalar_one())
+
+
+class TestArgumentParsing:
+    def test_attaching_needs_only_a_label(self):
+        args = parse_args(["--tenant-id", TENANT, "--new-label", "backup"])
+
+        assert args.new_label == "backup"
+        assert args.revoke is None
+        assert args.environment == "production"
+
+    def test_revoking_needs_only_a_key_id(self):
+        args = parse_args(["--tenant-id", TENANT, "--revoke", KEY])
+
+        assert args.revoke == KEY
+        assert args.new_label is None
+
+    def test_rotating_is_both_at_once(self):
+        args = parse_args(["--tenant-id", TENANT, "--new-label", "new", "--revoke", KEY])
+
+        assert (args.new_label, args.revoke) == ("new", KEY)
+
+    def test_requires_a_tenant_id(self):
+        with pytest.raises(SystemExit):
+            parse_args(["--new-label", "backup"])
+
+    def test_requires_something_to_do(self):
+        """Neither half is not a no-op worth having — it is a typo that would
+        otherwise exit 0 and look like a completed rotation."""
+        with pytest.raises(SystemExit):
+            parse_args(["--tenant-id", TENANT])
+
+    def test_refuses_an_environment_with_nothing_to_mint(self):
+        """--environment with no --new-label reads like it retags the existing
+        key. It does not, and silently ignoring it would teach that it does."""
+        with pytest.raises(SystemExit):
+            parse_args(["--tenant-id", TENANT, "--revoke", KEY, "--environment", "development"])
+
+    def test_refuses_an_unknown_environment(self):
+        with pytest.raises(SystemExit):
+            parse_args(["--tenant-id", TENANT, "--new-label", "x", "--environment", "staging"])
+
+    def test_refuses_verify_old_with_nothing_being_revoked(self):
+        with pytest.raises(SystemExit):
+            parse_args(
+                [
+                    "--tenant-id",
+                    TENANT,
+                    "--new-label",
+                    "x",
+                    "--verify",
+                    "http://notifier:9000",
+                    "--verify-old",
+                    "nk_whatever",
+                ]
+            )
+
+    def test_refuses_verify_old_without_a_base_url(self):
+        """There is nowhere to send the request that proves the 401."""
+        with pytest.raises(SystemExit):
+            parse_args(["--tenant-id", TENANT, "--revoke", KEY, "--verify-old", "nk_whatever"])
+
+
+class TestApply:
+    async def test_attaches_a_key_to_an_existing_tenant(self, live_session, live_tenant):
+        """The gap #62 opens with, and what watcher#297 is waiting on."""
+        outcome = await apply(
+            live_session, tenant_id=live_tenant, new_label="backup", dry_run=False
+        )
+
+        assert outcome.raw_key is not None
+        assert outcome.minted.label == "backup"
+        assert outcome.revoked is None
+        assert await _count(live_session, live_tenant) == 1
+
+    async def test_the_attached_key_is_committed(self, live_session, live_tenant):
+        outcome = await apply(
+            live_session, tenant_id=live_tenant, new_label="backup", dry_run=False
+        )
+        await live_session.rollback()
+
+        row = (
+            (await live_session.execute(select(ApiKey).where(ApiKey.tenant_id == live_tenant)))
+            .scalars()
+            .one()
+        )
+        assert row.key_hash == hash_key(outcome.raw_key)
+
+    async def test_rotates_in_one_transaction(self, live_session, live_tenant):
+        old, _ = await mint(live_session, live_tenant, "old", "production")
+        await live_session.commit()
+        old_id = str(old.id)
+
+        outcome = await apply(
+            live_session,
+            tenant_id=live_tenant,
+            new_label="new",
+            revoke_id=old_id,
+            dry_run=False,
+        )
+
+        assert outcome.minted.label == "new"
+        assert outcome.revoked.label == "old"
+        rows = (
+            (await live_session.execute(select(ApiKey).where(ApiKey.tenant_id == live_tenant)))
+            .scalars()
+            .all()
+        )
+        assert [r.label for r in rows] == ["new"]
+
+    async def test_a_rotation_never_passes_through_zero_keys(self, live_session, live_tenant):
+        """The last-key guard must not fire on a rotation — the replacement is
+        already flushed by the time the revoke counts. If this ever needed
+        --force, the guard would be refusing the operation it exists for."""
+        old, _ = await mint(live_session, live_tenant, "old", "production")
+        await live_session.commit()
+        old_id = str(old.id)
+
+        outcome = await apply(
+            live_session,
+            tenant_id=live_tenant,
+            new_label="new",
+            revoke_id=old_id,
+            force=False,
+            dry_run=False,
+        )
+
+        assert outcome.remaining_keys == 1
+
+    async def test_refuses_to_revoke_the_last_key(self, live_session, live_tenant):
+        only, _ = await mint(live_session, live_tenant, "only", "production")
+        await live_session.commit()
+        only_id = str(only.id)
+
+        with pytest.raises(LastKeyError):
+            await apply(live_session, tenant_id=live_tenant, revoke_id=only_id, dry_run=False)
+
+        assert await _count(live_session, live_tenant) == 1
+
+    async def test_force_permits_revoking_the_last_key(self, live_session, live_tenant):
+        only, _ = await mint(live_session, live_tenant, "only", "production")
+        await live_session.commit()
+        only_id = str(only.id)
+
+        outcome = await apply(
+            live_session,
+            tenant_id=live_tenant,
+            revoke_id=only_id,
+            force=True,
+            dry_run=False,
+        )
+
+        assert outcome.remaining_keys == 0
+        assert await _count(live_session, live_tenant) == 0
+
+
+class TestDryRun:
+    async def test_writes_nothing(self, live_session, live_tenant):
+        old, _ = await mint(live_session, live_tenant, "old", "production")
+        await live_session.commit()
+        old_id = str(old.id)
+
+        outcome = await apply(
+            live_session,
+            tenant_id=live_tenant,
+            new_label="new",
+            revoke_id=old_id,
+            dry_run=True,
+        )
+
+        assert outcome.dry_run is True
+        rows = (
+            (await live_session.execute(select(ApiKey).where(ApiKey.tenant_id == live_tenant)))
+            .scalars()
+            .all()
+        )
+        assert [r.label for r in rows] == ["old"]
+
+    async def test_withholds_the_raw_key(self, live_session, live_tenant):
+        """A dry run rolls the mint back, so the key it generated will never
+        authenticate. Printing it would hand an operator a dead credential to
+        paste into a consumer's secrets."""
+        outcome = await apply(live_session, tenant_id=live_tenant, new_label="backup", dry_run=True)
+
+        assert outcome.raw_key is None
+        assert outcome.minted is not None
+
+    async def test_still_refuses_what_the_real_run_would_refuse(self, live_session, live_tenant):
+        """A dry run that passes and a real run that fails is worse than no
+        dry run — it is a rehearsal that certifies the wrong thing."""
+        only, _ = await mint(live_session, live_tenant, "only", "production")
+        await live_session.commit()
+        only_id = str(only.id)
+
+        with pytest.raises(LastKeyError):
+            await apply(live_session, tenant_id=live_tenant, revoke_id=only_id, dry_run=True)
+
+
+class TestRender:
+    def test_never_prints_the_raw_key_twice(self):
+        """The key is shown once, on its own line, in the shape seed_tenant.py
+        already uses so an operator's eye lands in the same place."""
+        outcome = Outcome(
+            tenant_id=TENANT,
+            minted=None,
+            raw_key="nk_secret",
+            revoked=None,
+            dry_run=False,
+            remaining_keys=1,
+        )
+
+        lines = render(outcome)
+
+        assert sum("nk_secret" in line for line in lines) == 1
+        assert "raw_key=nk_secret" in lines
+
+    def test_names_the_revoked_key_in_full(
+        self,
+    ):
+        """ "Deleted the other one" is what silently does the wrong thing to a
+        tenant holding three keys."""
+        from src.core.api_keys import KeyRecord
+
+        revoked = KeyRecord(
+            id=KEY,
+            tenant_id=TENANT,
+            label="compromised",
+            key_prefix="nk_abcde",
+            environment="production",
+            created_at=None,
+            last_used_at=None,
+        )
+        outcome = Outcome(
+            tenant_id=TENANT,
+            minted=None,
+            raw_key=None,
+            revoked=revoked,
+            dry_run=False,
+            remaining_keys=1,
+        )
+
+        rendered = "\n".join(render(outcome))
+
+        assert KEY in rendered
+        assert "compromised" in rendered
+        assert "nk_abcde" in rendered
+
+
+class TestVerify:
+    def _client(self, handler) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(handler))
+
+    def test_passes_when_the_new_key_is_accepted(self):
+        def handler(request):
+            assert request.url.path == VERIFY_PATH
+            return httpx.Response(200, json=[])
+
+        checks = verify("http://notifier:9000", new_raw="nk_new", client=self._client(handler))
+
+        assert [c.ok for c in checks] == [True]
+
+    def test_fails_when_the_new_key_is_refused(self):
+        """A rotation whose replacement does not work is the failure mode that
+        matters most, and the one an unverified rotation hides until the
+        consumer's next dispatch."""
+        checks = verify(
+            "http://notifier:9000",
+            new_raw="nk_new",
+            client=self._client(lambda request: httpx.Response(403)),
+        )
+
+        assert [c.ok for c in checks] == [False]
+        assert "403" in checks[0].detail
+
+    def test_passes_when_the_old_key_is_refused(self):
+        def handler(request):
+            if request.headers["X-API-Key"] == "nk_old":
+                return httpx.Response(401)
+            return httpx.Response(200, json=[])
+
+        checks = verify(
+            "http://notifier:9000",
+            new_raw="nk_new",
+            old_raw="nk_old",
+            client=self._client(handler),
+        )
+
+        assert [c.ok for c in checks] == [True, True]
+
+    def test_fails_when_the_old_key_still_works(self):
+        """The tell that the wrong row was deleted."""
+        checks = verify(
+            "http://notifier:9000",
+            new_raw="nk_new",
+            old_raw="nk_old",
+            client=self._client(lambda request: httpx.Response(200, json=[])),
+        )
+
+        assert [c.ok for c in checks] == [True, False]
+
+    def test_a_403_on_the_old_key_is_not_proof_of_revocation(self):
+        """403 is what a production deployment returns for a development key —
+        a key that is still perfectly valid. Only 401 means the row is gone."""
+
+        def handler(request):
+            if request.headers["X-API-Key"] == "nk_old":
+                return httpx.Response(403)
+            return httpx.Response(200, json=[])
+
+        checks = verify(
+            "http://notifier:9000",
+            new_raw="nk_new",
+            old_raw="nk_old",
+            client=self._client(handler),
+        )
+
+        assert checks[1].ok is False
+
+    def test_an_unreachable_endpoint_is_a_failed_check_not_a_crash(self):
+        """The rotation has already committed by the time verification runs.
+        A traceback here would leave an operator unsure whether it landed."""
+
+        def handler(request):
+            raise httpx.ConnectError("no route to host")
+
+        checks = verify("http://notifier:9000", new_raw="nk_new", client=self._client(handler))
+
+        assert checks[0].ok is False
+        assert "no route to host" in checks[0].detail
+
+
+class TestListing:
+    def test_listing_is_something_to_do_on_its_own(self):
+        args = parse_args(["--tenant-id", TENANT, "--list"])
+
+        assert args.list is True
+        assert args.new_label is None
+        assert args.revoke is None
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--new-label", "x"],
+            ["--revoke", KEY],
+            ["--force"],
+            ["--verify", "http://notifier:9000"],
+        ],
+        ids=["mint", "revoke", "force", "verify"],
+    )
+    def test_refuses_to_combine_listing_with_anything_that_writes(self, extra):
+        """--list is the read an operator does *before* deciding. Bundling it
+        with the write would print the state they were about to act on
+        alongside the state they already changed."""
+        with pytest.raises(SystemExit):
+            parse_args(["--tenant-id", TENANT, "--list", *extra])
+
+    async def test_names_every_key_id(self, live_session, live_tenant):
+        await mint(live_session, live_tenant, "first", "production")
+        await mint(live_session, live_tenant, "second", "development")
+        await live_session.commit()
+
+        records = await keys_for(live_session, live_tenant)
+        rendered = "\n".join(render_list(live_tenant, records))
+
+        for record in records:
+            assert record.id in rendered
+            assert record.label in rendered
+            assert record.key_prefix in rendered
+
+    async def test_says_so_when_a_tenant_holds_none(self, live_session, live_tenant):
+        """An empty table under a heading reads as "the query failed". A
+        tenant with no keys is a consumer that cannot authenticate, and the
+        line has to say that outright."""
+        rendered = "\n".join(render_list(live_tenant, []))
+
+        assert "no keys" in rendered.lower()
+
+    async def test_never_prints_a_hash(self, live_session, live_tenant):
+        """The prefix identifies a key; the hash is the verifier. Printing it
+        puts an offline-crackable credential digest in a terminal buffer."""
+        _key, raw = await mint(live_session, live_tenant, "first", "production")
+        await live_session.commit()
+
+        rendered = "\n".join(render_list(live_tenant, await keys_for(live_session, live_tenant)))
+
+        assert hash_key(raw) not in rendered
+        assert raw not in rendered
+
+
+class TestRefusalsReachTheOperatorCleanly:
+    """A traceback where a one-line refusal belongs is what sends someone to
+    raw SQL. These ran as tracebacks until the script was exercised by hand.
+    """
+
+    @pytest.fixture
+    def factory(self, monkeypatch, test_engine):
+        import scripts.rotate_key as module
+
+        monkeypatch.setattr(
+            module,
+            "get_session_factory",
+            lambda: async_sessionmaker(test_engine, expire_on_commit=False),
+        )
+
+    async def test_the_last_key_refusal_is_a_message_not_a_traceback(
+        self, factory, capsys, live_session, live_tenant
+    ):
+        only, _ = await mint(live_session, live_tenant, "only", "production")
+        await live_session.commit()
+        only_id = str(only.id)
+
+        code = await main(parse_args(["--tenant-id", live_tenant, "--revoke", only_id, "--yes"]))
+
+        captured = capsys.readouterr()
+        assert code == REFUSED
+        assert "Traceback" not in captured.err
+        assert "last key" in captured.err
+
+    async def test_an_unknown_tenant_is_a_message_not_a_traceback(self, factory, capsys):
+        code = await main(parse_args(["--tenant-id", TENANT, "--new-label", "whatever", "--yes"]))
+
+        captured = capsys.readouterr()
+        assert code == REFUSED
+        assert "Traceback" not in captured.err
+        assert TENANT in captured.err
+
+    async def test_listing_an_unknown_tenant_is_a_message_not_a_traceback(self, factory, capsys):
+        code = await main(parse_args(["--tenant-id", TENANT, "--list"]))
+
+        captured = capsys.readouterr()
+        assert code == REFUSED
+        assert "Traceback" not in captured.err
+
+    async def test_a_refusal_leaves_stdout_empty(self, factory, capsys, live_session, live_tenant):
+        """Nothing happened, so nothing belongs on the channel an operator
+        pipes into a secrets file."""
+        only, _ = await mint(live_session, live_tenant, "only", "production")
+        await live_session.commit()
+        only_id = str(only.id)
+
+        await main(parse_args(["--tenant-id", live_tenant, "--revoke", only_id, "--yes"]))
+
+        assert capsys.readouterr().out == ""
+
+
+class TestConfirmation:
+    async def test_refuses_to_act_unattended_without_yes(self, monkeypatch, capsys):
+        """An incident tool that acts on an unattended stdin is one cron entry
+        away from rotating a key nobody asked it to."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        code = await main(parse_args(["--tenant-id", TENANT, "--new-label", "nope"]))
+
+        assert code == ABORTED
+        assert capsys.readouterr().out == ""
+
+    async def test_the_prompt_describes_the_operation_on_stderr(self, monkeypatch, capsys):
+        """Ordered with the refusal that follows it, and off the channel an
+        operator may be piping."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        await main(parse_args(["--tenant-id", TENANT, "--new-label", "nope"]))
+
+        err = capsys.readouterr().err
+        assert "About to" in err
+        assert "nope" in err

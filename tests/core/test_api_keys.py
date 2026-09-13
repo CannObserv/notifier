@@ -22,6 +22,7 @@ from src.core.api_keys import (
     generate_raw_key,
     hash_key,
     key_count,
+    keys_for,
     mint,
     revoke,
     ulid_str,
@@ -275,3 +276,41 @@ class TestUlidStr:
 
     def test_passes_a_string_through(self):
         assert ulid_str("01J0000000000000000000000") == "01J0000000000000000000000"
+
+
+class TestKeysFor:
+    async def test_lists_this_tenants_keys_oldest_first(self, db_session, tenant):
+        """The operator needs the key *id* to revoke one, and until this
+        existed there was no sanctioned way to read it — which sends them
+        back to the ad-hoc SQL #62 is trying to retire."""
+        await mint(db_session, tenant.id, "first", "production")
+        await mint(db_session, tenant.id, "second", "development")
+
+        records = await keys_for(db_session, tenant.id)
+
+        assert [r.label for r in records] == ["first", "second"]
+        assert [r.environment for r in records] == ["production", "development"]
+
+    async def test_excludes_other_tenants(self, db_session, tenant):
+        other = Tenant(name="other-tenant-for-listing")
+        db_session.add(other)
+        await db_session.flush()
+        await mint(db_session, tenant.id, "mine", "production")
+        await mint(db_session, other.id, "theirs", "production")
+
+        assert [r.label for r in await keys_for(db_session, tenant.id)] == ["mine"]
+
+    async def test_renders_bare_ulids(self, db_session, tenant):
+        await mint(db_session, tenant.id, "first", "production")
+
+        record = (await keys_for(db_session, tenant.id))[0]
+
+        assert "ULID(" not in record.id
+        assert "ULID(" not in record.tenant_id
+
+    async def test_refuses_an_unknown_tenant(self, db_session):
+        """An empty list for a mistyped id reads identically to a tenant that
+        genuinely holds no keys — the difference between a typo and a consumer
+        that is already down."""
+        with pytest.raises(TenantNotFoundError):
+            await keys_for(db_session, "01BOGUSTENANTID0000000000")
