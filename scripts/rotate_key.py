@@ -348,6 +348,12 @@ def verify(
     was refused for being a ``development`` key against a production
     deployment, which is a perfectly *valid* key being turned away; treating
     that as proof of revocation would certify a rotation that never happened.
+
+    That 401 is only evidence when something in the same run proves the
+    endpoint would have accepted a *good* key — on a rotation the new-key
+    probe is that control. Without one, a ``--verify`` URL pointing somewhere
+    that refuses everything reads as a pass, so the check says so in its own
+    name rather than being quietly worth less than it looks.
     """
     owned = client is None
     client = client or httpx.Client(timeout=VERIFY_TIMEOUT_SECONDS)
@@ -356,7 +362,8 @@ def verify(
         if new_raw is not None:
             checks.append(_probe(client, base_url, new_raw, "new key accepted", expected=200))
         if old_raw is not None:
-            checks.append(_probe(client, base_url, old_raw, "old key rejected", expected=401))
+            name = "old key rejected" if new_raw is not None else "old key rejected (uncontrolled)"
+            checks.append(_probe(client, base_url, old_raw, name, expected=401))
     finally:
         if owned:
             client.close()
@@ -455,6 +462,17 @@ async def main(args: argparse.Namespace) -> int:
             "old key not checked — this script only ever held its hash. "
             "Pass --verify-old <raw> to prove it now returns 401."
         )
+    if not checks:
+        # A revoke with no replacement leaves the script holding no raw key,
+        # so --verify has nothing to send. Printing no verdict and exiting 0
+        # is indistinguishable from a verification that passed, which is the
+        # one thing --verify exists to rule out (CR 2).
+        print(
+            "NOT VERIFIED — nothing could be checked: --verify needs a key to "
+            "present, and this run minted none. Pass --verify-old <raw> to "
+            "check the revoked key instead."
+        )
+        return NOT_VERIFIED
     return OK if all(check.ok for check in checks) else NOT_VERIFIED
 
 

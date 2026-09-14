@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from scripts.rotate_key import (
     ABORTED,
+    NOT_VERIFIED,
     REFUSED,
     VERIFY_PATH,
     Outcome,
@@ -475,6 +476,78 @@ class TestListing:
 
         assert hash_key(raw) not in rendered
         assert raw not in rendered
+
+
+class TestVerificationNeverReportsSuccessHavingCheckedNothing:
+    @pytest.fixture
+    def factory(self, monkeypatch, test_engine):
+        import scripts.rotate_key as module
+
+        monkeypatch.setattr(
+            module,
+            "get_session_factory",
+            lambda: async_sessionmaker(test_engine, expire_on_commit=False),
+        )
+
+    async def test_a_revoke_only_verify_run_does_not_exit_ok(
+        self, factory, capsys, live_session, live_tenant
+    ):
+        """`--verify` on a revoke with no replacement has nothing it can
+        probe: the script holds no raw key. It printed no verdict line and
+        exited 0, which is indistinguishable from a verification that
+        passed (CR 2)."""
+        doomed, _ = await mint(live_session, live_tenant, "doomed", "production")
+        await mint(live_session, live_tenant, "survivor", "production")
+        await live_session.commit()
+        doomed_id = str(doomed.id)
+
+        code = await main(
+            parse_args(
+                [
+                    "--tenant-id",
+                    live_tenant,
+                    "--revoke",
+                    doomed_id,
+                    "--yes",
+                    "--verify",
+                    "http://notifier:9000",
+                ]
+            )
+        )
+
+        assert code == NOT_VERIFIED
+        assert "nothing could be checked" in capsys.readouterr().out.lower()
+
+    def test_an_uncontrolled_old_key_check_says_so(self):
+        """A 401 only means "revoked" if something proves the endpoint would
+        have accepted a good key. On a rotation the new-key probe is that
+        control; on a revoke-only run there is none (CR 2b)."""
+        checks = verify(
+            "http://notifier:9000",
+            old_raw="nk_old",
+            client=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(401))),
+        )
+
+        assert checks[0].ok is True
+        assert "uncontrolled" in checks[0].name
+
+    def test_a_rotation_labels_the_old_key_check_plainly(self):
+        """With a new key in the same run, the 401 has its control and the
+        label carries no caveat."""
+
+        def handler(request):
+            if request.headers["X-API-Key"] == "nk_old":
+                return httpx.Response(401)
+            return httpx.Response(200, json=[])
+
+        checks = verify(
+            "http://notifier:9000",
+            new_raw="nk_new",
+            old_raw="nk_old",
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        assert "uncontrolled" not in checks[1].name
 
 
 class TestRefusalsReachTheOperatorCleanly:
