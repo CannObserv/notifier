@@ -53,8 +53,7 @@ class TestOutput:
         assert re.search(r"key_id=(\S+)", seeded.readouterr().out)
 
     async def test_shows_the_raw_key_exactly_once(self, seeded):
-        out_before = seeded.readouterr().out  # drain
-        assert out_before is not None
+        seeded.readouterr()  # drain anything an earlier assertion left
         await main("seed-once-tenant", "smoke", "production")
 
         out = seeded.readouterr().out
