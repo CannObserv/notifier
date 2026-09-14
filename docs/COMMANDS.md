@@ -163,6 +163,46 @@ this repo's `scripts/`, which is why grepping the repo for it comes up empty.
 uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
+## Installing the shared Qdrant API key
+
+The SocratiCode store on `co-index` is gated by a **single global** Qdrant
+`service.api_key` (#57). There is no key list, no per-client identity and no
+per-collection scope, so every cohort VM holds the same secret and a leak
+anywhere is a rotation everywhere.
+
+`scripts/install_qdrant_key.sh` merges it into a repo's git-ignored
+`.claude/settings.local.json`. **The key arrives on stdin** — never argv, which
+is visible in `ps` to every other process for the life of the call and lands in
+the caller's shell history. Run from an operator machine, which is the only host
+able to reach both ends (exe.dev VMs are isolated from each other, and D13's
+`tag:index:22` edge was retired after Phase 6):
+
+```bash
+# 1. put the installer on the target (contains no secret)
+scp scripts/install_qdrant_key.sh <vm>.exe.xyz:~/
+
+# 2. pipe the key across, host to host — it touches no disk on the way
+ssh co-index.exe.xyz \
+    "sudo sed -n 's/^QDRANT__SERVICE__API_KEY=//p' /etc/socraticode/qdrant.env" \
+  | ssh <vm>.exe.xyz 'bash ~/install_qdrant_key.sh ~/<repo>'
+```
+
+Expect `installed 64 chars`. **Any other length is a truncated transfer**, which
+401s exactly like a wrong key — the length is the only cheap discriminator.
+
+Verify on the target with `codebase_health`, which must name the external Qdrant
+and Ollama rather than a container. `000` on both a keyed and unkeyed probe is
+the ACL, not the key, and presents as DNS failure.
+
+**Never run the installer under `bash -x`.** Tracing a script that touches a
+credential writes the value to stdout; that is how two were leaked during #57.
+
+Rotation has no overlap window — Qdrant holds one `api_key`, so every client
+401s from the restart until it is updated. Sequence: mint, write
+`/etc/socraticode/qdrant.env`, `systemctl restart qdrant`, then step 2 against
+every VM. Not while an index is running: a half-written collection outlives the
+outage.
+
 ## Releasing
 
 Full runbook: [RELEASING.md](RELEASING.md). The service and the SDK share one
