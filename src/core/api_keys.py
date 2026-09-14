@@ -221,6 +221,12 @@ async def revoke(
     missing without saying why. The guard does not fire on a rotation, because
     :func:`mint` has already flushed the replacement by then.
 
+    The tenant row is locked ``FOR UPDATE`` before the count is read. Without
+    it the check is a read and the delete a later write, so two revokes racing
+    on one tenant could each observe two keys and each delete one — landing
+    the tenant at exactly the zero the guard exists to prevent. Unlikely for a
+    hand-run script, and two operators during an incident is what this is for.
+
     Flushes; does not commit.
     """
     key = await session.get(ApiKey, key_id)
@@ -231,6 +237,7 @@ async def revoke(
         raise KeyOwnershipError(
             f"api key {ulid_str(key_id)} belongs to tenant {owner}, not {ulid_str(tenant_id)}"
         )
+    await session.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
     if not allow_last and await key_count(session, tenant_id) <= 1:
         raise LastKeyError(
             f"api key {ulid_str(key_id)} is the last key tenant "

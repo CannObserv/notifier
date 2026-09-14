@@ -11,7 +11,7 @@ import hashlib
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 
 from src.core.api_keys import (
     RAW_KEY_PREFIX,
@@ -314,3 +314,29 @@ class TestKeysFor:
         that is already down."""
         with pytest.raises(TenantNotFoundError):
             await keys_for(db_session, "01BOGUSTENANTID0000000000")
+
+
+class TestLastKeyCheckIsSerialized:
+    async def test_revoke_locks_the_tenant_row(self, db_session, tenant):
+        """Two concurrent revokes could each read a count of 2 and each
+        delete, landing the tenant at zero keys — the outcome the guard
+        exists to prevent and that --force exists to make deliberate.
+        Locking the tenant row makes the second wait for the first's
+        commit, so it counts 1 and refuses (CR 7).
+        """
+        await mint(db_session, tenant.id, "a", "production")
+        await mint(db_session, tenant.id, "b", "production")
+
+        statements = []
+
+        @event.listens_for(db_session.sync_session, "do_orm_execute")
+        def record(orm_context):
+            statements.append(str(orm_context.statement).lower())
+
+        key_b = (
+            (await db_session.execute(select(ApiKey).where(ApiKey.label == "b"))).scalars().one()
+        )
+        await revoke(db_session, tenant.id, key_b.id)
+
+        event.remove(db_session.sync_session, "do_orm_execute", record)
+        assert any("for update" in s and "tenants" in s for s in statements), statements
