@@ -221,7 +221,7 @@ async def apply(
     *,
     tenant_id: str,
     new_label: str | None = None,
-    environment: str = "production",
+    environment: str = DEFAULT_ENVIRONMENT,
     revoke_id: str | None = None,
     force: bool = False,
     dry_run: bool = True,
