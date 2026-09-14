@@ -404,6 +404,21 @@ class TestVerify:
 
         assert checks[1].ok is False
 
+    def test_a_malformed_base_url_is_a_failed_check_not_a_crash(self):
+        """`httpx.InvalidURL` does not subclass `httpx.HTTPError`, so it
+        escaped the handler and surfaced as a traceback — after the rotation
+        had already committed, which is the one moment verify() promises not
+        to leave an operator guessing. `http://[::1` is a fumbled IPv6 URL,
+        and this host's tailnet address has an IPv6 form (CR 10)."""
+        checks = verify(
+            "http://[::1",
+            new_raw="nk_new",
+            client=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200))),
+        )
+
+        assert checks[0].ok is False
+        assert "invalid" in checks[0].detail.lower() or "port" in checks[0].detail.lower()
+
     def test_an_unreachable_endpoint_is_a_failed_check_not_a_crash(self):
         """The rotation has already committed by the time verification runs.
         A traceback here would leave an operator unsure whether it landed."""

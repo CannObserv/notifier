@@ -377,7 +377,11 @@ def _probe(client: httpx.Client, base_url: str, raw_key: str, name: str, *, expe
     url = base_url.rstrip("/") + VERIFY_PATH
     try:
         response = client.get(url, headers={"X-API-Key": raw_key})
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, httpx.InvalidURL) as exc:
+        # InvalidURL is deliberately listed: it does *not* subclass HTTPError,
+        # so a fumbled base URL — `http://[::1` and this host's tailnet
+        # address has an IPv6 form — escaped as a traceback, after the
+        # rotation had already committed (CR 10).
         return Check(name=name, ok=False, detail=f"{url} unreachable: {exc}")
     ok = response.status_code == expected
     detail = f"{url} returned {response.status_code}, expected {expected}"
