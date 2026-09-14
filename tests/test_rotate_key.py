@@ -71,6 +71,20 @@ async def live_tenant(live_session):
     await live_session.commit()
 
 
+@pytest.fixture
+def factory(monkeypatch, test_engine):
+    """Point ``main`` at the test database.
+
+    Module-level rather than per-class: two classes had grown identical
+    copies, the second by copying the first (CR 15).
+    """
+    monkeypatch.setattr(
+        rotate_key_module,
+        "get_session_factory",
+        lambda: async_sessionmaker(test_engine, expire_on_commit=False),
+    )
+
+
 async def _count(session, tenant_id) -> int:
     result = await session.execute(
         select(func.count()).select_from(ApiKey).where(ApiKey.tenant_id == tenant_id)
@@ -556,14 +570,6 @@ class TestListing:
 
 
 class TestVerificationNeverReportsSuccessHavingCheckedNothing:
-    @pytest.fixture
-    def factory(self, monkeypatch, test_engine):
-        monkeypatch.setattr(
-            rotate_key_module,
-            "get_session_factory",
-            lambda: async_sessionmaker(test_engine, expire_on_commit=False),
-        )
-
     async def test_a_revoke_only_verify_run_does_not_exit_ok(
         self, factory, capsys, live_session, live_tenant
     ):
@@ -633,14 +639,6 @@ class TestRefusalsReachTheOperatorCleanly:
     """A traceback where a one-line refusal belongs is what sends someone to
     raw SQL. These ran as tracebacks until the script was exercised by hand.
     """
-
-    @pytest.fixture
-    def factory(self, monkeypatch, test_engine):
-        monkeypatch.setattr(
-            rotate_key_module,
-            "get_session_factory",
-            lambda: async_sessionmaker(test_engine, expire_on_commit=False),
-        )
 
     async def test_the_last_key_refusal_is_a_message_not_a_traceback(
         self, factory, capsys, live_session, live_tenant
