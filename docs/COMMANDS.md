@@ -299,7 +299,7 @@ line, for the single invocation, never in an env file.
 
 | Flag | What it does |
 |---|---|
-| `--list` | Print the tenant's keys and exit. Read-only, and refuses to be combined with anything that writes |
+| `--list` | Print the tenant's keys and exit — including the `key_id` that `--revoke` takes. Read-only, and refuses to be combined with any other flag, so a read never doubles as a write |
 | `--new-label` | Mint a key with this label |
 | `--environment` | `production` (default) or `development`, for the key being minted. Rejected without `--new-label` — it does not retag an existing key |
 | `--revoke <key-id>` | Delete this key, named explicitly. Never "the other one" |
@@ -307,10 +307,15 @@ line, for the single invocation, never in an env file.
 | `--dry-run` | Rehearse everything, refusals included, and roll back |
 | `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal |
 | `--verify <base-url>` | After committing, prove the new key gets a 200 |
-| `--verify-old <raw>` | Also prove the old key now gets a 401 |
+| `--verify-old <raw>` | Also prove the old key now gets a 401. On a run that mints nothing the check is labelled `(uncontrolled)`: with no new key to get a 200, nothing establishes the endpoint would accept a good one |
 
-Exit codes: `0` done, `1` committed but verification failed, `2` refused
-(nothing written), `3` aborted at the prompt.
+Exit codes: `0` done, `1` committed but not proven — the checks failed, or
+there was nothing to check — `2` refused (nothing written), `3` aborted at the
+prompt.
+
+`--verify` on a revoke with no replacement is that second case: the script
+holds no raw key to present, so it reports that nothing could be checked and
+exits `1` rather than exiting `0` in silence.
 
 **Verification is asymmetric, and that is not an oversight.** The script holds
 the raw key it just minted, so it can always prove that one works. It only ever
