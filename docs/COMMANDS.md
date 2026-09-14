@@ -303,7 +303,7 @@ line, for the single invocation, never in an env file.
 | `--new-label` | Mint a key with this label |
 | `--environment` | `production` (default) or `development`, for the key being minted. Rejected without `--new-label` — it does not retag an existing key |
 | `--revoke <key-id>` | Delete this key, named explicitly. Never "the other one" |
-| `--force` | Permit revoking a tenant's **last** key. Unreachable on a rotation |
+| `--force` | Permit revoking a tenant's **last** key. Requires `--revoke`; unreachable on a rotation, since the replacement is flushed before the count is read |
 | `--dry-run` | Rehearse everything, refusals included, and roll back |
 | `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal |
 | `--verify <base-url>` | After committing, prove the new key gets a 200 |
