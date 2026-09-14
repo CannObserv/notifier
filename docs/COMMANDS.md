@@ -222,8 +222,9 @@ NOTIFIER_ALLOW_PROD_DB=1 \
   uv run python scripts/seed_tenant.py acme acme-prod production
 ```
 
-Prints `tenant_id`, `raw_key`, and `environment`. **The raw key is shown
-once** — only its SHA-256 hash is stored.
+Prints `tenant_id`, `key_id`, `raw_key`, and `environment`. **The raw key is
+shown once** — only its SHA-256 hash is stored. Keep the `key_id`: it is what
+`rotate_key.py --revoke` takes when this credential is eventually retired.
 
 This VM already has a `dev` tenant with a `development` key in `notifier_dev`;
 the key is in the repo `.env` as `DEV_TENANT_API_KEY`. It also has a `watcher`
@@ -267,3 +268,72 @@ to reach unless someone deliberately seeds a live Apprise URL into the dev
 database. Do not "helpfully" copy production channels across — that recreates
 the exact failure watcher#278 documents, where ~1289 fixture notifications
 were delivered to real recipients.
+
+## Attaching, revoking, and rotating a key
+
+`seed_tenant.py` always creates a **new** tenant. To give a tenant that already
+exists a second credential, to retire one, or to rotate — `scripts/rotate_key.py`
+(#62). Keeping the two apart is deliberate: a script named `seed_tenant` that
+sometimes deletes credentials is the wrong thing to find during an incident.
+
+```bash
+. scripts/load_env.sh
+
+# Read first. --revoke needs a key id, and this is where you get it.
+DATABASE_URL="$DEV_DATABASE_URL" \
+  uv run python scripts/rotate_key.py --tenant-id <id> --list
+
+# Attach a second key to an existing tenant
+DATABASE_URL="$DEV_DATABASE_URL" \
+  uv run python scripts/rotate_key.py --tenant-id <id> --new-label backup
+
+# Rotate: mint the replacement and delete the old key in ONE transaction
+NOTIFIER_ALLOW_PROD_DB=1 \
+  uv run python scripts/rotate_key.py \
+    --tenant-id <id> --new-label <new-label> --revoke <old-key-id> \
+    --verify "http://$(tailscale ip -4):9000" --verify-old <old-raw-key>
+```
+
+Production carries the same opt-in as every other script here — on the command
+line, for the single invocation, never in an env file.
+
+| Flag | What it does |
+|---|---|
+| `--list` | Print the tenant's keys and exit — including the `key_id` that `--revoke` takes. Read-only, and refuses to be combined with any other flag, so a read never doubles as a write |
+| `--new-label` | Mint a key with this label |
+| `--environment` | `production` (default) or `development`, for the key being minted. Rejected without `--new-label` — it does not retag an existing key |
+| `--revoke <key-id>` | Delete this key, named explicitly. Never "the other one" |
+| `--force` | Permit revoking a tenant's **last** key. Requires `--revoke`; unreachable on a rotation, since the replacement is flushed before the count is read |
+| `--dry-run` | Rehearse everything, refusals included, and roll back |
+| `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal |
+| `--verify <base-url>` | After committing, prove the new key gets a 200 |
+| `--verify-old <raw>` | Also prove the old key now gets a 401. On a run that mints nothing the check is labelled `(uncontrolled)`: with no new key to get a 200, nothing establishes the endpoint would accept a good one |
+
+Exit codes: `0` done, `1` committed but not proven — the checks failed, or
+there was nothing to check — `2` refused (nothing written), `3` aborted at the
+prompt.
+
+`--verify` on a revoke with no replacement is that second case: the script
+holds no raw key to present, so it reports that nothing could be checked and
+exits `1` rather than exiting `0` in silence.
+
+**Verification is asymmetric, and that is not an oversight.** The script holds
+the raw key it just minted, so it can always prove that one works. It only ever
+held the *hash* of the key it revoked, so proving the old one is dead needs you
+to supply it — which you have during an exposure, and do not during a routine
+rotation. Without `--verify-old` the script says the old key went unchecked
+rather than passing over it.
+
+**A 403 on the old key is not proof of revocation.** 403 is what a production
+deployment returns for a `development` key — a perfectly valid credential being
+turned away. Only **401** means the row is gone. `--verify-old` insists on 401
+for that reason.
+
+**Revocation is a `DELETE`, and there is no `revoked_at`.** A column would leave
+an audit trail but would require every present and future key lookup to filter
+on it; forgetting that filter anywhere means a revoked credential that still
+authenticates. `DELETE` fails closed. The audit trail is taken as a log line on
+every mint and revoke — tenant, key id, prefix, label, never the raw key.
+
+**What this deliberately will not do: delete a tenant.** That cascades channels,
+monitors and dispatch history, and is not an incident-time operation.
