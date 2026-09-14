@@ -191,8 +191,33 @@ about it are easy to get wrong and expensive to debug:
 
 `codebase_search` with **`includeLinked: true`** spans the cohort; it defaults
 to false, so it must be named. `.socraticode.json` lists the siblings
-relatively, and a sibling that is not cloned locally is skipped **silently** —
+relatively, and a sibling whose directory is absent is skipped **silently** —
 the path must exist on disk even though the data is remote.
+
+**Those siblings are link stubs, not clones.** `resolveLinkedCollections` uses a
+linked path for exactly two things — `effectiveBaseProjectId(path)` to name the
+collection and `path.basename(path)` as a display label — and
+`searchMultipleCollections` receives only `{name, label}`. No path reaches the
+query; content comes wholly from Qdrant. So `../archiver`, `../replicator` and
+`../watcher` on this VM each hold one `.socraticode.json` naming a `projectId`,
+plus a README saying why. `../broker` is a real clone only because this host
+indexed broker during #57's build, which #63 undoes.
+
+Verified 2026-09-13 by moving the broker clone aside and replacing it with a
+single 30-byte `.socraticode.json`: search returned broker source with correct
+paths and line numbers, zero bytes of it on disk.
+
+A stub also cannot drift. A real checkout carries the sibling's own
+`.socraticode.json`, so a `projectId` change upstream leaves a stale clone
+resolving to the old collection.
+
+**Two silences stack here, and neither reaches the tool result.** A missing
+directory is dropped by `loadLinkedProjects`'s `fs.existsSync` filter; a stub
+naming a collection that does not exist yet is caught per-collection by
+`searchMultipleCollections` and skipped with a `logger.warn` to stderr. Search
+succeeds either way. **A green cross-repo result is not evidence that every
+sibling answered** — until the other three adopt (#57 Phase 7), only broker and
+notifier actually contribute.
 
 **It reaches `codebase_search` and nothing else.** `codebase_impact`,
 `codebase_graph_query`, `codebase_flow` and `codebase_context_search` are
