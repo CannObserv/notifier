@@ -478,22 +478,25 @@ async def main(args: argparse.Namespace) -> int:
     checks = verify(args.verify, new_raw=outcome.raw_key, old_raw=args.verify_old)
     for check in checks:
         print(f"{'PASS' if check.ok else 'FAIL'} {check.name}: {check.detail}")
-    if args.verify_old is None and outcome.revoked is not None:
-        print(
-            "old key not checked — this script only ever held its hash. "
-            "Pass --verify-old <raw> to prove it now returns 401."
-        )
     if not checks:
         # A revoke with no replacement leaves the script holding no raw key,
         # so --verify has nothing to send. Printing no verdict and exiting 0
         # is indistinguishable from a verification that passed, which is the
-        # one thing --verify exists to rule out (CR 2).
+        # one thing --verify exists to rule out (CR 2). This subsumes the
+        # "old key not checked" hint below — both end by asking for the same
+        # flag, and saying it twice is noise at the moment output most needs
+        # to be scannable (CR 13).
         print(
             "NOT VERIFIED — nothing could be checked: --verify needs a key to "
             "present, and this run minted none. Pass --verify-old <raw> to "
             "check the revoked key instead."
         )
         return NOT_VERIFIED
+    if args.verify_old is None and outcome.revoked is not None:
+        print(
+            "old key not checked — this script only ever held its hash. "
+            "Pass --verify-old <raw> to prove it now returns 401."
+        )
     return OK if all(check.ok for check in checks) else NOT_VERIFIED
 
 

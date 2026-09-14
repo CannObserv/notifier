@@ -590,8 +590,12 @@ class TestVerificationNeverReportsSuccessHavingCheckedNothing:
             )
         )
 
+        out = capsys.readouterr().out
         assert code == NOT_VERIFIED
-        assert "nothing could be checked" in capsys.readouterr().out.lower()
+        assert "nothing could be checked" in out.lower()
+        # One instruction, not two. The older "old key not checked" hint ends
+        # by telling the operator the same thing (CR 13).
+        assert out.lower().count("--verify-old") == 1
 
     def test_an_uncontrolled_old_key_check_says_so(self):
         """A 401 only means "revoked" if something proves the endpoint would
