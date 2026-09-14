@@ -271,10 +271,13 @@ async def apply(
 def render(outcome: Outcome) -> list[str]:
     """Return the lines to print for *outcome*.
 
-    ``tenant_id=`` / ``raw_key=`` / ``environment=`` keep the shape
-    ``seed_tenant.py`` prints, so an operator's eye lands in the same place
-    and an existing habit of copying one line still works. The raw key appears
-    exactly once and nowhere else — not in a log, not in a summary.
+    ``tenant_id=`` and ``raw_key=`` are flush left, keeping the shape
+    ``seed_tenant.py`` prints so an operator's eye lands in the same place and
+    an existing habit of copying one line still works. Everything else is
+    indented under a ``revoked:`` or ``minted:`` heading, because a run can
+    carry one of each and two flat ``environment=`` lines would not say which
+    key either belonged to. The raw key appears exactly once and nowhere else
+    — not in a log, not in a summary.
     """
     lines: list[str] = []
     if outcome.dry_run:
