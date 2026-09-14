@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+import scripts.rotate_key as rotate_key_module
 from scripts.rotate_key import (
     ABORTED,
     NOT_VERIFIED,
@@ -30,7 +31,7 @@ from scripts.rotate_key import (
     render_list,
     verify,
 )
-from src.core.api_keys import LastKeyError, hash_key, keys_for, mint
+from src.core.api_keys import KeyRecord, LastKeyError, hash_key, keys_for, mint
 from src.core.models import ApiKey, Tenant
 
 TENANT = "01J0TENANT0000000000000000"
@@ -308,8 +309,6 @@ class TestRender:
     ):
         """ "Deleted the other one" is what silently does the wrong thing to a
         tenant holding three keys."""
-        from src.core.api_keys import KeyRecord
-
         revoked = KeyRecord(
             id=KEY,
             tenant_id=TENANT,
@@ -481,10 +480,8 @@ class TestListing:
 class TestVerificationNeverReportsSuccessHavingCheckedNothing:
     @pytest.fixture
     def factory(self, monkeypatch, test_engine):
-        import scripts.rotate_key as module
-
         monkeypatch.setattr(
-            module,
+            rotate_key_module,
             "get_session_factory",
             lambda: async_sessionmaker(test_engine, expire_on_commit=False),
         )
@@ -557,10 +554,8 @@ class TestRefusalsReachTheOperatorCleanly:
 
     @pytest.fixture
     def factory(self, monkeypatch, test_engine):
-        import scripts.rotate_key as module
-
         monkeypatch.setattr(
-            module,
+            rotate_key_module,
             "get_session_factory",
             lambda: async_sessionmaker(test_engine, expire_on_commit=False),
         )

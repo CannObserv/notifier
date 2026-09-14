@@ -12,7 +12,9 @@ import re
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+import scripts.seed_tenant as seed_tenant_module
 from scripts.seed_tenant import main
 from src.core.api_keys import hash_key
 from src.core.models import ApiKey, Tenant
@@ -26,12 +28,8 @@ SDK_KEY_PATTERN = re.compile(r"raw_key=(\S+)")
 @pytest.fixture
 def seeded(capsys, monkeypatch, test_engine):
     """Run ``main`` against the test database and return its parsed output."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    import scripts.seed_tenant as module
-
     monkeypatch.setattr(
-        module,
+        seed_tenant_module,
         "get_session_factory",
         lambda: async_sessionmaker(test_engine, expire_on_commit=False),
     )
