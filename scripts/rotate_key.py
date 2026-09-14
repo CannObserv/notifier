@@ -198,6 +198,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         args.dry_run or None,
         args.yes or None,
         args.verify,
+        args.verify_old,
     )
     if args.list and any(other is not None for other in others):
         parser.error("--list is the read you do before deciding; run it on its own")
@@ -207,6 +208,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error(
             "--environment applies to a key being minted; it does not retag an existing one"
         )
+    if args.force and args.revoke is None:
+        parser.error("--force permits revoking a tenant's last key; nothing is being revoked")
     if args.verify_old is not None and args.revoke is None:
         parser.error("--verify-old proves a revoked key is dead; nothing is being revoked")
     if args.verify_old is not None and args.verify is None:

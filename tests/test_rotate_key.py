@@ -145,6 +145,13 @@ class TestArgumentParsing:
         with pytest.raises(SystemExit):
             parse_args(["--tenant-id", TENANT, "--new-label", "x", "--environment", "staging"])
 
+    def test_refuses_force_with_nothing_being_revoked(self):
+        """--force permits revoking a tenant's last key. With no --revoke it
+        reaches apply() and does nothing — the same silently-ignored flag CR 1
+        and CR 3 were about, in the same function (CR 17)."""
+        with pytest.raises(SystemExit):
+            parse_args(["--tenant-id", TENANT, "--new-label", "x", "--force"])
+
     def test_refuses_verify_old_with_nothing_being_revoked(self):
         with pytest.raises(SystemExit):
             parse_args(
@@ -526,15 +533,23 @@ class TestListing:
             ["--verify", "http://notifier:9000"],
             ["--dry-run"],
             ["--yes"],
+            ["--verify-old", "nk_x"],
         ],
-        ids=["mint", "revoke", "force", "verify", "dry-run", "yes"],
+        ids=["mint", "revoke", "force", "verify", "dry-run", "yes", "verify-old"],
     )
-    def test_refuses_to_combine_listing_with_anything_that_writes(self, extra):
+    def test_refuses_to_combine_listing_with_anything_that_writes(self, extra, capsys):
         """--list is the read an operator does *before* deciding. Bundling it
         with the write would print the state they were about to act on
-        alongside the state they already changed."""
+        alongside the state they already changed.
+
+        The message has to come from the --list guard: --verify-old was
+        refused by a later one, which told someone who asked for a listing
+        that nothing was being revoked (CR 19).
+        """
         with pytest.raises(SystemExit):
             parse_args(["--tenant-id", TENANT, "--list", *extra])
+
+        assert "--list is the read you do before deciding" in capsys.readouterr().err
 
     async def test_names_every_key_id(self, live_session, live_tenant):
         await mint(live_session, live_tenant, "first", "production")
