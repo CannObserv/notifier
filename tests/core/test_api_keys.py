@@ -340,3 +340,20 @@ class TestLastKeyCheckIsSerialized:
 
         event.remove(db_session.sync_session, "do_orm_execute", record)
         assert any("for update" in s and "tenants" in s for s in statements), statements
+
+    async def test_force_takes_no_lock(self, db_session, tenant):
+        """Under allow_last the delete is unconditional: no count is read, so
+        there is no read-then-write to serialize. A lock that protects nothing
+        invites the next reader to assume it protects something (CR 16)."""
+        only, _ = await mint(db_session, tenant.id, "only", "production")
+
+        statements = []
+
+        @event.listens_for(db_session.sync_session, "do_orm_execute")
+        def record(orm_context):
+            statements.append(str(orm_context.statement).lower())
+
+        await revoke(db_session, tenant.id, only.id, allow_last=True)
+
+        event.remove(db_session.sync_session, "do_orm_execute", record)
+        assert not any("for update" in s for s in statements), statements

@@ -237,13 +237,18 @@ async def revoke(
         raise KeyOwnershipError(
             f"api key {ulid_str(key_id)} belongs to tenant {owner}, not {ulid_str(tenant_id)}"
         )
-    await session.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
-    if not allow_last and await key_count(session, tenant_id) <= 1:
-        raise LastKeyError(
-            f"api key {ulid_str(key_id)} is the last key tenant "
-            f"{ulid_str(tenant_id)} holds; "
-            f"revoking it leaves that consumer unable to authenticate at all"
-        )
+    if not allow_last:
+        # Lock inside the branch that reads the count: under allow_last the
+        # delete is unconditional and there is no read-then-write to
+        # serialize, and a lock that protects nothing invites the next reader
+        # to assume it protects something (CR 16).
+        await session.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
+        if await key_count(session, tenant_id) <= 1:
+            raise LastKeyError(
+                f"api key {ulid_str(key_id)} is the last key tenant "
+                f"{ulid_str(tenant_id)} holds; "
+                f"revoking it leaves that consumer unable to authenticate at all"
+            )
 
     record = KeyRecord.of(key)
     await session.delete(key)
