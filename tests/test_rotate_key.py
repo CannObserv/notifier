@@ -11,6 +11,7 @@ revoke in a single transaction.
 """
 
 import secrets
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -284,6 +285,68 @@ class TestDryRun:
 
         with pytest.raises(LastKeyError):
             await apply(live_session, tenant_id=live_tenant, revoke_id=only_id, dry_run=True)
+
+
+class TestTimestamps:
+    def test_renders_iso_8601_with_a_z_suffix(self):
+        """AGENTS.md mandates YYYY-MM-DDTHH:MM:SS.ffffffZ, and
+        src.core.utils.format_utc_iso is what the rest of the service uses.
+        These printed a raw datetime — a shape nothing else here emits, so a
+        reader has to convert it by hand (CR 11)."""
+        record = KeyRecord(
+            id=KEY,
+            tenant_id=TENANT,
+            label="x",
+            key_prefix="nk_abcde",
+            environment="production",
+            created_at=datetime(2026, 9, 13, 23, 49, 41, 756669, tzinfo=UTC),
+            last_used_at=None,
+        )
+
+        rendered = "\n".join(render_list(TENANT, [record]))
+
+        assert "created_at=2026-09-13T23:49:41.756669Z" in rendered
+        assert "2026-09-13 23:49:41" not in rendered
+
+    def test_an_unused_key_says_never_rather_than_none(self):
+        """`last_used_at=None` is Python leaking into an operator's terminal,
+        and "never used" is the fact they actually want at revoke time."""
+        record = KeyRecord(
+            id=KEY,
+            tenant_id=TENANT,
+            label="x",
+            key_prefix="nk_abcde",
+            environment="production",
+            created_at=datetime(2026, 9, 13, 23, 49, 41, 756669, tzinfo=UTC),
+            last_used_at=None,
+        )
+
+        rendered = "\n".join(render_list(TENANT, [record]))
+
+        assert "last_used_at=never" in rendered
+
+    def test_the_revoked_block_formats_them_too(self):
+        outcome = Outcome(
+            tenant_id=TENANT,
+            minted=None,
+            raw_key=None,
+            revoked=KeyRecord(
+                id=KEY,
+                tenant_id=TENANT,
+                label="x",
+                key_prefix="nk_abcde",
+                environment="production",
+                created_at=datetime(2026, 9, 13, 23, 49, 41, 756669, tzinfo=UTC),
+                last_used_at=datetime(2026, 9, 14, 1, 2, 3, tzinfo=UTC),
+            ),
+            dry_run=False,
+            remaining_keys=1,
+        )
+
+        rendered = "\n".join(render(outcome))
+
+        assert "created_at=2026-09-13T23:49:41.756669Z" in rendered
+        assert "last_used_at=2026-09-14T01:02:03Z" in rendered
 
 
 class TestRender:

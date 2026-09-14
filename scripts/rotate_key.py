@@ -61,6 +61,7 @@ import argparse
 import asyncio
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,6 +77,7 @@ from src.core.api_keys import (
     ulid_str,
 )
 from src.core.database import get_session_factory
+from src.core.utils import format_utc_iso
 
 #: An authenticated endpoint that costs a tenant with no data nothing to
 #: serve. Its job is to exercise ``require_api_key``, not to return rows.
@@ -268,6 +270,18 @@ async def apply(
     )
 
 
+def _timestamp(value: datetime | None) -> str:
+    """Render a key's timestamp the way the rest of the service renders one.
+
+    AGENTS.md fixes ISO 8601 with a ``Z`` suffix, and ``format_utc_iso`` is
+    what ``src/core/monitors.py`` already uses; these lines were printing a
+    raw ``datetime``, a shape nothing else here emits (CR 11). ``None`` reads
+    as ``never`` rather than as Python leaking into a terminal — for a key
+    about to be revoked, "never used" is the fact the operator wants.
+    """
+    return "never" if value is None else format_utc_iso(value)
+
+
 def render(outcome: Outcome) -> list[str]:
     """Return the lines to print for *outcome*.
 
@@ -291,8 +305,8 @@ def render(outcome: Outcome) -> list[str]:
         lines.append(f"  label={r.label}")
         lines.append(f"  key_prefix={r.key_prefix}")
         lines.append(f"  environment={r.environment}")
-        lines.append(f"  created_at={r.created_at}")
-        lines.append(f"  last_used_at={r.last_used_at}")
+        lines.append(f"  created_at={_timestamp(r.created_at)}")
+        lines.append(f"  last_used_at={_timestamp(r.last_used_at)}")
 
     if outcome.minted is not None:
         lines.append("minted:")
@@ -329,8 +343,8 @@ def render_list(tenant_id: str, records: list[KeyRecord]) -> list[str]:
         lines.append(f"    label={record.label}")
         lines.append(f"    key_prefix={record.key_prefix}")
         lines.append(f"    environment={record.environment}")
-        lines.append(f"    created_at={record.created_at}")
-        lines.append(f"    last_used_at={record.last_used_at}")
+        lines.append(f"    created_at={_timestamp(record.created_at)}")
+        lines.append(f"    last_used_at={_timestamp(record.last_used_at)}")
     return lines
 
 
