@@ -110,6 +110,20 @@ class TestArgumentParsing:
         with pytest.raises(SystemExit):
             parse_args(["--tenant-id", TENANT, "--revoke", KEY, "--environment", "development"])
 
+    def test_refuses_an_environment_written_with_an_equals_sign(self):
+        """`--environment=development` is the same flag as `--environment
+        development`, and the guard read argv for the second spelling only —
+        so the first sailed past and was silently ignored (CR 1)."""
+        with pytest.raises(SystemExit):
+            parse_args(["--tenant-id", TENANT, "--revoke", KEY, "--environment=development"])
+
+    def test_the_environment_default_survives_the_guard(self):
+        """The guard needs to tell "not passed" from "passed the default", so
+        the default is applied after it rather than by argparse."""
+        args = parse_args(["--tenant-id", TENANT, "--new-label", "x"])
+
+        assert args.environment == "production"
+
     def test_refuses_an_unknown_environment(self):
         with pytest.raises(SystemExit):
             parse_args(["--tenant-id", TENANT, "--new-label", "x", "--environment", "staging"])
@@ -418,8 +432,10 @@ class TestListing:
             ["--revoke", KEY],
             ["--force"],
             ["--verify", "http://notifier:9000"],
+            ["--dry-run"],
+            ["--yes"],
         ],
-        ids=["mint", "revoke", "force", "verify"],
+        ids=["mint", "revoke", "force", "verify", "dry-run", "yes"],
     )
     def test_refuses_to_combine_listing_with_anything_that_writes(self, extra):
         """--list is the read an operator does *before* deciding. Bundling it

@@ -84,6 +84,11 @@ VERIFY_PATH = "/api/v1/templates"
 #: How long a verification request may take before it is a failed check.
 VERIFY_TIMEOUT_SECONDS = 10.0
 
+#: Applied after argument parsing, not as argparse's ``default``: the guard
+#: that refuses ``--environment`` without ``--new-label`` needs to be able to
+#: tell "not passed" from "passed the default value" (CR 1).
+DEFAULT_ENVIRONMENT = "production"
+
 #: Exit codes, distinguished so a caller can tell the three apart. A refusal
 #: means the database is untouched; a failed verification means it is not.
 OK = 0
@@ -132,7 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--new-label", help="mint a key with this label")
     parser.add_argument(
         "--environment",
-        default="production",
+        default=None,
         choices=ENVIRONMENTS,
         help="which deployment the new key is for (default: production)",
     )
@@ -178,12 +183,25 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    writes = (args.new_label, args.revoke, args.force or None, args.verify)
-    if args.list and any(w is not None for w in writes):
+    # Every one of these is a flag that would otherwise be accepted and then
+    # do nothing. `--environment` is read off the parsed value rather than off
+    # argv: `"--environment" in argv` matched only the space-separated
+    # spelling, so `--environment=development` sailed past this guard and was
+    # silently ignored (CR 1).
+    others = (
+        args.new_label,
+        args.revoke,
+        args.environment,
+        args.force or None,
+        args.dry_run or None,
+        args.yes or None,
+        args.verify,
+    )
+    if args.list and any(other is not None for other in others):
         parser.error("--list is the read you do before deciding; run it on its own")
     if not args.list and args.new_label is None and args.revoke is None:
         parser.error("nothing to do: pass --list, --new-label, --revoke, or both to rotate")
-    if args.new_label is None and "--environment" in argv:
+    if args.new_label is None and args.environment is not None:
         parser.error(
             "--environment applies to a key being minted; it does not retag an existing one"
         )
@@ -191,6 +209,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error("--verify-old proves a revoked key is dead; nothing is being revoked")
     if args.verify_old is not None and args.verify is None:
         parser.error("--verify-old needs --verify: there is nowhere to send the request")
+    if args.environment is None:
+        args.environment = DEFAULT_ENVIRONMENT
     return args
 
 
