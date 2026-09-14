@@ -64,7 +64,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.core.api_keys import (
     ENVIRONMENTS,
@@ -429,10 +429,34 @@ def _confirm(args: argparse.Namespace) -> bool:
     return input("Type 'yes' to proceed: ").strip() == "yes"
 
 
+def _open_factory() -> async_sessionmaker[AsyncSession]:
+    """Resolve the session factory, or raise a refusal worth printing.
+
+    ``get_session_factory`` runs ``DATABASE_URL`` through
+    ``src/core/db_safety.py``, which raises ``ProductionDatabaseError`` without
+    the ``NOTIFIER_ALLOW_PROD_DB=1`` opt-in — and that opt-in lives in no env
+    file by design, so forgetting it is the path this script is built to
+    expect rather than an edge case. It arrived as six lines of stack; the
+    message inside already says exactly what to do (CR 18).
+
+    A bare ``RuntimeError`` is the unset-``DATABASE_URL`` case. It is caught
+    *here*, around the one call that raises it, rather than around the work:
+    ``ProductionDatabaseError`` subclasses ``RuntimeError``, so catching the
+    pair anywhere wider would quietly swallow every other RuntimeError and
+    report it as a refusal that wrote nothing.
+    """
+    return get_session_factory()
+
+
 async def main(args: argparse.Namespace) -> int:
     """Run the requested operation and print the result. Returns an exit code."""
+    try:
+        factory = _open_factory()
+    except RuntimeError as exc:  # ProductionDatabaseError is one of these
+        print(f"refused: {exc}", file=sys.stderr)
+        return REFUSED
+
     if args.list:
-        factory = get_session_factory()
         try:
             async with factory() as session:
                 records = await keys_for(session, args.tenant_id)
@@ -447,7 +471,6 @@ async def main(args: argparse.Namespace) -> int:
         print("Aborted; nothing was written.", file=sys.stderr)
         return ABORTED
 
-    factory = get_session_factory()
     try:
         async with factory() as session:
             outcome = await apply(

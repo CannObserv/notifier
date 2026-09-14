@@ -33,6 +33,7 @@ from scripts.rotate_key import (
     verify,
 )
 from src.core.api_keys import KeyRecord, LastKeyError, hash_key, keys_for, mint
+from src.core.db_safety import ProductionDatabaseError
 from src.core.models import ApiKey, Tenant
 
 TENANT = "01J0TENANT0000000000000000"
@@ -69,6 +70,15 @@ async def live_tenant(live_session):
     await live_session.rollback()
     await live_session.execute(delete(Tenant).where(Tenant.id == tenant_id))
     await live_session.commit()
+
+
+def _raise(exc: Exception):
+    """A `get_session_factory` stand-in that fails the way the guard fails."""
+
+    def factory() -> None:
+        raise exc
+
+    return factory
 
 
 @pytest.fixture
@@ -694,6 +704,50 @@ class TestRefusalsReachTheOperatorCleanly:
         await main(parse_args(["--tenant-id", live_tenant, "--revoke", only_id, "--yes"]))
 
         assert capsys.readouterr().out == ""
+
+
+class TestTheProductionGuardRefusesCleanly:
+    """Forgetting NOTIFIER_ALLOW_PROD_DB=1 is the designed-for mistake, not an
+    edge case: the opt-in is deliberately in no env file, so an operator has
+    to remember it every single time. It arrived as six lines of stack (CR 18).
+    """
+
+    @pytest.fixture
+    def production_url(self, monkeypatch):
+        monkeypatch.setattr(
+            rotate_key_module,
+            "get_session_factory",
+            _raise(ProductionDatabaseError("Refusing to open production database 'notifier'.")),
+        )
+
+    async def test_it_is_a_message_not_a_traceback(self, production_url, capsys):
+        code = await main(parse_args(["--tenant-id", TENANT, "--list"]))
+
+        captured = capsys.readouterr()
+        assert code == REFUSED
+        assert "Traceback" not in captured.err
+        assert "Refusing to open production database" in captured.err
+
+    async def test_the_write_path_refuses_too(self, production_url, capsys):
+        code = await main(parse_args(["--tenant-id", TENANT, "--new-label", "x", "--yes"]))
+
+        captured = capsys.readouterr()
+        assert code == REFUSED
+        assert "Traceback" not in captured.err
+        assert captured.out == ""
+
+    async def test_an_unset_database_url_refuses_too(self, monkeypatch, capsys):
+        """`get_database_url` raises a bare RuntimeError for that one."""
+        monkeypatch.setattr(
+            rotate_key_module,
+            "get_session_factory",
+            _raise(RuntimeError("DATABASE_URL environment variable is not set.")),
+        )
+
+        code = await main(parse_args(["--tenant-id", TENANT, "--list"]))
+
+        assert code == REFUSED
+        assert "DATABASE_URL" in capsys.readouterr().err
 
 
 class TestConfirmation:
