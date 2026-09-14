@@ -184,6 +184,30 @@ units read the same working tree at each firing, so they need no restart —
 but `systemctl daemon-reload` is still required after editing anything in
 `deploy/`.
 
+### Worktrees here must not share this checkout's `.venv`
+
+`.skills/worktree_venv` is committed holding `none`, which stops
+`worktree-create.sh` symlinking this checkout's `.venv` into a new worktree.
+Provision the worktree's own with `uv sync` — sub-second against a warm cache.
+
+The reason is the line directly above: the sweep units read *this* working
+tree, and `scripts/sweep.sh` reaches uvicorn's environment through `uv run`.
+`notifier-sweep.timer` fires **every 60 seconds**, so a shared `.venv` hands a
+worktree's test run an environment the live service is concurrently
+reinstalling into. Two symptoms, neither of which looks like its cause:
+`uv run` restamps `importlib.metadata.version(...)` to *main's* version
+mid-run, and an `ExecStartPre=uv sync` prunes dependency groups it was not
+asked for — turning modules that `pytest.importorskip` at import time into
+**skips that still report green**.
+
+It is committed rather than left untracked because the cost is asymmetric. On
+a clone with no sweep timer — a laptop, CI — `none` costs one `uv sync` per
+worktree. On this VM rebuilt or re-cloned without it, the protection is
+silently absent and the failure reports success. The `using-git-worktrees`
+skill frames this as a property of one machine rather than of the repo, which
+is true; committing it trades a trivial cost on clones that do not need it for
+a silent one on the clone that does.
+
 ## Health checks
 
 **On this VM, `curl http://127.0.0.1:9000/health` fails — so does
