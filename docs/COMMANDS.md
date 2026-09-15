@@ -173,7 +173,22 @@ anywhere is a rotation everywhere.
 `scripts/install_qdrant_key.sh` merges it into a repo's git-ignored
 `.claude/settings.local.json`. **The key arrives on stdin** — never argv, which
 is visible in `ps` to every other process for the life of the call and lands in
-the caller's shell history. Run from an operator machine, which is the only host
+the caller's shell history.
+
+**It refuses any target git would commit** (#68). Check the repo first:
+
+```bash
+git -C <repo> check-ignore -v .claude/settings.local.json   # must print a rule
+```
+
+Do not assume the rule is there because a sibling repo has it. CannObserv/broker
+had none, is public, and four of the five cohort repos carrying the rule made
+the assertion read as true right up to the exception. The script distinguishes
+three failures because they have three remedies: **not a work tree** (the check
+cannot be made), **tracked** (`.gitignore` does not apply to tracked paths, so
+the key may already be in history — untrack *and* rotate), and **not ignored**
+(add the rule). It asks `git check-ignore` whatever the rule's source, since a
+global `core.excludesfile` genuinely does prevent a commit from that VM. Run from an operator machine, which is the only host
 able to reach both ends (exe.dev VMs are isolated from each other, and D13's
 `tag:index:22` edge was retired after Phase 6):
 
