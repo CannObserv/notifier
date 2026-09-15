@@ -4,11 +4,11 @@
 # repo-wide figure in .skills/context-token-ratio, falling back to it for a
 # file never counted exactly or since drifted far from the size recorded here.
 14856 5994 AGENTS.md
-21677 8248 docs/ARCHITECTURE.md
-10102 4042 docs/COMMANDS.md
-14166 5743 docs/DEPLOYMENT.md
+25888 9692 docs/ARCHITECTURE.md
+16818 6536 docs/COMMANDS.md
+15580 6249 docs/DEPLOYMENT.md
 8100 3065 docs/RELEASING.md
 11844 4605 docs/SKILLS.md
-12250 4603 docs/SOCRATICODE.md
+13723 5136 docs/SOCRATICODE.md
 8314 3116 docs/reference/monitors.md
-13350 5228 docs/reference/tailscale.md
+14879 5806 docs/reference/tailscale.md
