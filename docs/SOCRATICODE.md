@@ -198,10 +198,22 @@ the path must exist on disk even though the data is remote.
 linked path for exactly two things — `effectiveBaseProjectId(path)` to name the
 collection and `path.basename(path)` as a display label — and
 `searchMultipleCollections` receives only `{name, label}`. No path reaches the
-query; content comes wholly from Qdrant. So `../archiver`, `../replicator` and
-`../watcher` on this VM each hold one `.socraticode.json` naming a `projectId`,
-plus a README saying why. `../broker` is a real clone only because this host
-indexed broker during #57's build, which #63 undoes.
+query; content comes wholly from Qdrant. So all four siblings on this VM —
+`../archiver`, `../broker`, `../replicator`, `../watcher` — each hold one
+`.socraticode.json` naming a `projectId`, plus a README saying why.
+
+`../broker` was a real clone until 2026-09-16, because this host indexed broker
+during #57's build. #63 undid that: the `d4eab3ecb321` collections are gone and
+broker indexes itself from its own VM into `codebase_broker`. The stub is what
+makes the handover permanent — a clone here could be re-indexed by anything
+running on this host, and D11's lock is host-local, so a shared Qdrant gives
+two hosts nothing to contend on. A directory with no source cannot be indexed.
+
+Worth recording from broker's side of #63: that VM's checkout sits at
+`/home/exedev/broker` too, since exe.dev checks every repo out at the same
+path. The `d4eab3ecb321` hash was therefore never unique to this host, which is
+why the removal had to pin `SOCRATICODE_PROJECT_ID` rather than trust the
+path.
 
 Verified 2026-09-13 by moving the broker clone aside and replacing it with a
 single 30-byte `.socraticode.json`: search returned broker source with correct
@@ -216,8 +228,9 @@ directory is dropped by `loadLinkedProjects`'s `fs.existsSync` filter; a stub
 naming a collection that does not exist yet is caught per-collection by
 `searchMultipleCollections` and skipped with a `logger.warn` to stderr. Search
 succeeds either way. **A green cross-repo result is not evidence that every
-sibling answered** — until the other three adopt (#57 Phase 7), only broker and
-notifier actually contribute.
+sibling answered.** Between #63's removal and broker's first index from its own
+VM, `includeLinked` reaches **no** sibling at all and says nothing about it;
+each of the four contributes only once its own repo adopts (#57 Phase 7).
 
 **It reaches `codebase_search` and nothing else.** `codebase_impact`,
 `codebase_graph_query`, `codebase_flow` and `codebase_context_search` are
