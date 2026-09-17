@@ -6,7 +6,7 @@ metadata:
   author: gregoryfoster
   version: "1.4"
   overrides: gregoryfoster-skills/shipping-work-python-fastapi
-  synced-from: "gregoryfoster-skills v1.4 (91db31b)"
+  synced-from: "gregoryfoster-skills v1.4 (d04cebf)"
   override-reason: "Sources /etc/notifier/.env and $PROJECT_ROOT/.env before delegating to upstream pre-ship; names notifier's two systemd units and dev port"
   triggers: ship it, push GH, close GH, wrap up
 ---
@@ -47,7 +47,7 @@ Determine which GitHub issue(s) to close (priority order):
 
 ### Step 1 — Run pre-ship checks
 
-<!-- skill:required -->
+<!-- skill:required id=skill-scripts -->
 ```bash
 N=shipping-work-python-fastapi S=pre-ship.sh SD=
 { [ ! -x .skills/doctor.sh ] || bash .skills/doctor.sh; } || exit 1
@@ -74,9 +74,9 @@ If checks fail: stop, report the failure, fix before proceeding. Do not push fai
 bash "<SKILL_SCRIPTS>/doc-check.sh"
 ```
 
-`doc-check.sh` lists files changed on this branch vs the upstream default branch and flags any that match the project's sensitive-path list; when a sensitive path changes, the matching doc sections may need updating too. Entries match path *segments*, so `pyproject.toml` covers `clients/python/`'s as well as the root one. notifier commits its own list at `.skills/doc-sensitive-paths`, which **replaces** the script's generic FastAPI defaults rather than extending them — read that file for what it carries and why. `tests/ci/test_doc_sensitive_paths.py` fails on an entry that matches no tracked file, so the dead-entry case is caught in CI rather than here.
+`doc-check.sh` lists files changed on this branch vs the upstream default branch and flags any that match the project's sensitive-path list; when a sensitive path changes, the matching doc sections may need updating too. Entries match path *segments*, so `pyproject.toml` covers `clients/python/`'s as well as the root one, and `CHANGELOG.md` covers `clients/python/CHANGELOG.md`, the only one this repo tracks. notifier commits **both** halves, each of which **replaces** the script's generic FastAPI defaults rather than extending them: `.skills/doc-sensitive-paths` (#47) says what the gate watches, and `.skills/doc-sections` (#65) is the advice printed on a hit — read each file for what it carries and why. Tailoring only one is what upstream's half-tailoring note reports; both are tailored here, so a hit prints neither note. `tests/ci/test_doc_sensitive_paths.py` fails on a watched path that matches no tracked file, and `tests/ci/test_doc_sections.py` fails on advice naming a doc that is gone or on a watched path no line routes — so both dead-entry cases are caught in CI rather than here.
 
-If the script exits 1: review the listed files, decide whether each requires a doc update, and either commit the docs now or note them as deliberate skips. If the script exits 2: an infra/tooling problem prevented the doc check from running — investigate the underlying error rather than proceeding. One exit-2 case is worth naming: when no entry in the list matches any tracked file, the script says so instead of passing, because a list that cannot hit anything would otherwise print the same clean green as a genuinely doc-neutral branch. Fix the list; do not wave the step through.
+If the script exits 1: review the listed files, decide whether each requires a doc update, and either commit the docs now or note them as deliberate skips. If the script exits 2: an infra/tooling problem prevented the doc check from running — investigate the underlying error rather than proceeding. One exit-2 case is worth naming: when no entry in the list matches any tracked file, the script says so instead of passing, because a list that cannot hit anything would otherwise print the same clean green as a genuinely doc-neutral branch. Fix the list; do not wave the step through. The same goes for anything the project committed under `.skills/` that the script cannot use, the directory included: a tailoring never silently reverts to the built-in defaults, so an exit 2 there means the override is unusable, not absent.
 
 ### Step 2 — Ensure a clean working tree
 
@@ -175,14 +175,18 @@ If nothing applies, omit this step entirely.
 - If `gh` CLI hits errors (e.g., Projects API changes), use `--json` flag workarounds as needed
 - The project's AGENTS.md is authoritative for commit conventions — read it before committing
 - `pre-ship.sh` auto-derives its per-SHA stamp prefix from `$(basename "$(git rev-parse --show-toplevel)")` — resolves to `notifier-tests-clean-<sha>` automatically
-- This is a **local override**, re-synced from vendor `91db31b` (still v1.4). `scripts/pre-ship.sh`
+- This is a **local override**, re-synced from vendor `d04cebf` (still v1.4). `scripts/pre-ship.sh`
   and this `SKILL.md` are the only real files; the other five scripts are per-script symlinks into
   `skills-vendor/`, so they track upstream automatically. `SKILL.md` cannot be symlinked — it carries
-  the notifier deltas — so it is the one file that drifts, and nothing detects that: `doctor.sh` walks
-  symlinks and skips override directories, and the refresh hook only moves the submodule pointer.
-  It has drifted twice already: v1.2 against vendor v1.4 (Step 1's script-resolution loop, so Step 1
-  failed), then a Step 1.5 paragraph describing a `SENSITIVE_PATHS` array after upstream had moved to
-  segment matching and `.skills/doc-sensitive-paths` (#47). **Re-diff this file against vendor whenever
-  the submodule moves** — `skills-vendor/` is in the path list above, so Step 1.5 now says when that is.
+  the notifier deltas — so it is the one file that drifts. It has drifted three times: v1.2 against
+  vendor v1.4 (Step 1's script-resolution loop, so Step 1 failed); a Step 1.5 paragraph describing a
+  `SENSITIVE_PATHS` array after upstream had moved to segment matching and `.skills/doc-sensitive-paths`
+  (#47); then five un-bumped upstream edits at an unchanged v1.4, `.skills/doc-sections` among them (#69).
+  The third is the one the tooling can now see: since gregoryfoster/skills#286 `.skills/doctor.sh`
+  diffs the `synced-from:` commit above against the vendor's HEAD for versioned vendors too, so a
+  change at an unchanged `version:` reports. **Re-diff this file against vendor whenever the submodule
+  moves** — `skills-vendor/` is in the path list above, so Step 1.5 says when that is, and it says so
+  on the branch that moves the pointer, which is the earlier of the two signals. **Bump both stamps on
+  every re-sync** — a `synced-from:` left behind re-reports drift already paid down.
   Upstream's self-budget note is dropped here: the gate it cites
   (`tests/structural/test_skill_self_budget.py`) lives in the vendor repo, not this one

@@ -19,6 +19,11 @@
 #                         and docs/ARCHITECTURE.md
 #
 # tests/ci/test_doc_sensitive_paths.py fails on an entry that matches nothing.
+#
+# Companion: .skills/doc-sections is the advice printed on a hit, tailored
+# alongside this list (#65) — tailoring one alone makes every hit carry a
+# note saying so. Adding an entry here means adding the line that routes it
+# there; tests/ci/test_doc_sections.py fails on one that nothing routes.
 
 AGENTS.md
 README.md

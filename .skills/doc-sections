@@ -1,0 +1,32 @@
+# Doc sections for shipping-work-python-fastapi's Step 1.5 doc check.
+#
+# The advice printed on a hit: which docs to spot-check before shipping.
+# Like .skills/doc-sensitive-paths beside it, this REPLACES doc-check.sh's
+# built-in list wholesale. The two are tailored together on purpose — the
+# path list says what the gate watches, this says what to do about a hit —
+# and a repo that tailors one alone gets a note on every hit saying which
+# half is still the skill's default (gregoryfoster/skills#284, #65).
+#
+# The defaults dropped here named AGENTS.md and README.md only, with a
+# generic FastAPI section list behind each. Ours names the doc that owns
+# each watched surface instead, because the one that rots is rarely the
+# one at the top: in CannObserv/cannabis.observer-wordpress a tailored list
+# with default advice never named docs/COMMANDS.md, the doc that had
+# actually drifted (that repo's #880).
+#
+# Convention, this repo's and not the script's: every line opens
+# `<doc path>: ` and names in parentheses the sensitive paths it routes.
+# tests/ci/test_doc_sections.py holds both halves — a doc named here must
+# be tracked, and every entry in .skills/doc-sensitive-paths must be named
+# by some line, so a path added to the watch list cannot arrive with no
+# doc attached. Upstream runs no such check, deliberately: its sections
+# are prose and name nothing checkable.
+
+AGENTS.md: Project Layout, Conventions and API Boundary Principles (src/api/, src/core/); Common Commands and Server Lifecycle (scripts/, deploy/); Continuous Integration (.github/workflows/); Agent Skills (skills/)
+README.md: orientation and the curated links into docs/ — only the README-owned bits (the two-line quick start) change here; anything longer belongs in the doc it links
+clients/python/CHANGELOG.md: the top `## X.Y.Z — YYYY-MM-DD` heading — the SDK's compatibility record, and the only CHANGELOG.md this repo tracks
+docs/ARCHITECTURE.md: Project Layout (src/api/, src/core/, alembic/versions/, tests/ci/) and Dependency policy (pyproject.toml, uv.lock)
+docs/COMMANDS.md: the runnable command and its flags (scripts/), and the section that command belongs to
+docs/DEPLOYMENT.md: unit install, routine ops and the environment-variable reference (deploy/, alembic/versions/)
+docs/RELEASING.md: the version sites and the gates holding them in lockstep (pyproject.toml, uv.lock, CHANGELOG.md)
+docs/SKILLS.md: the Skills Inventory, the vendor pins, and the .skills/ policy it records (skills/, skills-vendor/, .skills/)

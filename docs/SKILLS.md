@@ -29,21 +29,42 @@ A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and
 `.skills/doctor.sh` (a real file, not a symlink — it diagnoses broken vendor symlinks) is installed and re-synced by the refresh hook's `install-doctor.sh` step, and re-syncs itself on every run. Check the symlink chain by hand with `bash .skills/doctor.sh`.
 
 `.skills/` also holds committed configuration the skills read: the `curating-context` budgets and
-telemetry, and `.skills/doc-sensitive-paths`, which replaces `doc-check.sh`'s built-in path list for
-this repo (#47). Replacing is wholesale, not additive — a default upstream adds later has to be added
-there by hand — and `tests/ci/test_doc_sensitive_paths.py` fails on any entry that matches no tracked
-file. Beyond the defaults it names `scripts/`, `.github/workflows/`, `skills/`, `skills-vendor/` and
-`.skills/`: a submodule bump reaches `git diff` as the single gitlink path `skills-vendor/<name>`, so
-without that entry the one event that stales an override would flag nothing.
+telemetry, and **both halves** of `doc-check.sh`'s Step 1.5 gate, each replacing its built-in
+defaults wholesale rather than extending them — a default upstream adds later has to be added here
+by hand.
+
+`.skills/doc-sensitive-paths` (#47) is what the gate watches. Beyond the defaults it names
+`scripts/`, `.github/workflows/`, `skills/`, `skills-vendor/` and `.skills/`: a submodule bump
+reaches `git diff` as the single gitlink path `skills-vendor/<name>`, so without that entry the one
+event that stales an override would flag nothing. `tests/ci/test_doc_sensitive_paths.py` fails on
+any entry that matches no tracked file.
+
+`.skills/doc-sections` (#65) is the advice printed on a hit — which docs to spot-check. Tailoring
+one half and not the other is its own defect, and since
+[gregoryfoster/skills#284](https://github.com/gregoryfoster/skills/issues/284) a hit says so,
+naming the half still running the skill's defaults; this repo ran that way from #47 until #65, with
+every hit advising a doc set written for a generic FastAPI layout. Upstream checks nothing about
+the sections, because upstream's are prose. This repo's are not: each line opens `<doc path>: ` and
+names the sensitive paths it routes, so `tests/ci/test_doc_sections.py` can fail on a doc that is
+gone **and** on a watched path no line routes — which is what keeps a new entry in the path list
+from arriving with no doc attached.
 
 The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
 ### Override drift
 
-Overrides are the one thing the refresh machinery does not keep current. `.skills/doctor.sh`
-walks *symlinks* and deliberately skips override directories; the daily hook only moves the
-submodule pointer, which by definition never touches a forked file. So an override falls
-further behind on every vendor release, silently.
+Overrides are the one thing the refresh machinery does not keep current: the daily hook only
+moves the submodule pointer, which by definition never touches a forked file, and nothing is ever
+auto-merged, because upstream text cannot be applied blindly over a fork. That drift used to be
+**silent** — `.skills/doctor.sh` walks *symlinks* and deliberately skips override directories.
+Since [gregoryfoster/skills#286](https://github.com/gregoryfoster/skills/issues/286) it is
+reported: the doctor diffs each override's recorded `synced-from:` commit against the vendor's
+HEAD — for a **versioned** vendor too, not only an unversioned one — and names the override's own
+real files when they changed. It is not a diff of the override against the vendor, which would fire
+forever on the deltas an override exists to carry; it compares the vendor with itself. Paying the
+drift down is still manual and the direction matters: local deltas onto the newer upstream text,
+never the reverse, then diff the pre-merge copy and account for every removed line
+(`skills/managing-skills/references/local-overrides.md` § "Re-syncing a drifted override").
 
 `shipping-work-python-fastapi` shows both the mitigation and the residue. Its five unchanged
 scripts are **per-script symlinks** into `skills-vendor/`, so they track upstream for free — a
@@ -58,7 +79,12 @@ rewrote Step 1.5 for [gregoryfoster/skills#252](https://github.com/gregoryfoster
 shipped it under the same `version: "1.4"`. The symlinked script updated on the ordinary submodule
 refresh while the committed paragraph went on describing a `SENSITIVE_PATHS` array (#47). So the
 trigger for re-diffing an override is the **submodule pointer moving**, not the vendor version
-changing; the pin below records the commit for that reason. `brainstorming`'s had fallen a full
+changing; the pin below records the commit for that reason. It drifted a third time the same way
+and this is the one the tooling caught: five `SKILL.md` commits landed between `91db31b` and
+`d04cebf` at an unchanged `version: "1.4"` — `.skills/doc-sections`, the idded `skill:required`
+marker, and the rule that a committed-but-unusable `.skills/` override is exit 2 rather than a
+silent fallback — reported by the #286 comparison and re-synced in #69. (The issue counted four;
+a fifth landed before the pointer reached `d04cebf`.) `brainstorming`'s had fallen a full
 restructure behind — 128 lines against vendor's 250, predating upstream's Spike/Bounded/Architectural
 model.
 
@@ -103,7 +129,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
-| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.4 (`91db31b`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5's path list is committed at `.skills/doc-sensitive-paths` (#47), guarded by `tests/ci/test_doc_sensitive_paths.py`; it flags `skills-vendor/`, so the pointer move that stales this file trips the gate. See [Override drift](#override-drift) — bump the recorded commit whenever you re-sync |
+| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.4 (`d04cebf`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`; the path list flags `skills-vendor/`, so the pointer move that stales this file trips the gate. See [Override drift](#override-drift) — `synced-from:` is now read by the doctor, so bump it **and** `version:` whenever you re-sync |
 | `subagent-driven-development` | obra-superpowers symlink | |
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |
