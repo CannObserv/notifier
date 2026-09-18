@@ -109,6 +109,48 @@ index if left in, and vendored prose outranks first-party code in
 `codebase_search` results.
 <!-- END socraticode-doc -->
 
+## The server is pinned, not installed at launch (#74)
+
+The plugin's own `mcp.json` is `npx -y --prefer-online socraticode@latest`, so
+**every launch installs** — and `--prefer-online` revalidates against the
+registry on each one, meaning a warm npx cache is not a warm path on any day
+the package moved. That install, not the indexing, is the memory cost: on
+`CannObserv/broker` a cold install plus server plus full index reached **1.2 G**
+at the cgroup, and all 126 `MemoryHigh` throttle events landed in the install
+(gregoryfoster/skills#295, `references/troubleshooting.md` row U).
+
+On a 3.8 GiB no-swap host that also runs the live service, that is not
+affordable. A pinned pre-install replaces it — **one deliberate install**:
+
+```bash
+npm view socraticode version        # pick a literal; never @latest
+systemd-run --user --scope -p MemoryHigh=700M -p MemoryMax=1000M \
+  -- npm install --prefix ~/.socraticode/pin socraticode@<version>
+```
+
+`mcp-driver.mjs` prefers that pin over the plugin's floating spec with nothing
+else to configure, and is inert when the directory is absent. Confirm without
+launching a server:
+
+```bash
+node skills-vendor/gregoryfoster-skills/skills/init-socraticode/scripts/mcp-driver.mjs resolve
+```
+
+**Measured here 2026-09-18, pinned at 1.14.0:** a full `health-check` tree —
+driver, server, graph and context queries — peaked at **90.5 MiB**, against
+the 1.2 G cold-install path it replaces. The cap above is sized for this host
+rather than broker's 8 GB; it leaves the live service real headroom, and
+because earlyoom now prefers `^npm`, a genuinely tight install is killed
+rather than allowed to starve production. Re-run it if that happens.
+
+**What the pin does not fix.** Claude Code cannot override a plugin's MCP
+command, so the *session's* own server still launches `@latest` — only the
+driver (and therefore the daily health hook) takes the pin. The hook measures
+that gap and splits on it: a patch apart stays quiet, since a pin is meant to
+lag; a **minor or major** apart is reported as a defect, being two feature
+releases writing one shared store. Re-pin with the same `npm install --prefix`
+line and a new literal, as a decision rather than on a schedule.
+
 ## Repo-specific notes
 
 **Measured yield (2026-09-12, on the shared store).** `verdict: ok` — **541

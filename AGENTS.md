@@ -85,6 +85,12 @@ service on port 9000.
 | Sweep (live) | systemd timer, 60s | — | `notifier-sweep.timer` → `.service`, production DB |
 | Sweep (dev) | systemd timer, 60s | — | `notifier-sweep-dev.timer` → `.service`, `notifier_dev` |
 
+**3.8 GiB, no swap**, shared with your session: past the ceiling nothing is
+OOM-killed, the kernel fails atomic allocations and the service drops. Hence
+**never cap the service** and **never install at launch** — SocratiCode is
+pinned under `~/.socraticode/pin` (#74,
+[reservation](docs/DEPLOYMENT.md#the-memory-reservation-74)).
+
 A fifth cohort VM, `co-index`, runs the shared SocratiCode store (#57). **No
 production path touches it**: its outage degrades search to `grep` and stops
 no service. It checks in to a dead-man's timer here like any other consumer.

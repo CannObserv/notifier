@@ -61,6 +61,14 @@ sudo cp deploy/notifier.service deploy/notifier-dev.service \
 sudo systemctl daemon-reload
 sudo systemctl enable --now notifier notifier-dev
 sudo systemctl enable --now notifier-sweep.timer notifier-sweep-dev.timer
+
+# Memory reservation for the production units (#74). This host is 3.8 GiB with
+# no swap and shares a kernel with agent sessions; see the section below.
+sudo cp deploy/99-notifier-memory.conf /etc/sysctl.d/
+sudo cp deploy/earlyoom.default /etc/default/earlyoom
+sudo sysctl -p /etc/sysctl.d/99-notifier-memory.conf
+sudo apt-get install -y earlyoom
+sudo systemctl enable --now earlyoom
 ```
 
 ## Production database opt-in
@@ -268,6 +276,65 @@ Notifier ran co-located on the `watcher` VM through v0, reached at
 `http://localhost:9000`. #43 moved it here and replaced that hop with the
 tailnet. The migration record — including the `pg_dump`/restore, the Fernet-key
 verification gate, and the rollback path — is in that issue.
+
+## The memory reservation (#74)
+
+Measured on this host 2026-09-18: **3.8 GiB, no swap, 2 cores**, running the
+live service, the dev endpoint, PostgreSQL *and* interactive agent sessions on
+one kernel. Live peaks: `notifier.service` 90 MiB, `notifier-dev.service`
+69 MiB, PostgreSQL 121 MiB. The agent sessions dwarf all three.
+
+The failure this guards against is not an OOM kill — it is the **absence** of
+one. Past the ceiling the kernel fails *atomic* allocations in whatever asks
+next (`tailscaled`, `ksoftirqd`) and the production service is what goes down.
+That is how `CannObserv/broker` lost its bus for 57m 48s on 2026-09-16 with
+nothing killed at all (gregoryfoster/skills#295, `references/troubleshooting.md`
+row U).
+
+Four settings, none of which substitutes for another:
+
+| Setting | Where | What it does |
+|---|---|---|
+| `MemoryLow=192M` | `deploy/notifier.service` | Soft floor the kernel will not reclaim below. Protects the working set, which is what a stall eats |
+| `OOMScoreAdjust=-500` | `notifier.service`, `notifier-sweep.service` | Puts production last in line for the killer |
+| `vm.min_free_kbytes=65536` | `deploy/99-notifier-memory.conf` | The reserve *atomic* allocations draw on. The two above are per-cgroup and cannot help `ksoftirqd` |
+| `-m 12,6` + `--prefer`/`--avoid` | `deploy/earlyoom.default` | Acts while the host is still responsive; the kernel's own killer is too late on a no-swap host |
+
+Three things are deliberate and easy to get wrong:
+
+- **`MemoryLow=`, never `MemoryMax=`, on the service.** A cap bounds the
+  victim rather than the cause, and on a process the killer will not pick it
+  *stalls* instead of killing. The cap belongs on the SocratiCode pre-install
+  below — a deliberate one-off run — never on the always-on service.
+- **`-500`, never `-1000`.** Unkillable turns a leak in the service into a
+  wedged host with no kill and no report.
+- **The dev units carry none of it.** A reservation everything holds is a
+  reservation nobody holds; under pressure dev is what loses, on purpose.
+
+**No spaces inside the earlyoom regexes.** `earlyoom.service` is
+`ExecStart=/usr/bin/earlyoom $EARLYOOM_ARGS`, unquoted, so systemd splits on
+whitespace with no shell quoting — a space would silently become a second
+argument, earlyoom would exit on it, and the host would be left with no early
+killer and an `active`-looking unit. The SocratiCode server's `comm` is
+literally `npm exec socrat`, so match it start-anchored as `^npm`.
+
+`tests/deploy/test_memory_reservation.py` asserts all of it. Verify live:
+
+```bash
+systemctl show notifier -p MemoryLow -p OOMScoreAdjust
+cat /proc/sys/vm/min_free_kbytes
+tr '\0' '\n' < /proc/$(systemctl show earlyoom -p MainPID --value)/cmdline
+```
+
+### One divergence from broker worth knowing
+
+Row U attributes half its severity to exe.dev session processes inheriting
+`oom_score_adj` **-1000** from `exe-init` and `sshd`, which would make them
+unkillable. **That does not hold here.** Measured on this host, only `sshd`
+and `exe-init` themselves carry -1000; every `claude` and `npm exec socrat`
+process sits at adj **0**. So the killer *can* pick them, and the
+`OOMScoreAdjust=-500` above is what makes it prefer them over production.
+Re-check with `cat /proc/<pid>/oom_score_adj` before assuming either shape.
 
 ## SocratiCode indexing (agent tooling)
 

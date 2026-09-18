@@ -25,6 +25,14 @@ TimeoutStartSec=120
 # that sources them (issue #22).
 Environment=NOTIFIER_ALLOW_PROD_DB=1
 
+# Deprioritised for the OOM killer alongside notifier.service (#74). This unit
+# is the only thing watching for consumer silence, so losing it to memory
+# pressure is a silent outage of the outage detector — the exact failure the
+# timer-not-in-process decision above exists to prevent, arriving by memory
+# rather than by process death. No MemoryLow=: this is a oneshot that is not
+# running most of the time, and a floor reserves nothing while it is idle.
+OOMScoreAdjust=-500
+
 EnvironmentFile=/etc/notifier/.env
 EnvironmentFile=-/home/exedev/notifier/.env
 
