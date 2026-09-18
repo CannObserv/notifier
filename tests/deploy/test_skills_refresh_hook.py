@@ -1,16 +1,16 @@
 """Drift test for the auto-refresh hook's SessionStart budget (#71).
 
 `.claude/hooks/skills-submodule-update.sh` fetches every vendored skills repo
-and, since gregoryfoster/skills#293, pushes the pointer bump it commits —
-one network round trip per submodule plus a push, all inside a single
-SessionStart entry. #259 set 120s as that hook's constant for exactly that
-reason: it is the slowest hook a consumer installs, and a kill lands *between*
-the commit and the push, leaving `main` ahead of `origin/main` on one machine
-and nowhere else.
+and, since gregoryfoster/skills#293, pushes the pointer bump it commits — one
+network round trip per submodule plus a push, all inside a single SessionStart
+entry. skills#259 set 120s as that hook's constant for exactly that reason: it
+is the slowest hook a consumer installs, and a kill lands *between* the commit
+and the push, leaving `main` ahead of `origin/main` on one machine and nowhere
+else.
 
-This repo carried 60s, and the installer cannot repair it. #259 made preserve
-beat prescribe — a timeout already on the entry wins over `--timeout`, so an
-operator's hand-chosen figure survives the tool that prescribed one (see
+This repo carried 60s, and the installer cannot repair it. skills#259 made
+preserve beat prescribe — a timeout already on the entry wins over `--timeout`,
+so an operator's hand-chosen figure survives the tool that prescribed one (see
 `install-hook.sh`, `resolve_timeout`). `install-refresh.sh` therefore reports
 the disagreement and changes nothing, which is why the value is pinned here
 rather than left to the next install run.
@@ -72,8 +72,8 @@ def test_refresh_hook_timeout_is_the_constant(refresh_entries):
     """120, and a JSON number — the harness ignores a string.
 
     If 60 were deliberate for this VM the fix is to say so on #71 and delete
-    this test, not to loosen it: #259 exists to protect a chosen figure, and
-    the point is that it be a decision rather than a leftover.
+    this test, not to loosen it: skills#259 exists to protect a chosen figure,
+    and the point is that it be a decision rather than a leftover.
     """
     (entry,) = refresh_entries
     timeout = entry["timeout"]
@@ -81,7 +81,7 @@ def test_refresh_hook_timeout_is_the_constant(refresh_entries):
         f"timeout is {type(timeout).__name__}, not a JSON number"
     )
     assert timeout == REFRESH_TIMEOUT, (
-        f"{REFRESH_HOOK} is registered with a {timeout}s budget; #259 sets "
+        f"{REFRESH_HOOK} is registered with a {timeout}s budget; skills#259 sets "
         f"{REFRESH_TIMEOUT}s because the run now fetches every vendored repo "
         f"and pushes the commit it writes"
     )
