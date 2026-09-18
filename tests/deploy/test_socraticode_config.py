@@ -100,6 +100,65 @@ def test_linked_projects_exclude_this_repo(config):
     assert f"../{REPO_ROOT.name}" not in config["linkedProjects"]
 
 
+#: The file holding this host's QDRANT_API_KEY. Never tracked, always ignored.
+SETTINGS_LOCAL = ".claude/settings.local.json"
+
+#: A path that is tracked and not ignored — the negative control for the probes
+#: below, which both report "safe" when git itself fails to answer.
+TRACKED_CONTROL = "AGENTS.md"
+
+
+def _git(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    )
+
+
+def test_settings_local_is_not_tracked():
+    """Tracked beats ignored: a file already in the index is committed regardless.
+
+    `git check-ignore` alone cannot diagnose this. Asked *with* --no-index it
+    exits 0 — reporting the matching rule — even for a path `git add -f` has
+    already staged, so the one assertion protecting the cohort's shared key
+    goes blind in exactly the state it exists to catch (measured; archiver hit
+    it, CannObserv/archiver@cf97c97). Asked without the flag it exits 1, which
+    is right but sends the operator to .gitignore when the remedy is a rotation.
+    Hence two tests with two messages.
+    """
+    tracked = _git("ls-files", "--error-unmatch", SETTINGS_LOCAL).returncode == 0
+    assert not tracked, (
+        f"{SETTINGS_LOCAL} is TRACKED by git — it holds this host's QDRANT_API_KEY, "
+        f"the cohort's single global key. Rotate it, then: git rm --cached {SETTINGS_LOCAL}"
+    )
+
+
+def test_settings_local_is_git_ignored():
+    """Asks git, rather than reading .gitignore and assuming the answer.
+
+    Four of five cohort repos carried the rule, which is what made the claim
+    read as true in the fifth — broker, which is public (#68, broker#18). The
+    rule's *source* does not matter here; whether a commit from this VM would
+    pick the file up does.
+    """
+    ignored = _git("check-ignore", "-q", SETTINGS_LOCAL).returncode == 0
+    assert ignored, f"{SETTINGS_LOCAL} is not git-ignored: it would be committed"
+
+
+def test_the_probes_discriminate():
+    """Both probes above read a non-zero exit as "safe", including git's failures.
+
+    A wrong cwd, a renamed path, no git on PATH — each one turns the pair green
+    while checking nothing. A path known to be tracked and not ignored proves
+    they still answer.
+    """
+    assert _git("ls-files", "--error-unmatch", TRACKED_CONTROL).returncode == 0, (
+        f"{TRACKED_CONTROL} is tracked, so the tracked probe is not answering"
+    )
+    assert _git("check-ignore", "-q", TRACKED_CONTROL).returncode != 0, (
+        f"{TRACKED_CONTROL} is not ignored, so the ignore probe is not answering"
+    )
+
+
 @pytest.mark.parametrize("path", NAMESPACE_GUARD_FILES, ids=lambda p: p.name)
 @pytest.mark.parametrize("variable", [COLLECTION_PREFIX, BRANCH_AWARE])
 def test_namespace_guards_are_not_set_anywhere(variable: str, path: Path):
