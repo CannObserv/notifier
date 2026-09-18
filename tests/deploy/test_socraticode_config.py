@@ -147,9 +147,11 @@ def test_settings_local_is_git_ignored():
 def test_the_probes_discriminate():
     """Both probes above read a non-zero exit as "safe", including git's failures.
 
-    A wrong cwd, a renamed path, no git on PATH — each one turns the pair green
-    while checking nothing. A path known to be tracked and not ignored proves
-    they still answer.
+    A wrong cwd, a renamed constant, a git that exits 128 rather than answering
+    — each one turns the pair green while checking nothing. (A missing git
+    binary is the one mode that does not: subprocess raises FileNotFoundError
+    and the probes error loudly.) A path known to be tracked and not ignored
+    proves they still answer.
     """
     assert _git("ls-files", "--error-unmatch", TRACKED_CONTROL).returncode == 0, (
         f"{TRACKED_CONTROL} is tracked, so the tracked probe is not answering"
@@ -193,23 +195,26 @@ def test_namespace_guard_failure_does_not_disclose_the_file(tmp_path):
     env_file.write_text(
         f"DATABASE_URL=postgresql://user:{secret}@host/db\n{COLLECTION_PREFIX}=oops\n"
     )
+    # The guard is aliased on import. Under its own name pytest collects it in
+    # the probe module as well, and the subprocess then re-runs all twelve real
+    # parametrizations — reading /etc/notifier/.env and settings.local.json for
+    # no reason, and folding their output into the buffer grepped below.
     probe = tmp_path / "test_guard_probe.py"
     probe.write_text(
         "from pathlib import Path\n\n"
         "from tests.deploy.test_socraticode_config import (\n"
         "    COLLECTION_PREFIX,\n"
-        "    test_namespace_guards_are_not_set_anywhere,\n"
+        "    test_namespace_guards_are_not_set_anywhere as guard,\n"
         ")\n\n\n"
         "def test_probe():\n"
-        "    test_namespace_guards_are_not_set_anywhere(\n"
-        f"        COLLECTION_PREFIX, Path({str(env_file)!r})\n"
-        "    )\n"
+        f"    guard(COLLECTION_PREFIX, Path({str(env_file)!r}))\n"
     )
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "-vv", "--no-cov", "-p", "no:cacheprovider", str(probe)],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
+        timeout=180,
     )
     output = result.stdout + result.stderr
     assert result.returncode != 0, "probe was expected to fail; the guard did not fire"
