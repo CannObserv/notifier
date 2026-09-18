@@ -46,6 +46,22 @@ def refresh_entries() -> list[dict]:
     ]
 
 
+@pytest.fixture(scope="module")
+def refresh_entry(refresh_entries) -> dict:
+    """The single registered entry, or a named failure rather than an unpack error.
+
+    `(entry,) = refresh_entries` raises ValueError in exactly the state this
+    file exists to diagnose — a missing or duplicated registration — and the
+    two tests below would then read as a broken test file rather than a broken
+    settings file.
+    """
+    assert len(refresh_entries) == 1, (
+        f"expected exactly one SessionStart entry running {REFRESH_HOOK}, "
+        f"found {len(refresh_entries)}"
+    )
+    return refresh_entries[0]
+
+
 def test_refresh_hook_is_registered(refresh_entries):
     """The negative control: without it the timeout assertions pass vacuously."""
     assert len(refresh_entries) == 1, (
@@ -54,31 +70,34 @@ def test_refresh_hook_is_registered(refresh_entries):
     )
 
 
-def test_refresh_hook_declares_a_timeout(refresh_entries):
+def test_refresh_hook_declares_a_timeout(refresh_entry):
     """Absent is the eight-sibling defect; here it would also re-arm the installer.
 
     An entry with no timeout takes `--timeout` on the next install run, so a
     missing value is self-healing and a wrong one is not. Asserted separately
     from the value so the failure says which of the two states it is in.
     """
-    (entry,) = refresh_entries
-    assert "timeout" in entry, (
+    assert "timeout" in refresh_entry, (
         f"{REFRESH_HOOK} runs under the harness default; "
         f"re-run install-refresh.sh to register {REFRESH_TIMEOUT}"
     )
 
 
-def test_refresh_hook_timeout_is_the_constant(refresh_entries):
-    """120, and a JSON number — the harness ignores a string.
+def test_refresh_hook_timeout_is_the_constant(refresh_entry):
+    """120, written as a bare integer the way every other entry in the file is.
+
+    The type assertion is a spelling guard, not a claim about the harness:
+    `"120"` and `120.0` are both things a hand edit or a jq recipe can leave
+    behind, and neither is what the surrounding entries carry. `bool` is
+    excluded because it satisfies `isinstance(x, int)`.
 
     If 60 were deliberate for this VM the fix is to say so on #71 and delete
     this test, not to loosen it: skills#259 exists to protect a chosen figure,
     and the point is that it be a decision rather than a leftover.
     """
-    (entry,) = refresh_entries
-    timeout = entry["timeout"]
+    timeout = refresh_entry["timeout"]
     assert isinstance(timeout, int) and not isinstance(timeout, bool), (
-        f"timeout is {type(timeout).__name__}, not a JSON number"
+        f"timeout is {type(timeout).__name__}, not a bare integer"
     )
     assert timeout == REFRESH_TIMEOUT, (
         f"{REFRESH_HOOK} is registered with a {timeout}s budget; skills#259 sets "
