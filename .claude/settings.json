@@ -27,7 +27,7 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/skills-submodule-update.sh",
-            "timeout": 60
+            "timeout": 120
           }
         ]
       },
