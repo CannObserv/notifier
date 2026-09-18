@@ -13,6 +13,8 @@ check stays green. See docs/plans/2026-09-11-shared-qdrant-vm-design.md, D0/D12.
 """
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -101,7 +103,59 @@ def test_linked_projects_exclude_this_repo(config):
 @pytest.mark.parametrize("path", NAMESPACE_GUARD_FILES, ids=lambda p: p.name)
 @pytest.mark.parametrize("variable", [COLLECTION_PREFIX, BRANCH_AWARE])
 def test_namespace_guards_are_not_set_anywhere(variable: str, path: Path):
-    """VM-local where the file is VM-local; skips loudly rather than passing vacuously."""
+    """VM-local where the file is VM-local; skips loudly rather than passing vacuously.
+
+    The membership test is reduced to a bool *before* the assert on purpose.
+    Two of these paths hold secrets — /etc/notifier/.env and
+    .claude/settings.local.json, the latter the cohort's single QDRANT_API_KEY
+    — and `assert variable not in path.read_text()` puts the whole file into
+    the assertion expression, which pytest prints in full under -vv (#73). The
+    custom message already names the file and the variable, so asserting on the
+    bool loses no diagnostic and leaves nothing to print.
+    """
     if not path.exists():
         pytest.skip(f"{path} not present on this machine")
-    assert variable not in path.read_text(), f"{path.name} sets {variable}"
+    declares = variable in path.read_text()
+    assert not declares, f"{path.name} sets {variable}"
+
+
+def test_namespace_guard_failure_does_not_disclose_the_file(tmp_path):
+    """A failing guard must not print the file it read (#73).
+
+    /etc/notifier/.env and .claude/settings.local.json are both on the guard
+    list, and the latter holds the cohort's single QDRANT_API_KEY. pytest
+    prints an assertion's operands in full under -vv, and -vv is exactly what
+    someone reaches for when a terse `notifier.service sets X` is not enough.
+    Measured rather than reasoned about: run the real guard under -vv against a
+    file carrying a fake secret and grep the output for it.
+    """
+    secret = "SUPERSECRETPASSWORD-73"  # noqa: S105 - fake, never a real credential
+    env_file = tmp_path / "fake.env"
+    env_file.write_text(
+        f"DATABASE_URL=postgresql://user:{secret}@host/db\n{COLLECTION_PREFIX}=oops\n"
+    )
+    probe = tmp_path / "test_guard_probe.py"
+    probe.write_text(
+        "from pathlib import Path\n\n"
+        "from tests.deploy.test_socraticode_config import (\n"
+        "    COLLECTION_PREFIX,\n"
+        "    test_namespace_guards_are_not_set_anywhere,\n"
+        ")\n\n\n"
+        "def test_probe():\n"
+        "    test_namespace_guards_are_not_set_anywhere(\n"
+        f"        COLLECTION_PREFIX, Path({str(env_file)!r})\n"
+        "    )\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-vv", "--no-cov", "-p", "no:cacheprovider", str(probe)],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    output = result.stdout + result.stderr
+    assert result.returncode != 0, "probe was expected to fail; the guard did not fire"
+    assert f"fake.env sets {COLLECTION_PREFIX}" in output, (
+        "probe failed for some reason other than the guard; this test proves nothing"
+    )
+    disclosed = secret in output
+    assert not disclosed, "the guard's failure output contains the file's contents"
