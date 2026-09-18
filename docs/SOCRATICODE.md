@@ -185,7 +185,15 @@ about it are easy to get wrong and expensive to debug:
 - **`QDRANT_COLLECTION_PREFIX` and `SOCRATICODE_BRANCH_AWARE` must stay
   unset.** The first splits the cohort namespace including the global metadata
   collection; the second gives every branch its own six collections.
-  `tests/deploy/test_socraticode_config.py` asserts both.
+  `tests/deploy/test_socraticode_config.py` asserts both — on a bool rather than
+  on the file it read, because two of the six files it opens hold secrets and
+  pytest prints an assertion's operands in full under `-vv` (#73).
+- **`.claude/settings.local.json` must stay untracked *and* ignored.** The same
+  test file pins both, because neither check sees the other's state: `git
+  check-ignore --no-index` exits 0 for a path `git add -f` has already staged,
+  and without the flag it reports a tracked path as merely un-ignored, which
+  sends the operator to `.gitignore` when the remedy is a key rotation. The rule
+  was simply absent in broker, a public repo, and read as true for months (#68).
 
 ### Cross-repo search
 
