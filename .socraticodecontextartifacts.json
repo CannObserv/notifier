@@ -13,7 +13,7 @@
     {
       "name": "deployment-architecture",
       "path": "./docs/DEPLOYMENT.md",
-      "description": "Production deployment topology \u2014 systemd service (notifier on :9000), port assignments, env file layout (/etc/notifier/.env vs repo .env), co-location with watcher service, and lifecycle commands."
+      "description": "Production deployment topology \u2014 its own VM since #43 (notifier.exe.xyz), not co-located with any consumer. Both endpoints bind this host's tailnet address alone: notifier.service on :9000 against the production database and notifier-dev.service on :9001 against notifier_dev, plus the two dead-man's-timer sweeps. Covers env file layout (/etc/notifier/.env vs the repo .env), the production-database opt-in, the memory reservation this 3.8 GiB no-swap host needs, and lifecycle commands."
     },
     {
       "name": "operational-runbook",
@@ -23,7 +23,7 @@
     {
       "name": "systemd-unit",
       "path": "./deploy",
-      "description": "systemd units for the notifier service \u2014 notifier.service (production, port 9000) and notifier-dev.service (dev endpoint, port 9001, notifier_dev). User, ExecStart command, EnvironmentFile sources, restart policy, and which unit carries the production-database opt-in. Authoritative for runtime config."
+      "description": "systemd units and host config for the notifier service \u2014 notifier.service (production, :9000), notifier-dev.service (dev endpoint, :9001, notifier_dev), and the notifier-sweep{,-dev} timer/service pairs that run the dead-man's-timer sweep every 60s. Carries User, ExecStart, EnvironmentFile sources, restart bounds, which unit holds the production-database opt-in, and the memory reservation (MemoryLow/OOMScoreAdjust, 99-notifier-memory.conf, earlyoom.default). Authoritative for runtime config."
     }
   ]
 }
