@@ -1,3 +1,3 @@
 # The anchor atom behind the retarget warranted in .skills/context-loss-ok: the
 # heading it pointed at lost its `(#74)` this run, so the old slug cannot survive.
-retarget :: DEPLOYMENT.md#the-memory-reservation-74
+AGENTS.md :: retarget :: DEPLOYMENT.md#the-memory-reservation-74

@@ -2,14 +2,14 @@
 
 # The two packages ARE the boundary the sentence defines, and the next clause
 # names both. It cannot change without the sentence being rewritten.
-stable :: Two packages, one boundary:
+AGENTS.md :: stable :: Two packages, one boundary:
 
 # The table immediately above lists exactly the sweeps being counted.
-enumerated :: The two sweeps are the only thing watching for consumer silence.
+AGENTS.md :: enumerated :: The two sweeps are the only thing watching for consumer silence.
 
 # The numbered list directly beneath is the enumeration.
-enumerated :: Two env files, loaded in order (later values override):
+AGENTS.md :: enumerated :: Two env files, loaded in order (later values override):
 
 # tests/ci/test_dependencies.py is named in the sentence itself and asserts
 # each rule; docs/ARCHITECTURE.md#dependency-policy carries them written out.
-gated :: **Dependencies:** four rules, all asserted by
+AGENTS.md :: gated :: **Dependencies:** four rules, all asserted by
