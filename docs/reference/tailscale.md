@@ -23,8 +23,8 @@ specific to notifier.
   **Non-ephemeral and tagged**, so it never expires. That matters more here
   than for a fleet worker: an expiring node key would take every dispatch with
   it, silently.
-- **Consumer node:** `watcher`, tag `tag:watcher`, `100.120.218.69` — the
-  `watcher` VM, which also hosts archiver and replicator.
+- **Consumer node:** `watcher`, tag `tag:watcher`, `100.66.24.24` — the
+  `watcher` VM, which now runs watcher alone.
 - **Reporting node:** `broker`, tag `tag:broker`, `100.97.91.19` — the
   `co-broker` VM. It reaches notifier and nothing else, to check in against a
   dead-man's timer every ten minutes (#56, CannObserv/broker#3). The rule is
@@ -195,6 +195,14 @@ address:
 ```bash
 curl "http://$(tailscale ip -4):9000/health"
 ```
+
+`https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops:
+nothing listens on the interface the proxy forwards to. Deliberate, not broken.
+
+Watcher, the first consumer, is on the `watcher` VM (`lax`) — its own, since
+archiver and replicator left for `co-registrar` and `co-replicator`. Its API is
+on 8000 there; its production credential is `/etc/watcher/notifier.env`,
+pointed at `http://notifier:9000` (watcher#278).
 
 ## Joining or re-joining this host
 

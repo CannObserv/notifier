@@ -89,11 +89,7 @@ service on port 9000.
 OOM-killed, the kernel fails atomic allocations and the service drops. Hence
 **never cap the service** and **never install at launch** — SocratiCode is
 pinned under `~/.socraticode/pin` (#74,
-[reservation](docs/DEPLOYMENT.md#the-memory-reservation-74)).
-
-A fifth cohort VM, `co-index`, runs the shared SocratiCode store (#57). **No
-production path touches it**: its outage degrades search to `grep` and stops
-no service. It checks in to a dead-man's timer here like any other consumer.
+[reservation](docs/DEPLOYMENT.md#the-memory-reservation)).
 
 The two sweeps are the only thing watching for consumer silence. A timer that
 stops is a silent outage of the outage detector — `systemctl list-timers
@@ -116,14 +112,6 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 `127.0.0.1:9000` and `http://notifier:9000` fail** — `/etc/hosts` maps
 `notifier` to `127.0.1.1`, which nothing binds. Use `curl
 "http://$(tailscale ip -4):9000/health"`. Per-host table in the reference doc.
-
-`https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops:
-nothing listens on the interface the proxy forwards to. Deliberate, not broken.
-
-Watcher, the first consumer, is on the `watcher` VM (`lax`) — its own, since
-archiver and replicator left for `co-registrar` and `co-replicator`. Its API is
-on 8000 there; its production credential is `/etc/watcher/notifier.env`,
-pointed at `http://notifier:9000` (watcher#278).
 
 ## Server Lifecycle
 

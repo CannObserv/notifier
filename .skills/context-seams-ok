@@ -44,3 +44,46 @@ docs/DEPLOYMENT.md :: The VM split (#43, done)
 docs/SOCRATICODE.md :: | `deployment-architecture` | `docs/DEPLOYMENT.md` |
 docs/reference/monitors.md :: - [DEPLOYMENT.md](../DEPLOYMENT.md) — installing and enabling the timers
 docs/reference/tailscale.md :: to [DEPLOYMENT.md](../DEPLOYMENT.md).
+
+# Reviewed 2026-09-19 under #74. This run demoted three blocks out of
+# § Infrastructure (co-index, the exe.dev proxy gate, the watcher consumer).
+# None of the back-references below points at any of them — each names either
+# the policy file generically or a section that is still inline, verified:
+# § Code Exploration Policy (negative rule), § Conventions (ISO 8601 with Z),
+# § API Boundary Principles. Legitimate, not defects.
+.claude/hooks/context-budget-guard.sh :: AGENTS.md, the next fortnight of edits puts it back
+.claude/hooks/context-budget-guard.sh :: the policy file: AGENTS.md or CLAUDE.md at the repo root
+.claude/hooks/context-budget-guard.sh :: CLAUDE.md is followed to its target
+.claude/hooks/context-budget-guard.sh :: AGENTS.md|CLAUDE.md) KIND="policy"
+.claude/hooks/skills-submodule-update.sh :: the exit-2 of AGENTS.md's gate
+.claude/hooks/socraticode-health.sh :: repo's AGENTS.md.
+.claude/hooks/socraticode-health.sh :: told by AGENTS.md to prefer codebase_search over grep
+scripts/rotate_key.py :: AGENTS.md fixes ISO 8601 with a ``Z`` suffix
+skills/shipping-work-python-fastapi/scripts/doc-check.sh :: referenced from project docs (e.g., AGENTS.md, README.md)
+skills/shipping-work-python-fastapi/scripts/doc-check.sh :: "AGENTS.md"
+skills/shipping-work-python-fastapi/scripts/doc-check.sh :: AGENTS.md: project structure, conventions
+skills/shipping-work-python-fastapi/scripts/doc-check.sh :: check AGENTS.md and README.md, never the
+src/api/schemas/monitor.py :: (AGENTS.md, API Boundary
+tests/api/test_dispatch_route.py :: AGENTS.md: reject 422 with a clear field path on miss
+tests/api/test_dispatch_route.py :: an unbound reference fails loudly, per AGENTS.md
+tests/api/test_monitors_route.py :: (AGENTS.md, API Boundary Principles)
+tests/api/test_tenant_isolation.py :: AGENTS.md puts it as a design rule
+tests/deploy/test_load_env.py :: "AGENTS.md",
+
+# The last two policy-file back-references: one uses AGENTS.md purely as a
+# tracked-file control, the other names the ISO 8601 rule that is still inline.
+tests/deploy/test_socraticode_config.py :: TRACKED_CONTROL = "AGENTS.md"
+tests/test_rotate_key.py :: AGENTS.md mandates YYYY-MM-DDTHH:MM:SS.ffffffZ
+
+# Per-doc sweeps for the two split destinations. This run only ADDED sections to
+# both files; every reference below names the file as a whole — an index entry, a
+# context-artifact manifest path, a hook's existence check — so none of them can
+# be broken by an append.
+docs/reference/monitors.md :: [tailscale.md](tailscale.md) — the ACL rule a reporting node needs first
+docs/reference/tailscale.md :: `docs/reference/tailscale.md` (what a tailnet is, WireGuard, MagicDNS
+docs/SOCRATICODE.md :: | `code-exploration` | `docs/SOCRATICODE.md` | this file
+.claude/hooks/socraticode-health.sh :: [ -f "$PROJECT/docs/SOCRATICODE.md" ]
+.claude/hooks/socraticode-reminder.sh :: re-run this hook by hand for the ToolSearch
+.claude/hooks/socraticode-reminder.sh :: generated `docs/SOCRATICODE.md` — points here instead of transcribing it
+.socraticodecontextartifacts.json :: "path": "./docs/SOCRATICODE.md",
+scripts/install_qdrant_key.sh :: # docs/SOCRATICODE.md and CannObserv/notifier#57.
