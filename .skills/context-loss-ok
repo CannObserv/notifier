@@ -4,16 +4,13 @@ tighten :: from exe.dev's internal `10.42.0.0/16`, from the exe.dev proxy, and f
 tighten :: internet — the Tailscale ACL decides who gets in. Address resolved by
 tighten :: `scripts/tailnet_bind.sh`, which waits for tailscaled and fails loudly rather
 tighten :: than falling back to a wider bind. Full reference:
-tighten :: [docs/reference/tailscale.md](docs/reference/tailscale.md).
 disproven :: Watcher, the first consumer, is on the separate `watcher` VM (`lax`) with
 disproven :: archiver and replicator; its API is on 8000 there. Its production credential
 disproven :: lives in `/etc/watcher/notifier.env` on that host, pointed at
-disproven :: `http://notifier:9000` (watcher#278).
 tighten :: **Dev server workflow:** One launch path serves both the unit and the hand-run
 tighten :: case. `scripts/dev_server.sh` loads secrets, swaps `DATABASE_URL` for
 tighten :: `DEV_DATABASE_URL`, runs the production-database guard, checks the dev
 tighten :: database is migrated, and only then starts uvicorn on 9001 so the live service
-tighten :: stays up:
 tighten :: Never hand-run uvicorn. The old recipe sourced `/etc/notifier/.env` — which
 tighten :: sets `DATABASE_URL` to **production** — so the "dev" server on 9001 shared one
 tighten :: database with the live service on 9000 (issue #22). Still true on a dedicated
@@ -22,7 +19,6 @@ tighten :: now refuses any database whose name does not end in `_test` or `_dev`
 tighten :: production opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the systemd unit and
 tighten :: must never be added to an env file.
 duplicate :: # Dead-man's-timer sweep (systemd timers own the schedule; this forces a pass)
-duplicate :: sudo systemctl start notifier-sweep.service
 duplicate :: # FastAPI dev server by hand (port 9001, dev DB, guarded — never hand-run
 duplicate :: # uvicorn). Stop notifier-dev.service first; it holds the port.
 duplicate :: sudo systemctl stop notifier-dev && ./scripts/dev_server.sh
@@ -48,3 +44,8 @@ tighten :: - `NOTIFIER_ALLOW_PROD_DB` — set to `1` **in `deploy/notifier.servi
 # CR round: reclaiming the tokens CR 1's restore cost. Same rule, same reason,
 # fewer words; "changes merged to main" is what a restart always picks up.
 tighten :: **After finishing work:** Always restart both services to pick up changes merged to main
+# Phase 6.5 flagged `(#74)` in three headings I wrote this run: an issue number
+# in a permanent anchor slug is a class 3b seam. Renaming the DEPLOYMENT.md
+# heading moved this pointer's target, so the same run that invalidated the
+# anchor is the one that fixed it. The provenance moved into each section body.
+retarget :: [reservation](docs/DEPLOYMENT.md#the-memory-reservation-74)).

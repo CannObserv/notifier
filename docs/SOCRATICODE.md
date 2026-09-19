@@ -109,7 +109,7 @@ index if left in, and vendored prose outranks first-party code in
 `codebase_search` results.
 <!-- END socraticode-doc -->
 
-## The server is pinned, not installed at launch (#74)
+## The server is pinned, not installed at launch
 
 The plugin's own `mcp.json` is `npx -y --prefer-online socraticode@latest`, so
 **every launch installs** — and `--prefer-online` revalidates against the
@@ -136,7 +136,7 @@ launching a server:
 node skills-vendor/gregoryfoster-skills/skills/init-socraticode/scripts/mcp-driver.mjs resolve
 ```
 
-**Measured here 2026-09-18, pinned at 1.14.0:** a full `health-check` tree —
+**Measured here 2026-09-18 (#74), pinned at 1.14.0:** a full `health-check` tree —
 driver, server, graph and context queries — peaked at **90.5 MiB**, against
 the 1.2 G cold-install path it replaces. The cap above is sized for this host
 rather than broker's 8 GB; it leaves the live service real headroom, and
@@ -204,6 +204,10 @@ cloned locally is skipped **silently** by upstream, and `codebase_search` only
 consults them when called with `includeLinked: true`.
 
 ## The shared store
+
+A fifth cohort VM, `co-index`, runs the shared SocratiCode store (#57). **No
+production path touches it**: its outage degrades search to `grep` and stops
+no service. It checks in to a dead-man's timer here like any other consumer.
 
 Stood up in #57. Everything persisted lives in Qdrant on `co-index` — chunks,
 the dependency graph, the symbol graph and the context artifacts alike.

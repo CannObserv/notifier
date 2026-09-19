@@ -277,9 +277,9 @@ Notifier ran co-located on the `watcher` VM through v0, reached at
 tailnet. The migration record — including the `pg_dump`/restore, the Fernet-key
 verification gate, and the rollback path — is in that issue.
 
-## The memory reservation (#74)
+## The memory reservation
 
-Measured on this host 2026-09-18: **3.8 GiB, no swap, 2 cores**, running the
+Measured on this host 2026-09-18 (#74): **3.8 GiB, no swap, 2 cores**, running the
 live service, the dev endpoint, PostgreSQL *and* interactive agent sessions on
 one kernel. Live peaks: `notifier.service` 90 MiB, `notifier-dev.service`
 69 MiB, PostgreSQL 121 MiB. The agent sessions dwarf all three.
@@ -352,10 +352,10 @@ the MCP server fragments the cohort's namespace while every health check stays
 green; `tests/deploy/test_socraticode_config.py` asserts their absence across
 all six such files.
 
-### The sibling directories are link stubs, not clones (#63)
+### The sibling directories are link stubs, not clones
 
-`../archiver`, `../broker`, `../replicator` and `../watcher` **do exist on this
-host**, each holding only a `.socraticode.json` and a README — no source code.
+Established in #63. `../archiver`, `../broker`, `../replicator` and `../watcher`
+**do exist on this host**, each holding only a `.socraticode.json` and a README — no source code.
 They are not checkouts and must not be turned into any.
 
 SocratiCode uses a linked project's path for exactly two things:
