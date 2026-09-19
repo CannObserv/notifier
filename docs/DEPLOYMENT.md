@@ -341,19 +341,43 @@ Re-check with `cat /proc/<pid>/oom_score_adj` before assuming either shape.
 Cross-project semantic search and context-artifact retrieval rely on two files:
 
 - **`.socraticodecontextartifacts.json`** — committed catalog of non-code knowledge to index alongside source (DB schema migrations, deployment doc, ops runbook, systemd unit). Edit when adding new authoritative reference material.
-- **`.claude/settings.local.json`** — gitignored, **per-VM**. Provides `SOCRATICODE_LINKED_PROJECTS` so the MCP server can search sibling projects.
+- **`.socraticode.json`** — committed. Names this project `notifier`, so its collections are addressable by name rather than by a hash of wherever the tree sits, and lists the cohort siblings under `linkedProjects` as **relative** paths, so the same committed file works on every cohort VM (#57).
 
-**Since #43 there are no sibling repos on this host** — it runs notifier alone,
-so there is nothing local to link. The setting stays documented because the
-sibling checkouts live on the `watcher` VM, and an agent working there against
-this repo would still want it:
+`SOCRATICODE_LINKED_PROJECTS` no longer carries this. It was the per-VM,
+gitignored mechanism before #57; linking is now committed in
+`.socraticode.json`, and `.claude/settings.local.json` is left holding the one
+thing that genuinely cannot be committed — `QDRANT_API_KEY`. Setting either
+`QDRANT_COLLECTION_PREFIX` or `SOCRATICODE_BRANCH_AWARE` anywhere that reaches
+the MCP server fragments the cohort's namespace while every health check stays
+green; `tests/deploy/test_socraticode_config.py` asserts their absence across
+all six such files.
 
-```json
-{
-  "env": {
-    "SOCRATICODE_LINKED_PROJECTS": "/home/exedev/watcher"
-  }
-}
-```
+### The sibling directories are link stubs, not clones (#63)
 
-Reload the VS Code window after creating or editing this file — the MCP server reads its env at session start, not on file change. Verify with a cross-project search; results should be tagged `[notifier]` or `[watcher]`.
+`../archiver`, `../broker`, `../replicator` and `../watcher` **do exist on this
+host**, each holding only a `.socraticode.json` and a README — no source code.
+They are not checkouts and must not be turned into any.
+
+SocratiCode uses a linked project's path for exactly two things:
+`effectiveBaseProjectId(path)` to name the collection and `path.basename(path)`
+as a display label. The searchable content comes wholly from Qdrant, where each
+sibling indexes *itself* from its own VM. So a stub is sufficient to resolve a
+sibling's collection, and is safer than a clone: #57 D11 allows one host per
+`projectId` (the index lock is host-local, so a shared store gives two hosts
+nothing to contend on), and a directory with no source cannot be re-indexed by
+anything running here.
+
+Two failure modes, both silent:
+
+- **Do not `git clone` over a stub.** A real checkout carries that repo's own
+  `.socraticode.json`, so if it ever changes its `projectId` the stale clone
+  resolves to the old collection with nothing reported.
+- **Do not delete one.** `loadLinkedProjects` filters on `fs.existsSync` with
+  no warning, so a removed directory makes that sibling vanish from cross-repo
+  search silently.
+
+Each stub's README carries this reasoning locally. Verify linking with a
+cross-repo search (`codebase_search` with `includeLinked: true` — it is the
+only tool that reaches them); results are tagged with the project name. The
+daily health hook reports configured-vs-resolved, which is what catches a stub
+that went missing.
