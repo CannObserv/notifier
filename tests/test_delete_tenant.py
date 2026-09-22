@@ -301,6 +301,36 @@ class TestMain:
         assert "About to permanently delete" in err
         assert name in err
 
+    async def test_the_typed_name_is_what_proceeds(
+        self, factory, live_session, live_tenant, monkeypatch
+    ):
+        """The prompt's own guard, which nothing else covers: `scripts/` is
+        outside coverage's `source = ["src"]`, so an untested branch here is
+        invisible rather than merely uncovered (CR 4)."""
+        tenant_id, name = live_tenant
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda _: f"  {name}  ")
+
+        code = await main(parse_args(["--tenant-id", tenant_id]))
+
+        assert code == OK
+        assert not await _exists(live_session, tenant_id)
+
+    async def test_a_wrong_name_at_the_prompt_aborts(
+        self, factory, live_session, live_tenant, monkeypatch
+    ):
+        """Including the empty line a bare Return sends, which is the most
+        likely thing to arrive at a prompt nobody meant to answer."""
+        tenant_id, _ = live_tenant
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda _: "")
+
+        code = await main(parse_args(["--tenant-id", tenant_id]))
+
+        assert code == ABORTED
+        assert await _exists(live_session, tenant_id)
+        assert await _exists(live_session, tenant_id)
+
     async def test_a_refused_database_is_reported_not_raised(self, monkeypatch, capsys):
         """`NOTIFIER_ALLOW_PROD_DB` is in no env file by design, so forgetting
         it is the expected path rather than an edge case."""
