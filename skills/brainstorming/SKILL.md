@@ -171,7 +171,9 @@ digraph brainstorming {
     "Write design doc" [shape=box];
     "Spec self-review\n(fix inline)" [shape=box];
     "User reviews spec?" [shape=diamond];
+    "Plan warranted?" [shape=diamond];
     "Invoke writing-plans skill" [shape=doublecircle];
+    "Implement from the approved spec" [shape=doublecircle];
     "Hidden complexity? Upgrade path" [shape=box];
 
     "Classify: spike / bounded / architectural" -> "Present question + probe (2-3 sentences)" [label="spike"];
@@ -192,13 +194,18 @@ digraph brainstorming {
     "Write design doc" -> "Spec self-review\n(fix inline)";
     "Spec self-review\n(fix inline)" -> "User reviews spec?";
     "User reviews spec?" -> "Write design doc" [label="changes requested"];
-    "User reviews spec?" -> "Invoke writing-plans skill" [label="approved"];
+    "User reviews spec?" -> "Plan warranted?" [label="approved"];
+    "Plan warranted?" -> "Invoke writing-plans skill" [label="yes"];
+    "Plan warranted?" -> "Implement from the approved spec" [label="no (notifier)"];
 }
 ```
 
-**Terminal states are path-bound.** Architectural: the ONLY skill you
-invoke after brainstorming is writing-plans — never frontend-design,
-mcp-builder, or any other implementation skill. Bounded: after
+**Terminal states are path-bound.** Architectural: writing-plans is the
+only skill you invoke after brainstorming — never frontend-design,
+mcp-builder, or any other implementation skill. In notifier it is also
+the only *optional* one: where the approved spec's steps follow from it,
+the terminal state is implementing that spec directly. Neither branch
+licenses a different skill. Bounded: after
 approval, implementation proceeds directly through the normal
 development workflow; no plan document. Spike: the terminal state is a
 reported recommendation.
