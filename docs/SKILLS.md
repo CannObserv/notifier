@@ -90,6 +90,18 @@ a fifth landed before the pointer reached `d04cebf`.) `brainstorming`'s had fall
 restructure behind — 128 lines against vendor's 250, predating upstream's Spike/Bounded/Architectural
 model.
 
+It drifted a fourth time when the pointer moved to vendor v1.5 (#80, #81), and this one is the
+clearest case for re-syncing promptly rather than letting the advisory scroll past: upstream had
+split Step 1's single `SKILL_SCRIPTS` resolution into a per-script loop
+([gregoryfoster/skills#301](https://github.com/gregoryfoster/skills/issues/301)), and the doctor
+reported the override as *omitting* the `skill:required id=skill-scripts` fragment rather than
+merely trailing it — a second signal the version pin alone cannot raise. The same bump moved
+`brainstorming` to v6.4.1, whose rewritten `<HARD-GATE>` mandates `writing-plans` on the
+architectural path; notifier's standing delta makes that plan a judgement call, so the gate was
+re-synced with the delta reapplied onto the new text rather than the new text dropped. Both
+re-syncs were 3-way merges against the previously pinned commit, which is what `synced-from:` is
+for: without it there is no merge base and the choice degrades to diffing two divergent files.
+
 **One caveat on the symlink pattern.** `doctor.sh` globs `"$dir"/*` exactly one level deep under
 `skills` and `.claude/hooks`, so symlinks nested inside an override directory sit below its scan
 depth and are never checked. A fresh clone is still covered — `scan_uninit()` catches an
@@ -122,7 +134,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 
 | Skill | Source | Notes |
 |---|---|---|
-| `brainstorming` | Thin override (obra-superpowers), **synced from v6.3.0** | Project-specific conventions: `docs/plans/` spec path, notifier commit format, `writing-plans` optional rather than mandatory, `using-git-worktrees` for multi-step work. `SKILL.md` is the only real file; `visual-companion.md` and `scripts/` symlink into `skills-vendor/`. Upstream carries no `version:`, so the pin is the submodule tag in `synced-from:` |
+| `brainstorming` | Thin override (obra-superpowers), **synced from v6.4.1 (`5bf4e78`)** | Project-specific conventions: `docs/plans/` spec path, notifier commit format, `writing-plans` optional rather than mandatory, `using-git-worktrees` for multi-step work. `SKILL.md` is the only real file; `visual-companion.md` and `scripts/` symlink into `skills-vendor/`. Upstream carries no `version:`, so the pin is the submodule tag in `synced-from:` |
 | `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Tracks the vendored pointer; the wave-A hold at v1.2 was lifted 2026-08-14 (#20) |
 | `dispatching-parallel-agents` | obra-superpowers symlink | |
 | `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |
@@ -131,7 +143,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
-| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.4 (`d04cebf`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`; the path list flags `skills-vendor/`, so the pointer move that stales this file trips the gate. See [Override drift](#override-drift) — `synced-from:` is now read by the doctor, so bump it **and** `version:` whenever you re-sync |
+| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.5 (`2e90414`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`; the path list flags `skills-vendor/`, so the pointer move that stales this file trips the gate. See [Override drift](#override-drift) — `synced-from:` is now read by the doctor, so bump it **and** `version:` whenever you re-sync |
 | `subagent-driven-development` | obra-superpowers symlink | |
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |
