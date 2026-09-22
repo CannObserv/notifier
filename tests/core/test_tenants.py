@@ -58,8 +58,14 @@ async def committed(db_session):
     return str(tenant.id)
 
 
-async def _furnish(session, tenant_id: str) -> None:
-    """Give *tenant_id* one of everything a delete has to take with it."""
+async def _furnish(session, tenant_id: str) -> str:
+    """Give *tenant_id* one of everything a delete has to take with it.
+
+    Returns the channel's id, which is what scopes an assertion about the
+    dispatch attempts: a table-wide count is only zero because nothing else
+    commits attempt rows today, and the first test that does would fail here
+    for reasons having nothing to do with tenants (CR 5).
+    """
     await mint(session, tenant_id, "first", "production")
     await mint(session, tenant_id, "second", "development")
     channel = Channel(
@@ -76,6 +82,7 @@ async def _furnish(session, tenant_id: str) -> None:
     await session.flush()
     session.add(DispatchAttempt(dispatch_id=dispatch.id, channel_id=channel.id, status="succeeded"))
     await session.commit()
+    return str(channel.id)
 
 
 class TestInventory:
@@ -142,11 +149,11 @@ class TestDeleteTenant:
         ``DELETE FROM tenants`` raises a foreign-key violation for any tenant
         that has ever dispatched, which is every tenant worth deleting.
         """
-        await _furnish(db_session, committed)
+        channel_id = await _furnish(db_session, committed)
 
         await delete_tenant(db_session, committed, dry_run=False)
 
-        assert await _rows(db_session, DispatchAttempt) == 0
+        assert await _rows(db_session, DispatchAttempt, channel_id=channel_id) == 0
         assert await _rows(db_session, Tenant, id=committed) == 0
 
     async def test_returns_what_it_destroyed(self, db_session, committed):
@@ -192,13 +199,13 @@ class TestDeleteTenant:
 
 class TestDryRun:
     async def test_writes_nothing(self, db_session, committed):
-        await _furnish(db_session, committed)
+        channel_id = await _furnish(db_session, committed)
 
         await delete_tenant(db_session, committed, dry_run=True)
 
         assert await _rows(db_session, Tenant, id=committed) == 1
         assert await _rows(db_session, ApiKey, tenant_id=committed) == 2
-        assert await _rows(db_session, DispatchAttempt) == 1
+        assert await _rows(db_session, DispatchAttempt, channel_id=channel_id) == 1
 
     async def test_still_names_what_would_go(self, db_session, committed):
         await _furnish(db_session, committed)
