@@ -52,12 +52,16 @@ selected path's prerequisites:
 - Spike: the human partner approves the question and probe.
 - Bounded: the human partner approves the short in-chat design.
 - Architectural: the human partner reviews and approves the written spec.
-  Conversational design approval only permits writing the spec. Where the
-  work warrants a written plan, they then review it and select its execution
-  method, and written-spec approval only permits invoking writing-plans —
-  but in notifier that plan is a judgement call rather than a mandate (see
-  After the Design), so a spec whose steps follow from it may go straight to
-  implementation on the approval of the spec itself.
+  Conversational design approval only permits writing the spec; it never
+  permits implementing one.
+  - Whether that spec then needs a written plan is a judgement call in
+    notifier, not the mandate it is upstream (see After the Design
+    (architectural path)). A spec whose steps follow from it may go
+    straight to implementation, approved by the spec review itself.
+  - Where a plan *is* warranted, say so at spec review and the upstream
+    rule applies unchanged: written-spec approval then permits only
+    invoking writing-plans, and the partner reviews that plan and selects
+    its execution method before anything is implemented.
 
 A reply approves the stage actually presented. Approval of an idea or
 feature scope does not approve artifacts that do not exist yet. Resume
