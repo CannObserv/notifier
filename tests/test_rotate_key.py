@@ -789,15 +789,24 @@ class TestAuditChannel:
     """
 
     @pytest.fixture
-    def seeded(self, run_script, audit_socket):
-        """A committed tenant holding one key, and its ids."""
+    async def seeded(self, run_script, audit_socket, live_session):
+        """A committed tenant holding one key, and its ids.
+
+        Cleans up on teardown like `live_tenant` does. These rows really
+        commit — a subprocess owns its own transaction — so without this they
+        accumulate until the session's `drop_all`, and the file's own fixture
+        already sets the convention.
+        """
         done = run_script(
             "seed_tenant.py", f"rotate-audit-{secrets.token_hex(4)}", "old", "production"
         )
         assert done.returncode == 0, done.stderr
         audit_socket.records()  # drain the mint this seeding emitted
         fields = dict(line.split("=", 1) for line in done.stdout.splitlines())
-        return fields
+        yield fields
+        await live_session.rollback()
+        await live_session.execute(delete(Tenant).where(Tenant.id == fields["tenant_id"]))
+        await live_session.commit()
 
     def test_a_rotation_records_both_halves(self, run_script, audit_socket, seeded):
         done = run_script(
