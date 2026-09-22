@@ -312,6 +312,9 @@ class TestAuditRecords:
         assert summary.templates == 1
         assert summary.monitors == 1
         assert summary.dispatches == 1
+        # The one count this module had to delete by hand, and so the one an
+        # operator is likeliest to want back from the record (CR 7).
+        assert summary.dispatch_attempts == 1
 
     async def test_a_keyless_tenant_still_leaves_a_record(self, db_session, committed, caplog):
         """No keys to name is not nothing to record: the tenant still went."""

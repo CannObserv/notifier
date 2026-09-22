@@ -193,6 +193,7 @@ async def delete_tenant(
             "templates": inventory.templates,
             "monitors": inventory.monitors,
             "dispatches": inventory.dispatches,
+            "dispatch_attempts": inventory.attempts,
         },
     )
     return inventory
