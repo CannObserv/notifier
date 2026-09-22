@@ -195,10 +195,13 @@ If nothing applies, omit this step entirely.
   `SENSITIVE_PATHS` array after upstream had moved to segment matching and `.skills/doc-sensitive-paths`
   (#47); then five un-bumped upstream edits at an unchanged v1.4, `.skills/doc-sections` among them (#69);
   then v1.4 against vendor v1.5, holding open the single-resolution Step 1 block after upstream had
-  split it per script (#80, #81). The last two are the ones the tooling can see: since
-  gregoryfoster/skills#286 `.skills/doctor.sh`
-  diffs the `synced-from:` commit above against the vendor's HEAD for versioned vendors too, so a
-  change at an unchanged `version:` reports. **Re-diff this file against vendor whenever the submodule
+  split it per script (#80, #81). The last two are the ones the tooling caught, by different
+  signals. The third needed gregoryfoster/skills#286, which made `.skills/doctor.sh`
+  diff the `synced-from:` commit above against the vendor's HEAD for versioned vendors too, so a
+  change at an unchanged `version:` reports. The fourth moved the version and so was visible
+  either way, but it also reported as *omitting* `skill:required id=skill-scripts` rather than
+  merely trailing — the sharper signal of the two, since it names the fixed failure being held
+  open rather than just the distance from HEAD. **Re-diff this file against vendor whenever the submodule
   moves** — `skills-vendor/` is in the path list above, so Step 1.5 says when that is, and it says so
   on the branch that moves the pointer, which is the earlier of the two signals. **Bump both stamps on
   every re-sync** — a `synced-from:` left behind re-reports drift already paid down.
