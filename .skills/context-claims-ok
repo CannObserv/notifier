@@ -1,3 +1,4 @@
-# The anchor atom behind the retarget warranted in .skills/context-loss-ok: the
-# heading it pointed at lost its `(#74)` this run, so the old slug cannot survive.
-AGENTS.md :: retarget :: DEPLOYMENT.md#the-memory-reservation-74
+# The bare backticked `docs/SKILLS.md` became an anchored link in the same
+# sentence ([docs/SKILLS.md § Skills Inventory]). The pointer it carried is
+# present twice over — that link, and the Detail Docs index entry.
+AGENTS.md :: duplicate :: docs/SKILLS.md

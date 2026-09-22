@@ -6,9 +6,9 @@ Be terse. Prefer fragments over full sentences. Skip filler and preamble. Sacrif
 
 Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templates + JSON-Schema variable bags. Consumers send `{template_id | inline templates, variables, channel_ids}`; the service renders, validates, dispatches, and logs every attempt.
 
-It also runs **dead-man's timers** (#56): a consumer checks in on a cadence, and the *absence* of a check-in is itself an alert. See [docs/reference/monitors.md](docs/reference/monitors.md).
+It also runs **dead-man's timers** (#56): a consumer checks in on a cadence, and the *absence* of a check-in is itself an alert — [docs/reference/monitors.md](docs/reference/monitors.md).
 
-First consumer is the `watcher` project (Cannabis Observer). API is designed to be consumer-agnostic — no domain concepts leak into the service.
+First consumer is the `watcher` project (Cannabis Observer); the API stays consumer-agnostic, with no domain concepts leaking into the service.
 
 ## Development Methodology
 
@@ -74,9 +74,8 @@ Per-module inventory: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Infrastructure
 
 **Own VM since #43.** `notifier.exe.xyz` (exe.dev, `pdx`) runs this service and
-its PostgreSQL 16 cluster, nothing else. Dev and production both. Code
-committed to main is the deployed code; `notifier.service` runs the live
-service on port 9000.
+its PostgreSQL 16 cluster, nothing else — dev and production both. Code
+committed to main is the deployed code.
 
 | Service | Framework | Port | Managed by |
 |---|---|---|---|
@@ -91,27 +90,24 @@ OOM-killed, the kernel fails atomic allocations and the service drops. Hence
 pinned under `~/.socraticode/pin` (#74,
 [reservation](docs/DEPLOYMENT.md#the-memory-reservation)).
 
-The two sweeps are the only thing watching for consumer silence. A timer that
-stops is a silent outage of the outage detector — `systemctl list-timers
-'notifier-sweep*'` is the check. They are timers rather than a task inside the
-API process on purpose: an alerter that rides the thing it watches stops
-reporting exactly when it is needed.
+The two sweeps are the only thing watching for consumer silence, so a timer
+that stops is a silent outage of the outage detector: `systemctl list-timers
+'notifier-sweep*'` is the check. Why a timer and not a task in the API
+process: [docs/reference/monitors.md](docs/reference/monitors.md).
 
 Both always-on. **9001 is the development endpoint consumers point at** — it
 accepts `development`-marked API keys, which 9000 refuses (#24).
-`./scripts/dev_server.sh` still runs a worktree or branch by hand; stop the dev
-unit first so they do not fight over the port.
 
-**Both bind this host's tailnet address alone, never `0.0.0.0`** — unreachable
-from exe.dev's internal `10.42.0.0/16`, from the proxy, and from the internet;
-the Tailscale ACL decides who gets in. `scripts/tailnet_bind.sh` resolves the
-address and fails loudly rather than falling back to a wider bind. Why, and the
-boot race it buys: [docs/reference/tailscale.md](docs/reference/tailscale.md).
+**Both bind this host's tailnet address alone, never `0.0.0.0`** — so the API
+is unreachable from exe.dev's internal `10.42.0.0/16`, from the proxy and from
+the internet, and the Tailscale ACL decides who gets in. `scripts/tailnet_bind.sh`
+fails loudly rather than falling back to a wider bind. That, and the boot race
+it buys: [docs/reference/tailscale.md](docs/reference/tailscale.md).
 
 Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 `127.0.0.1:9000` and `http://notifier:9000` fail** — `/etc/hosts` maps
-`notifier` to `127.0.1.1`, which nothing binds. Use `curl
-"http://$(tailscale ip -4):9000/health"`. Per-host table in the reference doc.
+`notifier` to `127.0.1.1`, which nothing binds. Use
+`curl "http://$(tailscale ip -4):9000/health"`.
 
 ## Server Lifecycle
 
@@ -120,19 +116,20 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 | Situation | Action |
 |---|---|
 | Code committed to main | `sudo systemctl restart notifier notifier-dev` |
-| Testing a worktree/branch | `sudo systemctl stop notifier-dev` then `./scripts/dev_server.sh` |
-| Debugging the live service | `sudo journalctl -u notifier -f` |
-| Debugging the dev endpoint | `sudo journalctl -u notifier-dev -f` |
-| After editing either unit in `deploy/` | `sudo systemctl daemon-reload && sudo systemctl restart notifier notifier-dev` |
-| After DB model changes | `uv run alembic upgrade head`, then the same against `DEV_DATABASE_URL`, then restart both |
+| Testing a worktree/branch | `sudo systemctl stop notifier-dev`, then `./scripts/dev_server.sh` |
+| Debugging live / dev | `sudo journalctl -u notifier -f` · `-u notifier-dev -f` |
+| After editing a unit in `deploy/` | `sudo systemctl daemon-reload`, then restart both |
+| After DB model changes | `uv run alembic upgrade head`, the same against `DEV_DATABASE_URL`, then restart both |
 | Checking the dead-man's sweep | `systemctl list-timers 'notifier-sweep*'`, `sudo journalctl -u notifier-sweep -f` |
 | Which key was minted or revoked | `journalctl -t notifier-keys` |
 | Forcing a sweep now | `sudo systemctl start notifier-sweep.service` |
 
-**Dev server workflow:** one launch path serves both the unit and the hand-run
-case. `scripts/dev_server.sh` swaps in `DEV_DATABASE_URL`, runs the
-production-database guard, checks the dev database is migrated, and only then
-starts uvicorn on 9001, so the live service stays up:
+Fuller spellings, with the reasoning beside each: [docs/DEPLOYMENT.md § Routine ops](docs/DEPLOYMENT.md#routine-ops).
+
+**Dev server workflow:** `scripts/dev_server.sh` is the one launch path, for
+the unit and by hand alike — it swaps in `DEV_DATABASE_URL`, runs the
+production-database guard, checks the dev database is migrated, then starts
+uvicorn on 9001, leaving the live service up:
 
 ```bash
 sudo systemctl stop notifier-dev   # the unit owns 9001; take it first
@@ -140,18 +137,17 @@ sudo systemctl stop notifier-dev   # the unit owns 9001; take it first
 sudo systemctl start notifier-dev  # hand it back
 ```
 
-`deploy/notifier-dev.service` runs that same script with
-`NOTIFIER_DEV_RELOAD=0` — a wedged reloader keeps *running* after a syntax
-error, so the unit looks active while the endpoint is dead. Full reasoning and
-the restart bounds: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+`deploy/notifier-dev.service` runs it with `NOTIFIER_DEV_RELOAD=0`: a wedged
+reloader keeps *running* after a syntax error, so the unit looks active while
+the endpoint is dead. Reasoning and the restart bounds:
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-**Never hand-run uvicorn.** The old recipe sourced `/etc/notifier/.env`, which
-sets `DATABASE_URL` to **production**, so the "dev" server shared one database
-with the live one (#22) — still the risk on a dedicated VM, where both
-endpoints share a host and a cluster and only the database differs.
-`src/core/db_safety.py` refuses any database not ending `_test` or `_dev`, and
-its opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the unit and never in an env
-file.
+**Never hand-run uvicorn.** Sourcing `/etc/notifier/.env` points
+`DATABASE_URL` at **production**, which is how a "dev" server once shared the
+live database (#22) — still the risk here, where both endpoints share a host
+and a cluster and only the database differs. `src/core/db_safety.py` refuses
+any database not ending `_test` or `_dev`, and its opt-in
+`NOTIFIER_ALLOW_PROD_DB=1` lives in the unit, never in an env file.
 
 **After finishing work:** always restart both — they serve one working tree, so restarting only the live one leaves dev answering from stale code:
 
@@ -163,12 +159,12 @@ sudo systemctl restart notifier notifier-dev
 
 Two env files, loaded in order (later values override):
 
-1. **`/etc/notifier/.env`** — production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`). Survives repo resets and worktree switches. Managed manually on the VM.
+1. **`/etc/notifier/.env`** — production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); managed by hand on the VM, and survives repo resets and worktree switches.
 2. **`.env`** (repo root, git-ignored) — dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`, `DEV_DATABASE_URL`). Never commit.
 
-The systemd service loads both automatically. For shell commands, source them
-— do not word-split them through `xargs`, which corrupts any value containing
-spaces or quotes:
+The systemd service loads both automatically. Source them for shell commands
+— never word-split through `xargs`, which corrupts any value containing spaces
+or quotes:
 
 ```bash
 . scripts/load_env.sh
@@ -184,14 +180,12 @@ Every variable, what sets it and why: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#en
 ## Common Commands
 
 ```bash
-# Install dependencies
 uv sync
 
 # Load environment first — pytest needs TEST_DATABASE_URL, alembic needs
 # DATABASE_URL. Leaves DATABASE_URL on production; see below.
 . scripts/load_env.sh
 
-# Run tests
 uv run pytest
 
 # Run a subset of tests (skip the coverage gate, which measures all of src/)
@@ -200,7 +194,6 @@ uv run pytest --no-cov tests/core/test_utils.py
 # Run integration tests (requires PostgreSQL)
 uv run pytest -m integration
 
-# Run linter
 uv run ruff check .
 
 # Format (both gates below run at ship/review time — `--check` is the gate)
@@ -211,7 +204,6 @@ uv run ruff format --check .
 uv run pre-commit run --all-files
 uv run pre-commit install            # once per clone — installs it as a git hook
 
-# Database migrations
 uv run alembic upgrade head          # apply all migrations
 uv run alembic revision --autogenerate -m "description"  # generate new migration
 ```
@@ -220,9 +212,7 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Agent Skills
 
-Skills in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code). Reference: `docs/SKILLS.md`
-
-Vendored skills plus local overrides in `skills/` that shadow the vendor copy. Inventory, sources, and override notes: [§ Skills Inventory](docs/SKILLS.md#skills-inventory).
+Skills live in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code); local overrides in `skills/` shadow the vendored copy. Inventory, sources and override notes: [docs/SKILLS.md § Skills Inventory](docs/SKILLS.md#skills-inventory).
 
 ## Conventions
 
@@ -233,12 +223,7 @@ Vendored skills plus local overrides in `skills/` that shadow the vendor copy. I
 ```
 Types: feat, fix, refactor, docs, test, chore, release (version bumps only — see [docs/RELEASING.md](docs/RELEASING.md))
 
-**Logging:**
-```python
-from src.core.logging import get_logger
-
-logger = get_logger(__name__)
-```
+**Logging:** `logger = get_logger(__name__)`, imported from `src.core.logging`.
 Entry points only: call `configure_logging()` once — it binds **stdout**.
 Credential scripts call `configure_script_logging()` instead ([the audit
 channel](docs/DEPLOYMENT.md#the-credential-audit-channel-67)).
@@ -252,10 +237,9 @@ channel](docs/DEPLOYMENT.md#the-credential-audit-channel-67)).
 **Dependencies:** four rules, all asserted by `tests/ci/test_dependencies.py` — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#dependency-policy) before adding or bumping one
 
 **General:**
-- No inline module imports; all at file top
+- No inline module imports; all at file top, explicit only
 - Docstrings for public modules, classes, functions
 - Test structure mirrors source (`src/foo.py` → `tests/test_foo.py`)
-- Explicit imports only
 - Small, focused functions
 
 ## API Boundary Principles
@@ -264,13 +248,13 @@ The service is consumer-agnostic. Resist these temptations:
 
 - **Do not** introduce a top-level `event_type` field on dispatch — that's consumer taxonomy. Consumers put it in `metadata` if they want it indexed.
 - **Do not** infer routing/subscriptions in v0 — consumers pass `channel_ids` explicitly. Subscription model is v1.
-- **Do not** fetch consumer data (no diff loading, no snapshot reads). Consumers ship rendered or pre-rendered values via `variables`.
+- **Do not** fetch consumer data — no diff loading, no snapshot reads. Consumers ship rendered values via `variables`.
 - **Do not** branch on tenant identity inside business logic. Tenancy is enforced at the auth layer; the rest of the code treats `tenant_id` as a partition key.
-- **Do** validate `variables` against the template's `variables_schema` on dispatch. Reject 422 with a clear field path on miss. The *schema itself* is checked twice: on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which is what catches rows stored before that guard landed (#28).
+- **Do** validate `variables` against the template's `variables_schema` on dispatch; a miss is a 422 naming the field path. The *schema itself* is checked twice — on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which catches rows stored before that guard (#28).
 - **Do** render with `StrictUndefined` so unbound references fail loudly rather than silently producing empty output.
 - **Do** require `idempotency_key` to be tenant-scoped and unique-where-not-null; replay must be safe.
-- **Do** treat a monitor check-in's `variables` as opaque and its `status` as the consumer's own judgement. Whether a report warrants notifying is consumer taxonomy — a broker maps its `finding_count > 0` onto `alert`. Whether a report *arrived* is the part notifier cannot infer, and is the whole point of #56.
-- **Do** mark every API key with an `environment` (`production` | `development`). A production deployment refuses `development` keys with 403. This is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).
+- **Do** treat a monitor check-in's `variables` as opaque and its `status` as the consumer's own judgement: whether a report warrants notifying is consumer taxonomy, and a broker maps its own `finding_count > 0` onto `alert`. Whether one *arrived* is the part notifier cannot infer (#56).
+- **Do** mark every API key with an `environment` (`production` | `development`); a production deployment refuses `development` keys with 403. It is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).
 
 ## Detail Docs
 

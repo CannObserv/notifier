@@ -49,3 +49,73 @@ AGENTS.md :: tighten :: **After finishing work:** Always restart both services t
 # heading moved this pointer's target, so the same run that invalidated the
 # anchor is the one that fixed it. The provenance moved into each section body.
 AGENTS.md :: retarget :: [reservation](docs/DEPLOYMENT.md#the-memory-reservation-74)).
+
+# --- #66 budget curation (this run) ---
+# Phase 3 class C: Server Lifecycle, Infrastructure, API Boundary Principles,
+# Environment Variables, Agent Skills, Common Commands and Project Overview
+# were rewritten in place — same claims, fewer words. --claims passes, which
+# is what keeps `tighten` from self-certifying: every atom of every line below
+# turns up in the rewritten text or in the doc it now points at.
+AGENTS.md :: tighten :: It also runs **dead-man's timers** (#56): a consumer checks in on a cadence, and the *absence* of a check-in is itself an alert. See [docs/reference/monitors.md](docs/reference/monitors.md).
+AGENTS.md :: tighten :: First consumer is the `watcher` project (Cannabis Observer). API is designed to be consumer-agnostic — no domain concepts leak into the service.
+AGENTS.md :: tighten :: its PostgreSQL 16 cluster, nothing else. Dev and production both. Code
+AGENTS.md :: tighten :: committed to main is the deployed code; `notifier.service` runs the live
+AGENTS.md :: tighten :: service on port 9000.
+AGENTS.md :: tighten :: The two sweeps are the only thing watching for consumer silence. A timer that
+AGENTS.md :: tighten :: stops is a silent outage of the outage detector — `systemctl list-timers
+AGENTS.md :: tighten :: 'notifier-sweep*'` is the check. They are timers rather than a task inside the
+AGENTS.md :: tighten :: API process on purpose: an alerter that rides the thing it watches stops
+AGENTS.md :: tighten :: `./scripts/dev_server.sh` still runs a worktree or branch by hand; stop the dev
+AGENTS.md :: tighten :: unit first so they do not fight over the port.
+AGENTS.md :: tighten :: **Both bind this host's tailnet address alone, never `0.0.0.0`** — unreachable
+AGENTS.md :: tighten :: from exe.dev's internal `10.42.0.0/16`, from the proxy, and from the internet;
+AGENTS.md :: tighten :: the Tailscale ACL decides who gets in. `scripts/tailnet_bind.sh` resolves the
+AGENTS.md :: tighten :: address and fails loudly rather than falling back to a wider bind. Why, and the
+AGENTS.md :: tighten :: boot race it buys: [docs/reference/tailscale.md](docs/reference/tailscale.md).
+AGENTS.md :: tighten :: `notifier` to `127.0.1.1`, which nothing binds. Use `curl
+AGENTS.md :: tighten :: "http://$(tailscale ip -4):9000/health"`. Per-host table in the reference doc.
+AGENTS.md :: tighten :: | Testing a worktree/branch | `sudo systemctl stop notifier-dev` then `./scripts/dev_server.sh` |
+AGENTS.md :: tighten :: | Debugging the live service | `sudo journalctl -u notifier -f` |
+AGENTS.md :: tighten :: | Debugging the dev endpoint | `sudo journalctl -u notifier-dev -f` |
+AGENTS.md :: tighten :: | After editing either unit in `deploy/` | `sudo systemctl daemon-reload && sudo systemctl restart notifier notifier-dev` |
+AGENTS.md :: tighten :: | After DB model changes | `uv run alembic upgrade head`, then the same against `DEV_DATABASE_URL`, then restart both |
+AGENTS.md :: tighten :: **Dev server workflow:** one launch path serves both the unit and the hand-run
+AGENTS.md :: tighten :: case. `scripts/dev_server.sh` swaps in `DEV_DATABASE_URL`, runs the
+AGENTS.md :: tighten :: production-database guard, checks the dev database is migrated, and only then
+AGENTS.md :: tighten :: starts uvicorn on 9001, so the live service stays up:
+AGENTS.md :: tighten :: `deploy/notifier-dev.service` runs that same script with
+AGENTS.md :: tighten :: `NOTIFIER_DEV_RELOAD=0` — a wedged reloader keeps *running* after a syntax
+AGENTS.md :: tighten :: error, so the unit looks active while the endpoint is dead. Full reasoning and
+AGENTS.md :: tighten :: the restart bounds: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+AGENTS.md :: tighten :: **Never hand-run uvicorn.** The old recipe sourced `/etc/notifier/.env`, which
+AGENTS.md :: tighten :: sets `DATABASE_URL` to **production**, so the "dev" server shared one database
+AGENTS.md :: tighten :: with the live one (#22) — still the risk on a dedicated VM, where both
+AGENTS.md :: tighten :: endpoints share a host and a cluster and only the database differs.
+AGENTS.md :: tighten :: `src/core/db_safety.py` refuses any database not ending `_test` or `_dev`, and
+AGENTS.md :: tighten :: its opt-in `NOTIFIER_ALLOW_PROD_DB=1` lives in the unit and never in an env
+AGENTS.md :: tighten :: 1. **`/etc/notifier/.env`** — production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`). Survives repo resets and worktree switches. Managed manually on the VM.
+AGENTS.md :: tighten :: The systemd service loads both automatically. For shell commands, source them
+AGENTS.md :: tighten :: — do not word-split them through `xargs`, which corrupts any value containing
+AGENTS.md :: tighten :: spaces or quotes:
+AGENTS.md :: tighten :: # Run tests
+AGENTS.md :: tighten :: # Run linter
+AGENTS.md :: tighten :: # Database migrations
+AGENTS.md :: tighten :: Skills in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code). Reference: `docs/SKILLS.md`
+AGENTS.md :: tighten :: Vendored skills plus local overrides in `skills/` that shadow the vendor copy. Inventory, sources, and override notes: [§ Skills Inventory](docs/SKILLS.md#skills-inventory).
+AGENTS.md :: tighten :: from src.core.logging import get_logger
+AGENTS.md :: tighten :: - Explicit imports only
+AGENTS.md :: tighten :: - **Do not** fetch consumer data (no diff loading, no snapshot reads). Consumers ship rendered or pre-rendered values via `variables`.
+AGENTS.md :: tighten :: - **Do** validate `variables` against the template's `variables_schema` on dispatch. Reject 422 with a clear field path on miss. The *schema itself* is checked twice: on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which is what catches rows stored before that guard landed (#28).
+AGENTS.md :: tighten :: - **Do** treat a monitor check-in's `variables` as opaque and its `status` as the consumer's own judgement. Whether a report warrants notifying is consumer taxonomy — a broker maps its `finding_count > 0` onto `alert`. Whether a report *arrived* is the part notifier cannot infer, and is the whole point of #56.
+AGENTS.md :: tighten :: - **Do** mark every API key with an `environment` (`production` | `development`). A production deployment refuses `development` keys with 403. This is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).
+# Wrapped fragments and fence lines of the same class-C rewrites above:
+# the sweep paragraph's closing clause, the uvicorn paragraph's last word,
+# a comment that only restated the command below it, and the three-line
+# python fence the logging idiom no longer needs.
+AGENTS.md :: tighten :: reporting exactly when it is needed.
+AGENTS.md :: tighten :: file.
+AGENTS.md :: tighten :: # Install dependencies
+AGENTS.md :: tighten :: **Logging:**
+AGENTS.md :: tighten :: ```python
+AGENTS.md :: tighten :: logger = get_logger(__name__)
+AGENTS.md :: tighten :: - No inline module imports; all at file top

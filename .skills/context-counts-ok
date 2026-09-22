@@ -5,7 +5,7 @@
 AGENTS.md :: stable :: Two packages, one boundary:
 
 # The table immediately above lists exactly the sweeps being counted.
-AGENTS.md :: enumerated :: The two sweeps are the only thing watching for consumer silence.
+AGENTS.md :: enumerated :: The two sweeps are the only thing watching for consumer silence,
 
 # The numbered list directly beneath is the enumeration.
 AGENTS.md :: enumerated :: Two env files, loaded in order (later values override):

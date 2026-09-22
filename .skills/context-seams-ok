@@ -92,3 +92,10 @@ scripts/install_qdrant_key.sh :: # docs/SOCRATICODE.md and CannObserv/notifier#5
 # `## Project Layout` heading it anchors on is still there — that section is
 # what this run curated, not what it moved.
 docs/reference/drift-tests.md :: [ARCHITECTURE.md](../ARCHITECTURE.md#project-layout)
+
+# Same class as `The VM split (#43, done)` already acknowledged above: a `(#67)`
+# carried into a permanent anchor slug, which AGENTS.md's Logging entry links as
+# `#the-credential-audit-channel-67`. Nothing moved this run — the entry beside
+# that link was tightened and kept the link intact — so the heading stays as it
+# is rather than being renamed for a curation that did not touch it.
+docs/DEPLOYMENT.md :: The credential audit channel (#67)
