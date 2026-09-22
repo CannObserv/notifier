@@ -8,6 +8,8 @@ revoke path that can be tested without a subprocess.
 """
 
 import hashlib
+import json
+import logging
 from datetime import UTC, datetime
 
 import pytest
@@ -27,7 +29,13 @@ from src.core.api_keys import (
     revoke,
     ulid_str,
 )
+from src.core.logging import AUDIT_LOGGER_NAME
 from src.core.models import ApiKey, Tenant
+
+
+def _audit(caplog) -> list[logging.LogRecord]:
+    """The audit records captured so far, and nothing else."""
+    return [r for r in caplog.records if r.name == AUDIT_LOGGER_NAME]
 
 
 async def _count(session, tenant_id: str) -> int:
@@ -357,3 +365,69 @@ class TestLastKeyCheckIsSerialized:
 
         event.remove(db_session.sync_session, "do_orm_execute", record)
         assert not any("for update" in s for s in statements), statements
+
+
+class TestAuditRecords:
+    """Every mint and every revoke names the key, on the audit channel (#67).
+
+    #62 declined a `revoked_at` column — DELETE fails closed where a filter
+    everyone must remember fails open — and paid for the lost audit trail with
+    a log line here. The line existed and had never once been emitted: it went
+    to `src.core.api_keys`, whose records the two credential scripts dropped on
+    the floor. A revoke left nothing at all, the row and its going both gone.
+
+    Asserting on the logger *name* as well as the payload: routing these back
+    through the module logger renders identically today and silently leaves the
+    journal again the moment an entry point configures only the root.
+    """
+
+    async def test_mint_records_the_key_it_made(self, db_session, tenant, caplog):
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+
+        key, _ = await mint(db_session, tenant.id, "nightly backup", "development")
+
+        (record,) = _audit(caplog)
+        assert record.message == "api key minted"
+        assert record.tenant_id == str(tenant.id)
+        assert record.key_id == str(key.id)
+        assert record.key_prefix == key.key_prefix
+        assert record.label == "nightly backup"
+        assert record.environment == "development"
+
+    async def test_mint_never_records_the_raw_key(self, db_session, tenant, caplog):
+        """The prefix identifies the key to a human; the secret is the one
+        thing a durable record must never hold."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+
+        _, raw = await mint(db_session, tenant.id, "smoke", "production")
+
+        (record,) = _audit(caplog)
+        assert raw not in json.dumps(record.__dict__, default=str)
+
+    async def test_revoke_records_what_went(self, db_session, tenant, caplog):
+        """The row is gone after this; the record is all there is."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        key, _ = await mint(db_session, tenant.id, "doomed", "production")
+        await mint(db_session, tenant.id, "survivor", "production")
+        caplog.clear()  # the setup's own mints are not what this asserts on
+
+        await revoke(db_session, tenant.id, key.id)
+
+        (record,) = _audit(caplog)
+        assert record.message == "api key revoked"
+        assert record.tenant_id == str(tenant.id)
+        assert record.key_id == str(key.id)
+        assert record.key_prefix == key.key_prefix
+        assert record.label == "doomed"
+        assert record.environment == "production"
+
+    async def test_a_refused_revoke_records_nothing(self, db_session, tenant, caplog):
+        """The last-key guard writes nothing, so it must claim nothing."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        key, _ = await mint(db_session, tenant.id, "only", "production")
+        caplog.clear()
+
+        with pytest.raises(LastKeyError):
+            await revoke(db_session, tenant.id, key.id)
+
+        assert _audit(caplog) == []

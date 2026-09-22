@@ -48,6 +48,11 @@ Four things this does that the ad-hoc program could not:
 * **``--verify``.** Proves the new key authenticates against the real
   endpoint. A rotation nobody verified is a rotation that might have revoked
   the wrong row.
+* **Leaves a record.** Both halves land on the audit channel —
+  ``journalctl -t notifier-keys`` — naming the key and never its secret. #62
+  declined a ``revoked_at`` column on the strength of that line, and until #67
+  the line was being dropped before it reached any stream: a revoke left the
+  row deleted and nothing at all to say which one, or when.
 
 Verification is deliberately asymmetric. The script always holds the raw key
 it just minted, so it can always prove that one works. It only ever held the
@@ -77,6 +82,7 @@ from src.core.api_keys import (
     ulid_str,
 )
 from src.core.database import get_session_factory
+from src.core.logging import configure_script_logging
 from src.core.utils import format_utc_iso
 
 #: An authenticated endpoint that costs a tenant with no data nothing to
@@ -527,4 +533,8 @@ async def main(args: argparse.Namespace) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main(parse_args(sys.argv[1:]))))
+    # Parse first: a rejected flag combination exits here, before the audit
+    # channel is opened for an operation that is not going to happen.
+    _args = parse_args(sys.argv[1:])
+    configure_script_logging()
+    raise SystemExit(asyncio.run(main(_args)))

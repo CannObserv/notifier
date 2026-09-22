@@ -281,6 +281,10 @@ Prints `tenant_id`, `key_id`, `raw_key`, and `environment`. **The raw key is
 shown once** — only its SHA-256 hash is stored. Keep the `key_id`: it is what
 `rotate_key.py --revoke` takes when this credential is eventually retired.
 
+Those four lines are all that reaches stdout, so piping and copying stay safe.
+The mint itself is recorded to journald as `notifier-keys` — `journalctl -t
+notifier-keys` — naming the key and never its secret (#67).
+
 This VM already has a `dev` tenant with a `development` key in `notifier_dev`;
 the key is in the repo `.env` as `DEV_TENANT_API_KEY`. It also has a `watcher`
 tenant there, minted for watcher's non-production processes (watcher#278 step
@@ -351,6 +355,11 @@ NOTIFIER_ALLOW_PROD_DB=1 \
 
 Production carries the same opt-in as every other script here — on the command
 line, for the single invocation, never in an env file.
+
+Both halves land on the credential audit channel — `journalctl -t
+notifier-keys` — naming the key and never its secret. The revoke half is the
+one that matters: it is a DELETE, so once the run ends that record is the only
+thing that will ever say which key went, or when (#62, #67).
 
 | Flag | What it does |
 |---|---|

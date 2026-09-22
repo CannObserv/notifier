@@ -185,12 +185,62 @@ sudo journalctl -u notifier-dev -f
 # matters is that the timer is still scheduled.
 systemctl list-timers 'notifier-sweep*'
 sudo journalctl -u notifier-sweep -f
+
+# Every API key mint and revoke, whichever database it was run against
+journalctl -t notifier-keys
 ```
 
 Restarting `notifier notifier-dev` picks up merged code for the API. The sweep
 units read the same working tree at each firing, so they need no restart —
 but `systemctl daemon-reload` is still required after editing anything in
 `deploy/`.
+
+### The credential audit channel (#67)
+
+`scripts/seed_tenant.py` and `scripts/rotate_key.py` record every mint and
+every revoke to journald under the syslog identifier `notifier-keys`:
+
+```bash
+journalctl -t notifier-keys                       # everything
+journalctl -t notifier-keys --since "7 days ago" -o cat | jq .
+```
+
+Each record names the tenant, the key id, its 8-character prefix, its label
+and its environment — and never the raw key, which reaches stdout once and
+nothing else. Both scripts leave stdout to the operator: the `key=value` lines
+they print themselves, nothing interleaved. Logs go to stderr, audit records
+go to the journal.
+
+**This is what pays for there being no `revoked_at` column.** #62 chose DELETE
+because a filter every lookup must remember fails open where a missing row
+fails closed, and took the audit value as a log line instead. A revoke deletes
+the row, so this record is the only thing that will ever say which key died,
+or when.
+
+Durability is journald's: `/var/log/journal` exists here, so records survive
+reboots, bounded by the default cap of 10% of `/` (about 2 GiB against the
+~3.7 MiB/day the minute-by-minute sweep lines dominate — order of a year and a
+half, not an archive guarantee). If the journal socket is ever unreachable the
+scripts print the records on stderr and say loudly that they are not durable;
+they are never dropped silently, which is what happened for the whole life of
+the feature before #67.
+
+**Three production credential changes predate this channel** and exist only in
+an agent transcript. They are recorded here because nothing else records them:
+
+| Date | Change | Tenant | Key |
+|---|---|---|---|
+| 2026-09-14 | Tenant deleted (key cascaded) | `watcher-backup` | `01M2E8ARPEH40779MBFDWC1MNV` |
+| 2026-09-14 | Key minted | `watcher` | `01M2GNMPF37BPA8K3EW3HE9F13` "watcher nightly backup check-in" |
+| 2026-09-14 | Key revoked | `watcher` | `01KQE8352TXKQ60WDJA5PDE42M` "watcher-prod", dormant since 2026-04-30 |
+
+They were not backfilled into the journal: a synthesized record carrying a
+2026-09-22 timestamp and a reconstructed payload would be indistinguishable
+from an observed one, which is worse than a gap that names itself.
+
+**Deleting a tenant still records nothing** — the keys go by cascade, never
+through `revoke()`. The first row above is that hole. There is no sanctioned
+tenant-deletion script yet; when there is, it belongs on this channel.
 
 ### Worktrees here must not share this checkout's `.venv`
 

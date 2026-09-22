@@ -90,3 +90,51 @@ class TestPersistence:
             .all()
         )
         assert sorted(names) == ["seed-new-tenant-a", "seed-new-tenant-b"]
+
+
+class TestAuditChannel:
+    """A mint run by hand leaves a record that outlives the shell (#67).
+
+    Run as a subprocess, against a socket bound by the test, because the wiring
+    under test lives in ``if __name__ == "__main__"`` and the records have to
+    survive leaving the process to be worth anything.
+    """
+
+    def test_a_mint_leaves_a_record_on_the_audit_channel(self, run_script, audit_socket):
+        done = run_script("seed_tenant.py", "seed-audit-tenant", "nightly", "development")
+        assert done.returncode == 0, done.stderr
+
+        record = audit_socket.records()[0]
+        assert record["message"] == "api key minted"
+        assert record["key_id"] == re.search(r"key_id=(\S+)", done.stdout).group(1)
+        assert record["tenant_id"] == SDK_TENANT_PATTERN.search(done.stdout).group(1)
+        assert record["label"] == "nightly"
+        assert record["environment"] == "development"
+
+    def test_the_record_never_carries_the_raw_key(self, run_script, audit_socket):
+        """The same rule `test_shows_the_raw_key_exactly_once` holds for stdout,
+        extended to the durable channel: once in the operator's hands, never in
+        a record that persists (#67)."""
+        done = run_script("seed_tenant.py", "seed-audit-secret", "smoke", "production")
+        raw = SDK_KEY_PATTERN.search(done.stdout).group(1)
+
+        emitted = audit_socket.datagrams() + [done.stderr]
+        assert done.stdout.count(raw) == 1
+        assert not [line for line in emitted if raw in line]
+
+    def test_stdout_stays_the_operator_channel(self, run_script, audit_socket):
+        """The trap in the obvious fix: `configure_logging()` binds stdout, so
+        adding it naively interleaves JSON with the two lines
+        `clients/python/tests/conftest.py` parses and the line an operator
+        pastes into a consumer's secrets."""
+        done = run_script("seed_tenant.py", "seed-audit-stdout", "smoke", "production")
+
+        assert SDK_TENANT_PATTERN.search(done.stdout), done.stdout
+        assert SDK_KEY_PATTERN.search(done.stdout), done.stdout
+        assert [line.split("=")[0] for line in done.stdout.splitlines()] == [
+            "tenant_id",
+            "key_id",
+            "raw_key",
+            "environment",
+        ]
+        audit_socket.records()  # the record went to the journal instead

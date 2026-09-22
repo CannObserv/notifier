@@ -29,6 +29,11 @@ Prints ``tenant_id``, ``key_id`` and the raw API key. **The raw key is shown
 ONCE** — store it in the consumer's secrets immediately. Only the SHA-256 hash
 is persisted.
 
+The mint is recorded on the audit channel — ``journalctl -t notifier-keys``
+— naming the tenant, the key id, its prefix, label and environment, and never
+the raw key. stdout is left to the operator alone; see
+``src/core/logging.py:configure_script_logging`` for why the two are split.
+
 ``key_id`` is what ``rotate_key.py --revoke`` takes. Minting a credential and
 never printing the handle needed to retire it is what sends the next operator
 to ad-hoc SQL to find it (#62).
@@ -44,6 +49,7 @@ import sys
 
 from src.core.api_keys import ENVIRONMENTS, mint
 from src.core.database import get_session_factory
+from src.core.logging import configure_script_logging
 from src.core.models import Tenant
 
 
@@ -73,4 +79,8 @@ if __name__ == "__main__":
     if env not in ENVIRONMENTS:
         print(f"environment must be production or development, got {env!r}", file=sys.stderr)
         sys.exit(2)
+    # After the usage checks, so a mistyped invocation does not open a channel
+    # it has nothing to write to. From here logs go to stderr and the mint to
+    # the journal; stdout stays the four key=value lines main() prints (#67).
+    configure_script_logging()
     asyncio.run(main(sys.argv[1], sys.argv[2], env))

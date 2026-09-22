@@ -9,9 +9,15 @@ import logging.config
 from pathlib import Path
 
 from src.core.logging import (
+    AUDIT_IDENT,
+    AUDIT_LOGGER_NAME,
+    AUDIT_SOCKET_ENV,
     ColorMessageFilter,
     build_json_formatter,
+    configure_audit_logging,
     configure_logging,
+    configure_script_logging,
+    get_audit_logger,
     get_logger,
 )
 
@@ -131,3 +137,112 @@ def test_color_message_filter_strips_extra_at_the_record_source():
     parsed = json.loads(build_json_formatter().format(record))
     assert "color_message" not in parsed
     assert parsed["message"] == "Started server process [4066888]"
+
+
+class TestAuditChannel:
+    """The mint/revoke audit channel (#67).
+
+    `src/core/api_keys.py` has logged a record on every mint and every revoke
+    since #62, and not one had ever been emitted: neither credential script
+    called `configure_logging()`, so the root logger had no handler and
+    Python's last-resort handler dropped every INFO record. The trade #62 made
+    — DELETE over a `revoked_at` column, paid for by a log line — was being
+    paid with a line that did not exist.
+    """
+
+    def test_a_record_reaches_the_syslog_socket(self, audit_socket):
+        """The round trip, not the wiring: bytes leave the process."""
+        saved = _snapshot(("", AUDIT_LOGGER_NAME))
+        try:
+            configure_audit_logging(address=audit_socket.path)
+            get_audit_logger().info("api key revoked", extra={"key_id": "01J0KEY"})
+        finally:
+            _restore(saved)
+
+        record = audit_socket.records()[0]
+        assert record["message"] == "api key revoked"
+        assert record["key_id"] == "01J0KEY"
+        assert record["level"] == "INFO"
+        assert "timestamp" in record
+
+    def test_the_datagram_carries_the_journalctl_tag(self, audit_socket):
+        """`journalctl -t notifier-keys` is the read-back, and journald files
+        a record under that tag by parsing the syslog `ident: ` prefix. Without
+        it the records land in the journal untagged, which is a durable record
+        nobody can find."""
+        saved = _snapshot(("", AUDIT_LOGGER_NAME))
+        try:
+            configure_audit_logging(address=audit_socket.path)
+            get_audit_logger().info("api key minted")
+        finally:
+            _restore(saved)
+
+        assert audit_socket.datagrams()[0].startswith(f"<14>{AUDIT_IDENT}: {{")
+
+    def test_records_never_reach_stdout(self, audit_socket, capsys):
+        """stdout is the operator's channel: `raw_key=` lines an operator pastes
+        into a consumer's secrets, and the two lines `clients/python`'s fixture
+        parses. Interleaving JSON there is the trap #67 names in the obvious
+        fix."""
+        saved = _snapshot(("", AUDIT_LOGGER_NAME))
+        try:
+            configure_logging()  # binds the root logger to stdout
+            configure_audit_logging(address=audit_socket.path)
+            get_audit_logger().info("api key minted")
+        finally:
+            _restore(saved)
+
+        assert capsys.readouterr().out == ""
+        assert audit_socket.records()[0]["message"] == "api key minted"
+
+    def test_an_unreachable_socket_degrades_loudly_to_stderr(self, tmp_path, capsys):
+        """The one failure this must never repeat is a silent one. A host with
+        no journal socket gets the records on stderr and a warning saying they
+        are not durable — never nothing."""
+        saved = _snapshot(("", AUDIT_LOGGER_NAME))
+        try:
+            configure_audit_logging(address=str(tmp_path / "absent.sock"))
+            get_audit_logger().info("api key revoked", extra={"key_id": "01J0KEY"})
+        finally:
+            _restore(saved)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        warning, record = (json.loads(line) for line in captured.err.strip().splitlines())
+        assert warning["level"] == "WARNING"
+        assert "absent.sock" in warning["audit_socket"]
+        assert record["message"] == "api key revoked"
+        assert record["key_id"] == "01J0KEY"
+
+    def test_the_environment_variable_selects_the_socket(self, audit_socket, monkeypatch):
+        """How a test — and only a test — points the channel somewhere else."""
+        monkeypatch.setenv(AUDIT_SOCKET_ENV, audit_socket.path)
+        saved = _snapshot(("", AUDIT_LOGGER_NAME))
+        try:
+            configure_audit_logging()
+            get_audit_logger().info("api key minted")
+        finally:
+            _restore(saved)
+
+        assert audit_socket.records()[0]["message"] == "api key minted"
+
+
+class TestConfigureScriptLogging:
+    """What the two credential scripts call at their entry point."""
+
+    def test_it_keeps_stdout_for_the_operator_and_journals_the_audit(
+        self, audit_socket, monkeypatch, capsys
+    ):
+        monkeypatch.setenv(AUDIT_SOCKET_ENV, audit_socket.path)
+        saved = _snapshot(("", AUDIT_LOGGER_NAME))
+        try:
+            configure_script_logging()
+            get_logger("src.core.database").info("connected")
+            get_audit_logger().info("api key minted")
+        finally:
+            _restore(saved)
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert json.loads(captured.err)["message"] == "connected"
+        assert audit_socket.records()[0]["message"] == "api key minted"

@@ -22,6 +22,7 @@ import scripts.rotate_key as rotate_key_module
 from scripts.rotate_key import (
     ABORTED,
     NOT_VERIFIED,
+    OK,
     REFUSED,
     VERIFY_PATH,
     Outcome,
@@ -771,3 +772,117 @@ class TestConfirmation:
         err = capsys.readouterr().err
         assert "About to" in err
         assert "nope" in err
+
+
+class TestAuditChannel:
+    """A revoke run by hand leaves a record that outlives the shell (#67).
+
+    The half #62's trade rests on. A mint at least leaves the `api_keys` row
+    and its `created_at`; a revoke deletes the row, so if the record is dropped
+    there is nothing anywhere that says which key died or when. Three
+    production credential changes on 2026-09-14 are exactly that hole, and
+    predate this channel.
+
+    Subprocesses, because `configure_script_logging()` runs under
+    `if __name__ == "__main__"` — the one line an in-process test of `main()`
+    never executes.
+    """
+
+    @pytest.fixture
+    def seeded(self, run_script, audit_socket):
+        """A committed tenant holding one key, and its ids."""
+        done = run_script(
+            "seed_tenant.py", f"rotate-audit-{secrets.token_hex(4)}", "old", "production"
+        )
+        assert done.returncode == 0, done.stderr
+        audit_socket.records()  # drain the mint this seeding emitted
+        fields = dict(line.split("=", 1) for line in done.stdout.splitlines())
+        return fields
+
+    def test_a_rotation_records_both_halves(self, run_script, audit_socket, seeded):
+        done = run_script(
+            "rotate_key.py",
+            "--tenant-id",
+            seeded["tenant_id"],
+            "--new-label",
+            "replacement",
+            "--revoke",
+            seeded["key_id"],
+            "--yes",
+        )
+        assert done.returncode == OK, done.stderr
+
+        minted, revoked = audit_socket.records(expected=2)
+        assert minted["message"] == "api key minted"
+        assert minted["label"] == "replacement"
+        assert revoked["message"] == "api key revoked"
+        assert revoked["key_id"] == seeded["key_id"]
+        assert revoked["label"] == "old"
+        assert revoked["tenant_id"] == seeded["tenant_id"]
+
+    def test_a_bare_revoke_still_records_what_it_deleted(self, run_script, audit_socket, seeded):
+        """The case that leaves nothing behind: no replacement row, no
+        `created_at`, nothing but this record."""
+        run_script(
+            "rotate_key.py",
+            "--tenant-id",
+            seeded["tenant_id"],
+            "--new-label",
+            "survivor",
+            "--yes",
+        )
+        audit_socket.records()  # drain that mint
+
+        done = run_script(
+            "rotate_key.py",
+            "--tenant-id",
+            seeded["tenant_id"],
+            "--revoke",
+            seeded["key_id"],
+            "--yes",
+        )
+        assert done.returncode == OK, done.stderr
+
+        (record,) = audit_socket.records()
+        assert record["message"] == "api key revoked"
+        assert record["key_id"] == seeded["key_id"]
+        assert record["key_prefix"] == seeded["raw_key"][:8]
+
+    def test_the_raw_key_reaches_stdout_and_nowhere_else(self, run_script, audit_socket, seeded):
+        """`test_never_prints_the_raw_key_twice` holds for the rendered lines;
+        this holds it across every channel the process writes to."""
+        done = run_script(
+            "rotate_key.py",
+            "--tenant-id",
+            seeded["tenant_id"],
+            "--new-label",
+            "replacement",
+            "--revoke",
+            seeded["key_id"],
+            "--yes",
+        )
+        raw = next(
+            line.removeprefix("raw_key=")
+            for line in done.stdout.splitlines()
+            if line.startswith("raw_key=")
+        )
+
+        assert done.stdout.count(raw) == 1
+        assert not [line for line in audit_socket.datagrams(expected=2) if raw in line]
+        assert raw not in done.stderr
+
+    def test_a_refused_run_records_nothing(self, run_script, audit_socket, seeded):
+        """The last-key guard writes nothing to the database, so it must leave
+        nothing on a channel an operator reads as a list of what happened."""
+        done = run_script(
+            "rotate_key.py",
+            "--tenant-id",
+            seeded["tenant_id"],
+            "--revoke",
+            seeded["key_id"],
+            "--yes",
+        )
+        assert done.returncode == REFUSED, done.stdout
+
+        with pytest.raises(AssertionError, match="got 0"):
+            audit_socket.records(timeout=1.0)

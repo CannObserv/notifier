@@ -6,9 +6,13 @@ import json
 import os
 import secrets
 import socket
+import subprocess
+import sys
 import threading
+import time
 from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
@@ -17,6 +21,7 @@ from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from src.api.deps import get_db_session
+from src.core.logging import AUDIT_SOCKET_ENV
 from src.core.models import ApiKey, Base, Tenant
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
@@ -171,3 +176,75 @@ def sink_server() -> Iterator[Sink]:
     yield Sink(port=server.server_address[1], received=received)
     server.shutdown()
     server.server_close()
+
+
+@dataclass
+class AuditSocket:
+    """A stand-in for journald's ``/dev/log``, and what was sent to it.
+
+    The audit channel's real destination is a datagram socket the kernel
+    hands to journald, so a test that asserts on a mock handler proves
+    nothing about whether a record would survive the process. Binding a real
+    ``AF_UNIX``/``SOCK_DGRAM`` socket and reading the bytes back makes the
+    round trip the assertion — and makes it identical on this VM, where
+    ``/dev/log`` exists, and in a CI runner where it may not.
+    """
+
+    path: str
+    sock: socket.socket
+
+    def datagrams(self, expected: int = 1, timeout: float = 5.0) -> list[str]:
+        """Read exactly *expected* datagrams, or fail saying what did arrive."""
+        deadline = time.monotonic() + timeout
+        received: list[str] = []
+        while len(received) < expected:
+            self.sock.settimeout(max(0.0, deadline - time.monotonic()))
+            try:
+                received.append(self.sock.recv(65536).decode().rstrip("\x00"))
+            except TimeoutError:
+                raise AssertionError(
+                    f"expected {expected} audit datagram(s), got {len(received)}: {received}"
+                ) from None
+        return received
+
+    def records(self, expected: int = 1, timeout: float = 5.0) -> list[dict]:
+        """Read *expected* datagrams and return their JSON payloads."""
+        return [json.loads(d[d.index("{") :]) for d in self.datagrams(expected, timeout)]
+
+
+@pytest.fixture
+def audit_socket(tmp_path) -> Iterator[AuditSocket]:
+    """Bind a socket at a path `NOTIFIER_AUDIT_SOCKET` can point at."""
+    path = str(tmp_path / "audit.sock")
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.bind(path)
+    yield AuditSocket(path=path, sock=sock)
+    sock.close()
+
+
+@pytest.fixture
+def run_script(audit_socket, test_engine):
+    """Run a credential script the way an operator does: as a real process.
+
+    The two audit records only reach the journal because
+    ``configure_script_logging()`` runs under ``if __name__ == "__main__"``,
+    which is exactly the line no in-process test of ``main()`` executes. #67
+    was a wiring defect at the entry point, so the test has to start at the
+    entry point.
+    """
+
+    def run(script: str, *argv: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, f"scripts/{script}", *argv],
+            cwd=Path(__file__).resolve().parents[1],
+            env={
+                **os.environ,
+                "DATABASE_URL": TEST_DATABASE_URL,
+                AUDIT_SOCKET_ENV: audit_socket.path,
+            },
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    return run

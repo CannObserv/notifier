@@ -27,6 +27,14 @@ to filter on it — and forgetting that filter anywhere means a revoked
 credential that still authenticates. DELETE fails closed; a column that must
 be remembered fails open. The audit value is taken here instead, as a log line
 on every mint and revoke that names the key without ever naming its secret.
+
+That line goes to the ``notifier.audit`` logger, which the credential scripts
+point at journald — ``journalctl -t notifier-keys``. It went to this module's
+own logger until #67, where it turned out never to have been emitted at all:
+neither script called ``configure_logging()``, so the root logger had no
+handler and Python's last-resort handler dropped every INFO record. The half
+of the trade above that was supposed to pay for the missing column had not
+run once.
 """
 
 import hashlib
@@ -37,10 +45,16 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.logging import get_logger
+from src.core.logging import get_audit_logger, get_logger
 from src.core.models import ApiKey, Tenant
 
 logger = get_logger(__name__)
+
+#: Every mint and every revoke, on the channel an entry point points at the
+#: journal. Not ``logger``: these records are the whole audit trail this
+#: module's DELETE leaves behind, and they have to reach somewhere durable
+#: even when the module's other output goes to an operator's terminal (#67).
+audit = get_audit_logger()
 
 #: Marks a notifier credential on sight, in a config file or a leak report.
 RAW_KEY_PREFIX = "nk_"
@@ -190,7 +204,7 @@ async def mint(
     )
     session.add(key)
     await session.flush()
-    logger.info(
+    audit.info(
         "api key minted",
         extra={
             "tenant_id": ulid_str(tenant_id),
@@ -253,7 +267,7 @@ async def revoke(
     record = KeyRecord.of(key)
     await session.delete(key)
     await session.flush()
-    logger.info(
+    audit.info(
         "api key revoked",
         extra={
             "tenant_id": ulid_str(tenant_id),
