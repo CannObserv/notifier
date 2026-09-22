@@ -28,6 +28,13 @@ credential recorded dead, which is worse than no record at all because someone
 will trust it. So ``dry_run`` rolls back and stays silent, and a real run
 commits and then records — inseparably, in one function, so there is no way to
 perform the deletion through this module and skip the record.
+
+**The tenant row is locked ``FOR UPDATE`` before anything is read.** The
+inventory and the delete are separate statements, and a key minted in the gap
+between them would be destroyed by the cascade while being absent from the
+snapshot the records are built from — the credential-with-no-record this
+module exists to prevent, in a smaller window. :func:`delete_tenant` carries
+the mechanism.
 """
 
 from dataclasses import dataclass
