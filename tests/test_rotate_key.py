@@ -884,5 +884,4 @@ class TestAuditChannel:
         )
         assert done.returncode == REFUSED, done.stdout
 
-        with pytest.raises(AssertionError, match="got 0"):
-            audit_socket.records(timeout=1.0)
+        audit_socket.assert_silent()

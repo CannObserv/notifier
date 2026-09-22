@@ -209,7 +209,36 @@ class AuditSocket:
 
     def records(self, expected: int = 1, timeout: float = 5.0) -> list[dict]:
         """Read *expected* datagrams and return their JSON payloads."""
-        return [json.loads(d[d.index("{") :]) for d in self.datagrams(expected, timeout)]
+        return [self._payload(d) for d in self.datagrams(expected, timeout)]
+
+    @staticmethod
+    def _payload(datagram: str) -> dict:
+        """Strip the syslog `<PRI>tag: ` prefix and parse what follows.
+
+        A datagram with no JSON in it fails as an assertion naming the bytes
+        that arrived. Bare `str.index` raised `ValueError: substring not
+        found`, which names neither the channel nor the payload — in a helper
+        whose whole job is a legible failure (CR 7).
+        """
+        start = datagram.find("{")
+        if start == -1:
+            raise AssertionError(f"audit datagram carries no JSON payload: {datagram!r}")
+        return json.loads(datagram[start:])
+
+    def assert_silent(self, timeout: float = 1.0) -> None:
+        """Fail if anything at all arrives within *timeout*.
+
+        The positive spelling of "nothing was recorded". Asserting it as
+        `pytest.raises(AssertionError, match=...)` around `records()` made a
+        helper's failure message load-bearing in another file, and read as
+        though the absence of a record were an error (CR 6).
+        """
+        self.sock.settimeout(timeout)
+        try:
+            arrived = self.sock.recv(65536).decode().rstrip("\x00")
+        except TimeoutError:
+            return
+        raise AssertionError(f"expected no audit record, got: {arrived!r}")
 
 
 @pytest.fixture
