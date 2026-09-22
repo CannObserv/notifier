@@ -128,6 +128,15 @@ class TestArgumentParsing:
 
         assert args.expect_name is None
 
+    def test_a_rehearsal_is_the_real_command_plus_one_flag(self):
+        """The whole value of `--dry-run` is rehearsing what you are about to
+        run. Refusing it alongside `--yes` meant an unattended run had no
+        spelling of its own rehearsal, and diverged from `rotate_key.py`,
+        which accepts the pair (CR 2)."""
+        args = parse_args(["--tenant-id", TENANT, "--expect-name", "acme", "--yes", "--dry-run"])
+
+        assert (args.dry_run, args.yes, args.expect_name) == (True, True, "acme")
+
 
 def _key(key_id: str, label: str, environment: str) -> KeyRecord:
     return KeyRecord(
@@ -189,6 +198,21 @@ class TestMain:
         tenant_id, _ = live_tenant
 
         code = await main(parse_args(["--tenant-id", tenant_id, "--dry-run"]))
+
+        assert code == OK
+        assert "DRY RUN" in capsys.readouterr().out
+        assert await _exists(live_session, tenant_id)
+
+    async def test_a_rehearsal_with_yes_still_writes_nothing(
+        self, factory, live_session, live_tenant, capsys
+    ):
+        """The unattended run's own rehearsal: same argv, one flag added
+        (CR 2). `--yes` skips a prompt this path never reaches."""
+        tenant_id, name = live_tenant
+
+        code = await main(
+            parse_args(["--tenant-id", tenant_id, "--expect-name", name, "--yes", "--dry-run"])
+        )
 
         assert code == OK
         assert "DRY RUN" in capsys.readouterr().out

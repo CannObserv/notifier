@@ -127,8 +127,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "--yes skips the prompt, which is the only place the tenant's name is read back. "
             "Pass --expect-name <name> so the id is checked against something"
         )
-    if args.dry_run and args.yes:
-        parser.error("--yes confirms a write; a dry run has nothing to confirm")
+    # `--dry-run --yes` is deliberately allowed. A rehearsal is worth most
+    # when it is the real command line plus one flag — refusing the pair made
+    # the rehearsal of an unattended run impossible to spell, and diverged
+    # from `rotate_key.py`, which accepts both (CR 2). `--yes` simply has
+    # nothing to skip on a run that never reaches the prompt, and
+    # `--expect-name` is still required alongside it, so the rehearsal fires
+    # the same name check the real run will.
     return args
 
 

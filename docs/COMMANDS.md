@@ -429,7 +429,7 @@ NOTIFIER_ALLOW_PROD_DB=1 \
 | `--tenant-id` | The tenant to destroy. Its id, never its name |
 | `--expect-name <name>` | The name you believe that id belongs to; refuses if it does not match. **Required with `--yes`** |
 | `--dry-run` | Rehearse everything, refusals included, and roll back. Records nothing |
-| `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal, and rejected with `--dry-run`, which has nothing to confirm |
+| `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal. Accepted with `--dry-run`, which has no prompt to skip, so an unattended run can be rehearsed as itself plus one flag |
 
 Exit codes: `0` done, `2` refused (nothing written), `3` aborted at the prompt.
 `1` is unused here — it is `rotate_key.py`'s "committed but not proven", and a
