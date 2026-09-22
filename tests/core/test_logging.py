@@ -217,6 +217,21 @@ class TestAuditChannel:
         assert record["message"] == "api key revoked"
         assert record["key_id"] == "01J0KEY"
 
+    def test_reconfiguring_closes_the_handler_it_replaces(self, audit_socket):
+        """Assigning over `handlers` drops the reference without closing the
+        socket under it, which is an fd leak anywhere this is called twice
+        (CR 5)."""
+        saved = _snapshot(("", AUDIT_LOGGER_NAME))
+        try:
+            first = configure_audit_logging(address=audit_socket.path)
+            configure_audit_logging(address=audit_socket.path)
+        finally:
+            _restore(saved)
+
+        # SysLogHandler.close() closes the socket and drops the attribute to
+        # None, so `is None` is the durable spelling of "it was closed".
+        assert first.socket is None
+
     def test_the_environment_variable_selects_the_socket(self, audit_socket, monkeypatch):
         """How a test — and only a test — points the channel somewhere else."""
         monkeypatch.setenv(AUDIT_SOCKET_ENV, audit_socket.path)

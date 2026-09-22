@@ -141,6 +141,12 @@ def configure_audit_logging(
     audit = get_audit_logger()
     audit.setLevel(level)
     audit.propagate = False
+    # Close what is being replaced. Assigning over `handlers` drops the
+    # reference without closing the socket underneath it, so a second call
+    # leaks an open fd — invisible while this is called once per process, and
+    # a real leak the day anything reconfigures on a signal (CR 5).
+    for existing in audit.handlers:
+        existing.close()
 
     handler: logging.Handler
     unreachable = _datagram_socket_error(address)
@@ -155,6 +161,10 @@ def configure_audit_logging(
         )
         return handler
 
+    # SOCK_DGRAM is pinned rather than left to SysLogHandler's DGRAM-then-STREAM
+    # fallback, so the handler speaks whatever the probe above tested. A
+    # stream-only /dev/log therefore degrades to stderr loudly instead of
+    # connecting on a path nothing verified (CR 10).
     handler = logging.handlers.SysLogHandler(address=address, socktype=socket.SOCK_DGRAM)
     # The trailing ": " is not cosmetic: it is the syslog TAG delimiter
     # journald splits on to populate SYSLOG_IDENTIFIER.
