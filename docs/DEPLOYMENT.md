@@ -239,8 +239,10 @@ They were not backfilled into the journal: a synthesized record carrying a
 from an observed one, which is worse than a gap that names itself.
 
 **Deleting a tenant still records nothing** — the keys go by cascade, never
-through `revoke()`. The first row above is that hole. There is no sanctioned
-tenant-deletion script yet; when there is, it belongs on this channel.
+through `revoke()`. The first row above is that hole, and there is no
+sanctioned tenant-deletion path at all: today it is ad-hoc SQL, which is the
+failure `rotate_key.py` exists to retire, still live for the larger
+operation. Tracked as #79.
 
 ### Worktrees here must not share this checkout's `.venv`
 
