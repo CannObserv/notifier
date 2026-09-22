@@ -10,7 +10,7 @@ dependencies = [
     # fastapi (>=2.9.0) until #32 — a floor for our own code set by someone
     # else's packaging.
     "pydantic>=2.13.4,<3",
-    "python-json-logger>=4.0.0,<5",
+    "python-json-logger>=4.2.0,<5",
     "uvicorn>=0.52.4,<0.53",
     "sqlalchemy[asyncio]>=2.0,<3",
     "asyncpg>=0.30.0,<0.32",
