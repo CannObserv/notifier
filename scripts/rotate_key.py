@@ -35,7 +35,7 @@ The connection is opened through ``src.core.database``, so the guard in
 ``src/core/db_safety.py`` applies unchanged: production requires the opt-in
 above, on the command line, for the single invocation — never in an env file.
 
-Four things this does that the ad-hoc program could not:
+Five things this does that the ad-hoc program could not:
 
 * **One transaction.** The mint and the revoke commit together, so an
   interrupted rotation cannot leave a tenant holding a key nobody has.
