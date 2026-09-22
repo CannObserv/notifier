@@ -68,7 +68,7 @@ async def _attempts_for(session: AsyncSession, dispatch_id: str) -> list[Dispatc
     return list(result.scalars().all())
 
 
-@router.post("", response_model=DispatchOut, status_code=202)
+@router.post("", status_code=202)
 async def create_dispatch(
     body: DispatchRequest,
     tenant_id: str = Depends(require_api_key),
@@ -144,7 +144,7 @@ async def create_dispatch(
     return DispatchOut.from_models(delivery.dispatch, delivery.attempts)
 
 
-@router.get("/{dispatch_id}", response_model=DispatchOut)
+@router.get("/{dispatch_id}")
 async def get_dispatch(
     dispatch_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),

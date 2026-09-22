@@ -25,7 +25,7 @@ async def list_apprise_plugins() -> list[dict]:
     return list_plugins()
 
 
-@router.get("/plugins/{schema}", response_model=PluginDetail)
+@router.get("/plugins/{schema}")
 async def get_apprise_plugin(schema: str) -> PluginDetail:
     """Return token definitions and variant info for an Apprise plugin."""
     detail = get_plugin_detail(schema)
@@ -41,7 +41,7 @@ async def get_apprise_plugin(schema: str) -> PluginDetail:
     )
 
 
-@router.post("/plugins/{schema}/assemble", response_model=AssembleResponse)
+@router.post("/plugins/{schema}/assemble")
 async def assemble_apprise_url(schema: str, body: AssembleRequest) -> AssembleResponse:
     """Assemble a candidate Apprise URL from a token bag without persisting it."""
     if get_plugin_detail(schema) is None:

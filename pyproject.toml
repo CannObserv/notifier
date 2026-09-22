@@ -85,7 +85,11 @@ extend-exclude = [
 # ASYNC210 matches blocking HTTP by *call name* (`httpx.get`, `requests.post`)
 # and does not infer the type of a client instance, so `client.get(...)` still
 # passes. The rule narrows the hole; a reviewer still closes it by eye.
-select = ["ASYNC", "E", "F", "I", "W", "UP"]
+# FAST001 (#66): drop `response_model=` where the return annotation already
+# says it. Ruff marks the fix unsafe because the two can disagree, and then
+# `response_model=` is what serializes; here the OpenAPI dump is byte-identical
+# across all 20 sites, which is the evidence they do not. FAST002 lands next.
+select = ["ASYNC", "E", "F", "FAST001", "I", "W", "UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

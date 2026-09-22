@@ -14,7 +14,7 @@ from src.core.notifications.validate import (
 router = APIRouter(prefix="/preview", tags=["preview"])
 
 
-@router.post("", response_model=PreviewResponse)
+@router.post("")
 async def preview(
     body: PreviewRequest,
     _tenant_id: str = Depends(require_api_key),

@@ -55,7 +55,7 @@ async def _load_owned(session: AsyncSession, channel_id: str, tenant_id: str) ->
     return channel
 
 
-@router.get("", response_model=list[ChannelOut])
+@router.get("")
 async def list_channels(
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
@@ -67,7 +67,7 @@ async def list_channels(
     return [_to_out(c) for c in result.scalars().all()]
 
 
-@router.post("", response_model=ChannelOut, status_code=201)
+@router.post("", status_code=201)
 async def create_channel(
     body: ChannelCreate,
     tenant_id: str = Depends(require_api_key),
@@ -86,7 +86,7 @@ async def create_channel(
     return _to_out(channel)
 
 
-@router.get("/{channel_id}", response_model=ChannelOut)
+@router.get("/{channel_id}")
 async def get_channel(
     channel_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
@@ -96,7 +96,7 @@ async def get_channel(
     return _to_out(await _load_owned(session, channel_id, tenant_id))
 
 
-@router.patch("/{channel_id}", response_model=ChannelOut)
+@router.patch("/{channel_id}")
 async def update_channel(
     channel_id: ULIDStr,
     body: ChannelUpdate,
@@ -134,7 +134,7 @@ async def delete_channel(
         ) from exc
 
 
-@router.post("/{channel_id}/test", response_model=ChannelTestResponse)
+@router.post("/{channel_id}/test")
 async def test_channel(
     channel_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),

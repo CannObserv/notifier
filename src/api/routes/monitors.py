@@ -117,7 +117,7 @@ async def _owned_template(session: AsyncSession, template_id: str, tenant_id: st
     return template
 
 
-@router.get("", response_model=list[MonitorOut])
+@router.get("")
 async def list_monitors(
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
@@ -129,7 +129,7 @@ async def list_monitors(
     return [_to_out(m) for m in result.scalars().all()]
 
 
-@router.post("", response_model=MonitorOut, status_code=201)
+@router.post("", status_code=201)
 async def create_monitor(
     body: MonitorCreate,
     tenant_id: str = Depends(require_api_key),
@@ -158,7 +158,7 @@ async def create_monitor(
     return _to_out(monitor)
 
 
-@router.get("/{monitor_id}", response_model=MonitorOut)
+@router.get("/{monitor_id}")
 async def get_monitor(
     monitor_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
@@ -168,7 +168,7 @@ async def get_monitor(
     return _to_out(await _load_owned(session, monitor_id, tenant_id))
 
 
-@router.patch("/{monitor_id}", response_model=MonitorOut)
+@router.patch("/{monitor_id}")
 async def update_monitor(
     monitor_id: ULIDStr,
     body: MonitorUpdate,
@@ -205,7 +205,7 @@ async def delete_monitor(
     await session.commit()
 
 
-@router.post("/{monitor_id}/checkin", response_model=CheckinResponse, status_code=202)
+@router.post("/{monitor_id}/checkin", status_code=202)
 async def checkin(
     monitor_id: ULIDStr,
     body: CheckinRequest,

@@ -76,7 +76,7 @@ async def _load_owned(session: AsyncSession, template_id: str, tenant_id: str) -
     return template
 
 
-@router.get("", response_model=list[TemplateOut])
+@router.get("")
 async def list_templates(
     tenant_id: str = Depends(require_api_key),
     session: AsyncSession = Depends(get_db_session),
@@ -88,7 +88,7 @@ async def list_templates(
     return [_to_out(t) for t in result.scalars().all()]
 
 
-@router.post("", response_model=TemplateOut, status_code=201)
+@router.post("", status_code=201)
 async def create_template(
     body: TemplateCreate,
     tenant_id: str = Depends(require_api_key),
@@ -115,7 +115,7 @@ async def create_template(
     return _to_out(template)
 
 
-@router.get("/{template_id}", response_model=TemplateOut)
+@router.get("/{template_id}")
 async def get_template(
     template_id: ULIDStr,
     tenant_id: str = Depends(require_api_key),
@@ -125,7 +125,7 @@ async def get_template(
     return _to_out(await _load_owned(session, template_id, tenant_id))
 
 
-@router.patch("/{template_id}", response_model=TemplateOut)
+@router.patch("/{template_id}")
 async def update_template(
     template_id: ULIDStr,
     body: TemplateUpdate,
@@ -163,7 +163,7 @@ async def delete_template(
     await session.commit()
 
 
-@router.post("/{template_id}/preview", response_model=TemplatePreviewResponse)
+@router.post("/{template_id}/preview")
 async def preview_template(
     template_id: ULIDStr,
     body: TemplatePreviewRequest,
