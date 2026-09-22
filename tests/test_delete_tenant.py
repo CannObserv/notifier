@@ -280,14 +280,26 @@ class TestMain:
 
         assert code == REFUSED
 
-    async def test_refuses_to_act_unattended_without_yes(self, factory, live_session, live_tenant):
-        """pytest's stdin is not a terminal, so this is the unattended path."""
+    async def test_refuses_to_act_unattended_without_yes(
+        self, factory, live_session, live_tenant, monkeypatch, capsys
+    ):
+        """A destructive tool that acts on an unattended stdin is one cron
+        entry away from deleting a consumer nobody asked it to.
+
+        `sys.stdin.isatty` is pinned rather than left to pytest's capture, as
+        `test_rotate_key.py` pins it: under `pytest -s` on a terminal the
+        ambient version is true, and the script then blocks on `input()` with
+        the whole suite behind it (CR 3)."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
         tenant_id, name = live_tenant
 
         code = await main(parse_args(["--tenant-id", tenant_id, "--expect-name", name]))
 
         assert code == ABORTED
         assert await _exists(live_session, tenant_id)
+        err = capsys.readouterr().err
+        assert "About to permanently delete" in err
+        assert name in err
 
     async def test_a_refused_database_is_reported_not_raised(self, monkeypatch, capsys):
         """`NOTIFIER_ALLOW_PROD_DB` is in no env file by design, so forgetting
