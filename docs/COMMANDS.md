@@ -422,6 +422,11 @@ DATABASE_URL="$DEV_DATABASE_URL" \
 # Then do it, naming the tenant you believe that id belongs to
 NOTIFIER_ALLOW_PROD_DB=1 \
   uv run python scripts/delete_tenant.py --tenant-id <id> --expect-name <name>
+
+# Unattended, and its own rehearsal — the same command line plus one flag
+DATABASE_URL="$DEV_DATABASE_URL" \
+  uv run python scripts/delete_tenant.py --tenant-id <id> \
+    --expect-name <name> --yes --dry-run
 ```
 
 | Flag | What it does |
