@@ -36,10 +36,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.api_keys import KeyRecord, TenantNotFoundError, keys_for, ulid_str
-from src.core.logging import get_audit_logger, get_logger
+from src.core.logging import get_audit_logger
 from src.core.models import Channel, Dispatch, DispatchAttempt, Monitor, Template, Tenant
-
-logger = get_logger(__name__)
 
 #: The same channel every mint and revoke lands on. A cascaded key is a key
 #: destroyed, and an operator asking "which credential died, and when" must
