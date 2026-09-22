@@ -332,6 +332,29 @@ class TestMain:
         assert code == OK
         assert not await _exists(live_session, tenant_id)
 
+    @pytest.mark.parametrize("interrupt", [EOFError, KeyboardInterrupt])
+    async def test_backing_out_of_the_prompt_aborts_cleanly(
+        self, factory, live_session, live_tenant, monkeypatch, capsys, interrupt
+    ):
+        """Ctrl-D and Ctrl-C are how an operator backs out of a prompt. Both
+        raised out of `input()` as a stack trace printed directly beneath
+        "This cannot be undone" — and a traceback reads like the script broke
+        mid-delete rather than like it declined, which is the ambiguity
+        `rotate_key.py` already refuses to create elsewhere (CR 14)."""
+        tenant_id, _ = live_tenant
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        def raise_it(*_):
+            raise interrupt
+
+        monkeypatch.setattr("builtins.input", raise_it)
+
+        code = await main(parse_args(["--tenant-id", tenant_id]))
+
+        assert code == ABORTED
+        assert await _exists(live_session, tenant_id)
+        assert "Aborted; nothing was written." in capsys.readouterr().err
+
     async def test_a_wrong_name_at_the_prompt_aborts(
         self, factory, live_session, live_tenant, monkeypatch
     ):

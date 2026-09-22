@@ -431,6 +431,16 @@ def _confirm(args: argparse.Namespace) -> bool:
     the pipe with it, leaving the description on screen followed by silence
     while the script waited on something invisible (CR 10, first fixed in
     ``delete_tenant.py``).
+
+    Backing out is an abort, not a crash. Ctrl-D and Ctrl-C both raise out of
+    ``input()``, and an uncaught one prints a stack trace where a refusal
+    belongs — which reads like the script broke part-way through rather than
+    like it declined, the ambiguity this script refuses to create anywhere
+    else. Both land on the caller's "Aborted; nothing was written." (CR 14).
+
+    ``delete_tenant.py:_confirm`` is this function's sibling and shares the
+    whole contract above. The CR 10 defect existed in both because one was
+    copied from the other; carry the rules across, not just the code (CR 15).
     """
     if args.yes:
         return True
@@ -443,7 +453,12 @@ def _confirm(args: argparse.Namespace) -> bool:
         return False
     print("Type 'yes' to proceed: ", end="", file=sys.stderr)
     sys.stderr.flush()
-    return input().strip() == "yes"
+    try:
+        typed = input()
+    except (EOFError, KeyboardInterrupt):
+        print(file=sys.stderr)  # the ^C or ^D sits at the end of the prompt line
+        return False
+    return typed.strip() == "yes"
 
 
 def _open_factory() -> async_sessionmaker[AsyncSession]:

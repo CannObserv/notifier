@@ -201,6 +201,18 @@ def _confirm(inventory: TenantInventory, yes: bool) -> bool:
     waiting on a prompt that had gone into the pipe. An invisible prompt is a
     bad place to split the stream in general, and the worst one in front of a
     delete that cannot be undone (CR 10).
+
+    Backing out is an abort, not a crash. Ctrl-D and Ctrl-C both raise out of
+    ``input()``, and an uncaught one prints a stack trace where a refusal
+    belongs — which reads like the script broke part-way through rather than
+    like it declined, the ambiguity this script refuses to create anywhere
+    else. Both land on the caller's "Aborted; nothing was written." (CR 14).
+
+    ``rotate_key.py:_confirm`` is this function's sibling and shares the whole
+    contract above — describe on stderr, prompt on stderr, refuse an
+    unattended stdin, treat backing out as an abort. The CR 10 defect existed
+    in both because one was copied from the other; carry the rules across, not
+    just the code (CR 15).
     """
     if yes:
         return True
@@ -213,7 +225,12 @@ def _confirm(inventory: TenantInventory, yes: bool) -> bool:
         return False
     print(f"Type the tenant's name ({inventory.tenant_name}) to proceed: ", end="", file=sys.stderr)
     sys.stderr.flush()
-    return input().strip() == inventory.tenant_name
+    try:
+        typed = input()
+    except (EOFError, KeyboardInterrupt):
+        print(file=sys.stderr)  # the ^C or ^D sits at the end of the prompt line
+        return False
+    return typed.strip() == inventory.tenant_name
 
 
 def _check_name(inventory: TenantInventory, expected: str | None) -> None:

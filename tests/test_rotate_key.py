@@ -792,6 +792,27 @@ class TestConfirmation:
         assert "Type 'yes' to proceed" in captured.err
         assert "Type 'yes'" not in captured.out
 
+    @pytest.mark.parametrize("interrupt", [EOFError, KeyboardInterrupt])
+    async def test_backing_out_of_the_prompt_aborts_cleanly(
+        self, factory, live_tenant, monkeypatch, capsys, interrupt
+    ):
+        """Ctrl-D and Ctrl-C both raised out of `input()` as a stack trace.
+        This module's own refusal handler says why that is wrong: a traceback
+        reads like the script broke rather than like it declined, and an
+        operator mid-incident resolves that ambiguity by reaching for psql
+        (CR 14)."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        def raise_it(*_):
+            raise interrupt
+
+        monkeypatch.setattr("builtins.input", raise_it)
+
+        code = await main(parse_args(["--tenant-id", live_tenant, "--new-label", "nope"]))
+
+        assert code == ABORTED
+        assert "Aborted; nothing was written." in capsys.readouterr().err
+
 
 class TestAuditChannel:
     """A revoke run by hand leaves a record that outlives the shell (#67).
