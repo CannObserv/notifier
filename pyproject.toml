@@ -85,6 +85,7 @@ extend-exclude = [
 # ASYNC210 matches blocking HTTP by *call name* (`httpx.get`, `requests.post`)
 # and does not infer the type of a client instance, so `client.get(...)` still
 # passes. The rule narrows the hole; a reviewer still closes it by eye.
+#
 # FAST (#66): FastAPI-specific rules, adopted in two commits — FAST001 (drop
 # `response_model=` where the return annotation already says it) then FAST002
 # (`Annotated[X, Depends(...)]`). Both fixes are marked unsafe and both were
