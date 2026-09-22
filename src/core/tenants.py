@@ -134,9 +134,20 @@ async def delete_tenant(
     Commits on a real run, then records. The records come last because a
     record of a deletion that then failed to commit is a credential reported
     dead while it still authenticates.
+
+    The tenant row is locked ``FOR UPDATE`` before the inventory is read, for
+    the reason :func:`~src.core.api_keys.revoke` locks it before counting:
+    otherwise the read and the delete are two statements with a gap between
+    them, and a key minted in that gap is destroyed by the cascade while being
+    absent from the snapshot the records are built from — a credential gone
+    with nothing naming it, which is the whole of what #79 closes. The lock
+    reaches a concurrent :func:`~src.core.api_keys.mint` because inserting a
+    row that references this tenant takes ``FOR KEY SHARE`` on it, and that
+    conflicts: the mint blocks here and then fails on a parent that is gone.
     """
     tenant_id = ulid_str(tenant_id)
     try:
+        await session.execute(select(Tenant).where(Tenant.id == tenant_id).with_for_update())
         inventory = await inventory_of(session, tenant_id)
         await session.execute(
             delete(DispatchAttempt).where(

@@ -17,7 +17,7 @@ import json
 import logging
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 
 from src.core.api_keys import TenantNotFoundError, mint
 from src.core.logging import AUDIT_LOGGER_NAME
@@ -168,6 +168,26 @@ class TestDeleteTenant:
         await delete_tenant(db_session, committed)
 
         assert await _rows(db_session, Tenant, id=committed) == 1
+
+    async def test_locks_the_tenant_row_before_reading_the_inventory(self, db_session, committed):
+        """The inventory read and the delete are two statements, and a key
+        minted in the gap between them is taken by the cascade while being
+        absent from the snapshot the audit records are built from — the
+        credential-with-no-record #79 exists to prevent, in a smaller window.
+        ``revoke`` locks the tenant row for the same shape of reason (CR 1).
+        """
+        statements = []
+
+        @event.listens_for(db_session.sync_session, "do_orm_execute")
+        def record(orm_context):
+            statements.append(str(orm_context.statement).lower())
+
+        await delete_tenant(db_session, committed, dry_run=False)
+
+        event.remove(db_session.sync_session, "do_orm_execute", record)
+        locks = [s for s in statements if "for update" in s and "tenants" in s]
+        assert locks, statements
+        assert statements.index(locks[0]) == 0, statements
 
 
 class TestDryRun:
