@@ -49,7 +49,7 @@ tests/core/test_api_keys.py        — Minting, revoking and listing: the raw ke
 tests/test_rotate_key.py           — `scripts/rotate_key.py`: the flag combinations it refuses, the single-transaction rotation, `--dry-run` writing nothing while still firing every refusal, and the verification probes against an `httpx.MockTransport` — including that a **403** on the old key is not proof of revocation, only a 401 is. `TestAuditChannel` runs the script as a subprocess against a bound datagram socket: a rotation records both halves, a bare revoke records the one thing that outlives it, a refused run records nothing, and the raw key reaches stdout and no other channel
 tests/test_seed_tenant.py          — Mostly the script's *output*, which is an interface with two consumers: an operator, and `clients/python/tests/conftest.py`, which shells it and parses stdout. The SDK's regexes are transcribed here so a drift fails on the commit that causes it rather than one layer away. `TestAuditChannel` holds the other half of that interface: the mint reaches the journal while stdout stays exactly the four `key=value` lines — the split #67 turned on
 tests/conftest.py fixtures    — `closed_port` (connection refused immediately) and `sink_server` (a threaded HTTP server answering 200) give tests a real failure and a real success without leaving the machine. Dispatch tests previously used `json://example.com`, which POSTed notification payloads to a third-party host on every run. `audit_socket` binds a real `AF_UNIX`/`SOCK_DGRAM` socket and reads the datagrams back, standing in for journald's `/dev/log` so the assertion is the round trip rather than a mock handler; `run_script` runs a credential script as a subprocess against it, because the wiring #67 fixed lives under `if __name__ == "__main__"` — the one line no in-process test of `main()` executes
-tests/ci/                    — Drift tests for the build surface: the pinned interpreter and locked install CI depends on, and the dependency policy every specifier is held to. Assertion-by-assertion inventory in the drift-test annex
+tests/ci/                    — Drift tests for the build surface: the pinned interpreter and locked install CI depends on, the ruff selector list that is the whole static-analysis surface, and the dependency policy every specifier is held to. Assertion-by-assertion inventory in the drift-test annex
 tests/deploy/                — Drift tests for the deploy surface: the systemd units, the sweep pair, the launch and env-loading scripts, the SocratiCode config and the skills-refresh hook. Assertion-by-assertion inventory in the drift-test annex
 clients/python/              — `notifier-client` Python SDK; separate `pyproject.toml` + venv (`uv sync` from this dir); `src/notifier_client/generated/` is regenerated from `/openapi.json` via `clients/python/scripts/regen.sh` and must never be hand-edited; `sdk-staleness.yml` fails any push to main or PR that leaves it stale, and also runs the SDK unit suite against the regenerated client. Public types in `notifier_client.types`; sub-clients under `client.channels`, `client.templates`, `client.apprise`, `client.monitors` (`checkin()` is the one auto-retried write — a dropped heartbeat looks like a dead consumer, and the replay just overwrites the previous check-in).
 .github/                     — Workflows: `ci.yml` (`lint`, `test`, `migrations` on push to main, PRs, and manual dispatch; the `migrations` job is the only gate covering a broken migration chain, which the suite structurally cannot reach because conftest builds schema with `create_all`) and `sdk-staleness.yml` (regenerates the SDK, fails on drift, runs the SDK unit suite). Both take `permissions: contents: read` and cancel in-progress runs for PRs only — never for main, which is the deployed code. Plus `dependabot.yml` (#33): weekly uv bumps over both dependency tables (`versioning-strategy: increase-if-necessary`, dev-group churn grouped per directory, runtime deps as individual PRs) and a `github-actions` block for the workflows' own pins
@@ -68,6 +68,45 @@ the `docs/` entry above predates this file.
 **Environment files** (not in the repo tree):
 - `/etc/notifier/.env` — Production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); outside repo, persistent. Sourcing it leaves `DATABASE_URL` on **production** — intended for alembic and systemctl only
 - `.env` (repo root) — Dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`); git-ignored
+
+
+## Lint policy
+
+`[tool.ruff.lint] select` is the entire static-analysis surface between a
+commit and CI: `pre-commit` runs ruff and never pytest, and CI's `lint` job
+runs the same two ruff commands. A family dropped from that list stops
+checking without failing anything, so `tests/ci/test_lint_selectors.py`
+asserts the list by name.
+
+**`ASYNC` (#66).** Every route handler in `src/api/routes/` is `async def`,
+sharing one event loop with the Apprise dispatch path. A blocking call in a
+handler — sync `httpx`, `requests`, `time.sleep`, `open()`, a subprocess —
+stalls every concurrent request, and the symptom is latency under load rather
+than a failure anyone can attribute to a line. The family reported **0
+findings** on adoption; its whole value is prospective, which is also why a
+clean `ruff check .` is not evidence it is still selected.
+
+Its limit is worth knowing before trusting it: **`ASYNC210` matches blocking
+HTTP by call name** (`httpx.get`, `requests.post`) and does not infer the type
+of an arbitrary client instance. `client.get(...)` inside an `async def`
+passes, which is exactly the shape in `scripts/rotate_key.py` and why the
+count was 0 rather than 1. The rule narrows the hole; it does not close it,
+and a clean run is not proof no handler blocks.
+
+**`FAST`.** 62 findings on adoption, none of them a bug — a style decision,
+taken deliberately and landed separately from the one-line `ASYNC` change:
+
+- **`FAST001`** (20) drops `response_model=` where the return annotation
+  already says the same thing. Measured before adopting, because anything that
+  moves the generated schema makes `clients/python/src/notifier_client/generated/`
+  stale and trips `sdk-staleness.yml`: the OpenAPI dump is **byte-identical**
+  across the change. Ruff marks the fix unsafe because dropping
+  `response_model=` changes response *serialization* where the two disagree;
+  here they do not, and the identical schema is the evidence.
+- **`FAST002`** (42) replaces `x: X = Depends(...)` with
+  `Annotated[X, Depends(...)]` across every route handler and
+  `src/api/deps.py`. Modern FastAPI style, and the reason it is its own commit
+  is that it touches the default-argument shape of every endpoint at once.
 
 
 ## Dependency policy

@@ -75,7 +75,17 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP"]
+# ASYNC (#66): every route handler in src/api/routes/ is `async def` sharing
+# one event loop with the Apprise dispatch path, so a blocking call in a
+# handler stalls every concurrent request and shows up as latency under load
+# rather than as a failure anyone can attribute. It reported 0 findings on
+# adoption; its value is prospective, and tests/ci/test_lint_selectors.py
+# asserts it stays selected because a clean run cannot.
+#
+# ASYNC210 matches blocking HTTP by *call name* (`httpx.get`, `requests.post`)
+# and does not infer the type of a client instance, so `client.get(...)` still
+# passes. The rule narrows the hole; a reviewer still closes it by eye.
+select = ["ASYNC", "E", "F", "I", "W", "UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
