@@ -90,7 +90,7 @@ a fifth landed before the pointer reached `d04cebf`.) `brainstorming`'s had fall
 restructure behind — 128 lines against vendor's 250, predating upstream's Spike/Bounded/Architectural
 model.
 
-It drifted a fourth time when the pointer moved to vendor v1.5 (#80, #81), and this one is the
+`shipping-work`'s drifted a fourth time when the pointer moved to vendor v1.5 (#80, #81), and this one is the
 clearest case for re-syncing promptly rather than letting the advisory scroll past: upstream had
 split Step 1's single `SKILL_SCRIPTS` resolution into a per-script loop
 ([gregoryfoster/skills#301](https://github.com/gregoryfoster/skills/issues/301)), and the doctor
