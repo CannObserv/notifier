@@ -5,7 +5,7 @@
 # delegating to the upstream variant. The upstream body is inherited whole by
 # exec, so every gate fix lands here without a merge; only this preamble is ours.
 #
-# Usage: bash "<pre-ship.sh>"
+# Usage: bash "<pre-ship.sh>" [--help]
 set -euo pipefail
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 
