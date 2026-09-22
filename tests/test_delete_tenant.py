@@ -354,6 +354,25 @@ class TestMain:
         assert f"tenant_id={tenant_id}" in out
         assert "first" in out and "second" in out
 
+    async def test_says_where_the_record_landed(self, factory, live_tenant, capsys):
+        """A real run's output is otherwise the rehearsal's minus one header
+        line. Proving the record exists is the point of the script, so it
+        names the channel rather than leaving it to memory (CR 9)."""
+        tenant_id, name = live_tenant
+
+        await main(parse_args(["--tenant-id", tenant_id, "--expect-name", name, "--yes"]))
+
+        assert "journalctl -t notifier-keys" in capsys.readouterr().out
+
+    async def test_a_rehearsal_claims_no_record(self, factory, live_tenant, capsys):
+        """It wrote none, so it must not point at a channel that has nothing
+        on it."""
+        tenant_id, _ = live_tenant
+
+        await main(parse_args(["--tenant-id", tenant_id, "--dry-run"]))
+
+        assert "journalctl" not in capsys.readouterr().out
+
 
 class TestAuditChannel:
     """The acceptance criterion of #79, read back off a real socket.

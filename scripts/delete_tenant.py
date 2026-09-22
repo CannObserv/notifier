@@ -64,7 +64,7 @@ import sys
 from datetime import datetime
 
 from src.core.database import get_session_factory
-from src.core.logging import configure_script_logging
+from src.core.logging import AUDIT_IDENT, configure_script_logging
 from src.core.tenants import TenantInventory, delete_tenant, inventory_of
 from src.core.utils import format_utc_iso
 
@@ -258,6 +258,11 @@ async def main(args: argparse.Namespace) -> int:
         print(line)
     if args.dry_run:
         print("Re-run without --dry-run, passing --expect-name, to perform it.")
+    else:
+        # Otherwise a real run's output is the rehearsal's minus one header
+        # line, and the operator is left to know the channel from memory —
+        # for the record that is the entire point of this script (CR 9).
+        print(f"Recorded on the credential audit channel: journalctl -t {AUDIT_IDENT}")
     return OK
 
 
