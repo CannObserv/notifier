@@ -183,8 +183,10 @@ If nothing applies, omit this step entirely.
 - notifier's `scripts/pre-ship.sh` is a thin wrapper: it sources `/etc/notifier/.env` then
   `$PROJECT_ROOT/.env` with `set -a; source` — never `export $(cat | xargs)`, which mangles any value
   holding a space or quote — and `exec`s the vendor copy. So the gate's own behaviour is upstream's by
-  delegation, `.skills/pre-ship-uv-args` above included: notifier commits no such file and needs none,
-  since its `addopts` marker expression is what upstream now preserves rather than replaces (#304).
+  delegation: the gate deselects `integration` on top of this repo's own `addopts` expression rather
+  than replacing it (#304), with no tailoring needed here. `.skills/pre-ship-uv-args` is a separate
+  half of #304 — extra arguments for every `uv run` in the gate — and notifier commits no such file
+  because it declares only a `dev` group, which `uv run` installs without being asked.
 - This is a **local override**, re-synced from vendor `2e90414` (v1.5). `scripts/pre-ship.sh`
   and this `SKILL.md` are the only real files; the other five scripts are per-script symlinks into
   `skills-vendor/`, so they track upstream automatically. `SKILL.md` cannot be symlinked — it carries
