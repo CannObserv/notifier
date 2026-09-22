@@ -2,7 +2,10 @@
 # pre-ship.sh — notifier-specific wrapper around the upstream
 # shipping-work-python-fastapi/scripts/pre-ship.sh. Sources /etc/notifier/.env
 # (system secrets) and $PROJECT_ROOT/.env (repo-local overrides) before
-# delegating to the upstream variant.
+# delegating to the upstream variant. The upstream body is inherited whole by
+# exec, so every gate fix lands here without a merge; only this preamble is ours.
+#
+# Usage: bash "<pre-ship.sh>"
 set -euo pipefail
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 

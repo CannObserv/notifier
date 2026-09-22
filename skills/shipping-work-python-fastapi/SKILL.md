@@ -4,9 +4,9 @@ description: "For Python/FastAPI projects (uv + ruff + pytest; Alembic migration
 compatibility: Designed for Python FastAPI projects using uv, ruff, pytest. Requires git, gh, uv. pytest-cov is optional — pre-ship.sh auto-detects it and adds --no-cov when present.
 metadata:
   author: gregoryfoster
-  version: "1.4"
+  version: "1.5"
   overrides: gregoryfoster-skills/shipping-work-python-fastapi
-  synced-from: "gregoryfoster-skills v1.4 (d04cebf)"
+  synced-from: "gregoryfoster-skills v1.5 (2e90414)"
   override-reason: "Sources /etc/notifier/.env and $PROJECT_ROOT/.env before delegating to upstream pre-ship; names notifier's two systemd units and dev port"
   triggers: ship it, push GH, close GH, wrap up
 ---
@@ -49,18 +49,21 @@ Determine which GitHub issue(s) to close (priority order):
 
 <!-- skill:required id=skill-scripts -->
 ```bash
-N=shipping-work-python-fastapi S=pre-ship.sh SD=
+N=shipping-work-python-fastapi
 { [ ! -x .skills/doctor.sh ] || bash .skills/doctor.sh; } || exit 1
-for d in scripts ".claude/skills/$N/scripts" "$HOME/.claude/skills/$N/scripts"; do
-  [ -f "$d/$S" ] && { SD="$d"; break; }
+for S in doc-check.sh check-status.sh push.sh comment-issue.sh close-issue.sh pre-ship.sh; do SD=
+  for d in scripts ".claude/skills/$N/scripts" "$HOME/.claude/skills/$N/scripts"; do
+    [ -f "$d/$S" ] && { SD="$d"; break; }
+  done
+  [ -n "$SD" ] || echo "$S not found in scripts/, .claude/skills/$N/scripts/, or ~/.claude/skills/$N/scripts/" >&2
+  echo "<$S>=${SD:?}/$S"
 done
-echo "SKILL_SCRIPTS=${SD:?not found in scripts/, .claude/skills/$N/scripts/, or ~/.claude/skills/$N/scripts/}"
-bash "${SD:?not found in scripts/, .claude/skills/$N/scripts/, or ~/.claude/skills/$N/scripts/}/$S"
+bash "${SD:?}/$S"
 ```
 
-The first line is a preflight: when `.skills/doctor.sh` is present, it heals any dangling vendor symlinks (or reports an actionable error); when absent, the group is a no-op. `|| exit 1` skips `pre-ship.sh` if the doctor reports unrecoverable state so the original "No such file or directory" noise doesn't drown out the doctor's message. The loop then resolves the script against the skill directory rather than the cwd — a bare `scripts/` path resolves relative to the project root, where the script does not exist ([#63](https://github.com/gregoryfoster/skills/issues/63)). A project-local `scripts/` copy still wins if one exists; `${SD:?…}` fails loudly with the searched paths when no candidate resolves. Resolution runs *after* the doctor so a freshly healed symlink chain is visible to it.
+The first line is a preflight: when `.skills/doctor.sh` is present, it heals any dangling vendor symlinks (or reports an actionable error); when absent, the group is a no-op. `|| exit 1` skips `pre-ship.sh` if the doctor reports unrecoverable state so the original "No such file or directory" noise doesn't drown out the doctor's message. The loop then resolves each script against the skill directory rather than the cwd — a bare `scripts/` path resolves relative to the project root, where the script does not exist ([#63](https://github.com/gregoryfoster/skills/issues/63)). A project-local `scripts/<name>` still wins, for that script alone: a `scripts/pre-ship.sh` wrapper must not send the other five looking beside it ([#301](https://github.com/gregoryfoster/skills/issues/301)). A script found nowhere stops the block here, by name. `pre-ship.sh` is listed last, so the final line runs it. Resolution runs *after* the doctor so a freshly healed symlink chain is visible to it.
 
-Step 1 prints `SKILL_SCRIPTS=<path>`. In every later step `<SKILL_SCRIPTS>` is a **placeholder** for that literal path — substitute the value printed here (same convention as `init-project-fastapi` Phase 0). Each Bash invocation runs in a fresh shell, so the shell variable itself is not inherited.
+In every later step a `<name.sh>` is a **placeholder** for the path printed for that script — substitute it literally (same convention as `init-project-fastapi` Phase 0). Each Bash invocation runs in a fresh shell, so nothing the block set is inherited.
 
 ```
 NO CONTINUATION IF CHECKS FAIL
@@ -68,23 +71,25 @@ NO CONTINUATION IF CHECKS FAIL
 
 If checks fail: stop, report the failure, fix before proceeding. Do not push failing code under any circumstances.
 
+`pre-ship.sh` runs ruff, then `uv run pytest -x` with `integration`-marked tests deselected on top of the project's own `addopts` marker expression — never by passing `-m`, which would replace it ([#304](https://github.com/gregoryfoster/skills/issues/304)). A project whose own hook adds `uv run` arguments (`--group seed`) commits them to `.skills/pre-ship-uv-args` (whitespace-separated, `#`-comments ignored); every uv call in the gate gets them.
+
 ### Step 1.5 — Documentation spot-check
 
 ```bash
-bash "<SKILL_SCRIPTS>/doc-check.sh"
+bash "<doc-check.sh>"
 ```
 
 `doc-check.sh` lists files changed on this branch vs the upstream default branch and flags any that match the project's sensitive-path list; when a sensitive path changes, the matching doc sections may need updating too. Entries match path *segments*, so `pyproject.toml` covers `clients/python/`'s as well as the root one, and `CHANGELOG.md` covers `clients/python/CHANGELOG.md`, the only one this repo tracks. notifier commits **both** halves, each of which **replaces** the script's generic FastAPI defaults rather than extending them: `.skills/doc-sensitive-paths` (#47) says what the gate watches, and `.skills/doc-sections` (#65) is the advice printed on a hit — read each file for what it carries and why. Tailoring only one is what upstream's half-tailoring note reports; both are tailored here, so a hit prints neither note. `tests/ci/test_doc_sensitive_paths.py` fails on a watched path that matches no tracked file, and `tests/ci/test_doc_sections.py` fails on advice naming a doc that is gone or on a watched path no line routes — so both dead-entry cases are caught in CI rather than here.
 
-If the script exits 1: review the listed files, decide whether each requires a doc update, and either commit the docs now or note them as deliberate skips. If the script exits 2: an infra/tooling problem prevented the doc check from running — investigate the underlying error rather than proceeding. One exit-2 case is worth naming: when no entry in the list matches any tracked file, the script says so instead of passing, because a list that cannot hit anything would otherwise print the same clean green as a genuinely doc-neutral branch. Fix the list; do not wave the step through. The same goes for anything the project committed under `.skills/` that the script cannot use, the directory included: a tailoring never silently reverts to the built-in defaults, so an exit 2 there means the override is unusable, not absent.
+If the script exits 1: review the listed files, decide whether each requires a doc update, and either commit the docs now or note them as deliberate skips. If the script exits 2 — or any code not named here, such as 127 when its path did not resolve — the doc check did not run: investigate the underlying error rather than proceeding. One exit-2 case is worth naming: when no entry in the list matches any tracked file, the script says so instead of passing, because a list that cannot hit anything would otherwise print the same clean green as a genuinely doc-neutral branch. Fix the list; do not wave the step through. The same goes for anything the project committed under `.skills/` that the script cannot use, the directory included: a tailoring never silently reverts to the built-in defaults, so an exit 2 there means the override is unusable, not absent.
 
 ### Step 2 — Ensure a clean working tree
 
 ```bash
-bash "<SKILL_SCRIPTS>/check-status.sh"
+bash "<check-status.sh>"
 ```
 
-If the script exits 2, `git status` itself failed: the tree state is **unknown**, which is not the same as clean. Investigate git's error rather than proceeding ([#257](https://github.com/gregoryfoster/skills/issues/257)).
+If the script exits 2, `git status` itself failed: the tree state is **unknown**, which is not the same as clean. Any code but 0 or 1 is no verdict either (127: the script was not found). Investigate the error rather than proceeding ([#257](https://github.com/gregoryfoster/skills/issues/257)).
 
 If uncommitted changes exist, commit them following the project convention. notifier's commit format:
 
@@ -115,7 +120,7 @@ If Step 2.5 did not apply (single checkout) and you're on a feature branch, merg
 ### Step 4 — Push
 
 ```bash
-bash "<SKILL_SCRIPTS>/push.sh"
+bash "<push.sh>"
 ```
 
 Confirm push succeeded before proceeding.
@@ -125,7 +130,7 @@ Confirm push succeeded before proceeding.
 For each issue in scope:
 
 ```bash
-bash "<SKILL_SCRIPTS>/comment-issue.sh" <number> "<summary>"
+bash "<comment-issue.sh>" <number> "<summary>"
 ```
 
 Comment must include:
@@ -143,7 +148,7 @@ Before closing any issue, verify the original requirements against what was impl
 </HARD-GATE>
 
 ```bash
-bash "<SKILL_SCRIPTS>/close-issue.sh" <number>
+bash "<close-issue.sh>" <number>
 ```
 
 ### Step 7 — Report
@@ -175,14 +180,21 @@ If nothing applies, omit this step entirely.
 - If `gh` CLI hits errors (e.g., Projects API changes), use `--json` flag workarounds as needed
 - The project's AGENTS.md is authoritative for commit conventions — read it before committing
 - `pre-ship.sh` auto-derives its per-SHA stamp prefix from `$(basename "$(git rev-parse --show-toplevel)")` — resolves to `notifier-tests-clean-<sha>` automatically
-- This is a **local override**, re-synced from vendor `d04cebf` (still v1.4). `scripts/pre-ship.sh`
+- notifier's `scripts/pre-ship.sh` is a thin wrapper: it sources `/etc/notifier/.env` then
+  `$PROJECT_ROOT/.env` with `set -a; source` — never `export $(cat | xargs)`, which mangles any value
+  holding a space or quote — and `exec`s the vendor copy. So the gate's own behaviour is upstream's by
+  delegation, `.skills/pre-ship-uv-args` above included: notifier commits no such file and needs none,
+  since its `addopts` marker expression is what upstream now preserves rather than replaces (#304).
+- This is a **local override**, re-synced from vendor `2e90414` (v1.5). `scripts/pre-ship.sh`
   and this `SKILL.md` are the only real files; the other five scripts are per-script symlinks into
   `skills-vendor/`, so they track upstream automatically. `SKILL.md` cannot be symlinked — it carries
-  the notifier deltas — so it is the one file that drifts. It has drifted three times: v1.2 against
+  the notifier deltas — so it is the one file that drifts. It has drifted four times: v1.2 against
   vendor v1.4 (Step 1's script-resolution loop, so Step 1 failed); a Step 1.5 paragraph describing a
   `SENSITIVE_PATHS` array after upstream had moved to segment matching and `.skills/doc-sensitive-paths`
-  (#47); then five un-bumped upstream edits at an unchanged v1.4, `.skills/doc-sections` among them (#69).
-  The third is the one the tooling can now see: since gregoryfoster/skills#286 `.skills/doctor.sh`
+  (#47); then five un-bumped upstream edits at an unchanged v1.4, `.skills/doc-sections` among them (#69);
+  then v1.4 against vendor v1.5, holding open the single-resolution Step 1 block after upstream had
+  split it per script (#80, #81). The last two are the ones the tooling can see: since
+  gregoryfoster/skills#286 `.skills/doctor.sh`
   diffs the `synced-from:` commit above against the vendor's HEAD for versioned vendors too, so a
   change at an unchanged `version:` reports. **Re-diff this file against vendor whenever the submodule
   moves** — `skills-vendor/` is in the path list above, so Step 1.5 says when that is, and it says so
