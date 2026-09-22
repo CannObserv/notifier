@@ -104,9 +104,15 @@ taken deliberately and landed separately from the one-line `ASYNC` change:
   `response_model=` changes response *serialization* where the two disagree;
   here they do not, and the identical schema is the evidence.
 - **`FAST002`** (42) replaces `x: X = Depends(...)` with
-  `Annotated[X, Depends(...)]` across every route handler and
-  `src/api/deps.py`. Modern FastAPI style, and the reason it is its own commit
-  is that it touches the default-argument shape of every endpoint at once.
+  `Annotated[X, Depends(...)]` across every route handler. Modern FastAPI
+  style, and the reason it is its own commit is that it touches the
+  default-argument shape of every endpoint at once.
+
+  Its reach stops at path operations, which is the family's own blind spot
+  alongside `ASYNC210`'s: the dependency *functions* in `src/api/deps.py` are
+  not endpoints, so `require_api_key` keeps `raw_key: str | None =
+  Depends(api_key_header)` and ruff stays clean. That shape is correct there;
+  it is not an unconverted leftover.
 
 
 ## Dependency policy
