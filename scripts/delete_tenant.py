@@ -192,7 +192,16 @@ def _describe(inventory: TenantInventory) -> str:
 
 
 def _confirm(inventory: TenantInventory, yes: bool) -> bool:
-    """Ask before writing. ``--yes`` skips; a non-terminal stdin must pass it."""
+    """Ask before writing. ``--yes`` skips; a non-terminal stdin must pass it.
+
+    The prompt goes to stderr with the description, not through ``input``'s
+    own argument, which writes to stdout. An operator piping stdout — ``| tee
+    deletion.txt`` is the natural thing to do for a run you want a copy of —
+    would otherwise see the warning and then nothing, while the script sat
+    waiting on a prompt that had gone into the pipe. An invisible prompt is a
+    bad place to split the stream in general, and the worst one in front of a
+    delete that cannot be undone (CR 10).
+    """
     if yes:
         return True
     print(_describe(inventory), file=sys.stderr)
@@ -202,9 +211,9 @@ def _confirm(inventory: TenantInventory, yes: bool) -> bool:
             file=sys.stderr,
         )
         return False
-    return input(f"Type the tenant's name ({inventory.tenant_name}) to proceed: ").strip() == (
-        inventory.tenant_name
-    )
+    print(f"Type the tenant's name ({inventory.tenant_name}) to proceed: ", end="", file=sys.stderr)
+    sys.stderr.flush()
+    return input().strip() == inventory.tenant_name
 
 
 def _check_name(inventory: TenantInventory, expected: str | None) -> None:

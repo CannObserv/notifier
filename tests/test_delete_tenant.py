@@ -301,6 +301,22 @@ class TestMain:
         assert "About to permanently delete" in err
         assert name in err
 
+    async def test_the_prompt_reaches_a_piped_stdout_run(
+        self, factory, live_tenant, monkeypatch, capsys
+    ):
+        """`input(prompt)` writes to stdout, so an operator piping it — a
+        `| tee` of a destructive run — saw the warning, then silence, while
+        the script waited on a prompt that had gone into the pipe (CR 10)."""
+        tenant_id, name = live_tenant
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda *_: name)
+
+        await main(parse_args(["--tenant-id", tenant_id]))
+
+        captured = capsys.readouterr()
+        assert "to proceed" in captured.err
+        assert "to proceed" not in captured.out
+
     async def test_the_typed_name_is_what_proceeds(
         self, factory, live_session, live_tenant, monkeypatch
     ):
@@ -309,7 +325,7 @@ class TestMain:
         invisible rather than merely uncovered (CR 4)."""
         tenant_id, name = live_tenant
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-        monkeypatch.setattr("builtins.input", lambda _: f"  {name}  ")
+        monkeypatch.setattr("builtins.input", lambda *_: f"  {name}  ")
 
         code = await main(parse_args(["--tenant-id", tenant_id]))
 
@@ -323,7 +339,7 @@ class TestMain:
         likely thing to arrive at a prompt nobody meant to answer."""
         tenant_id, _ = live_tenant
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-        monkeypatch.setattr("builtins.input", lambda _: "")
+        monkeypatch.setattr("builtins.input", lambda *_: "")
 
         code = await main(parse_args(["--tenant-id", tenant_id]))
 
