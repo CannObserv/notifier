@@ -13,9 +13,16 @@ from src.api.routes.monitors import router as monitors_router
 from src.api.routes.preview import router as preview_router
 from src.api.routes.templates import router as templates_router
 from src.api.schemas.errors import AuthErrorDetail
-from src.core.logging import configure_logging, get_logger
+from src.core.logging import configure_audit_logging, configure_logging, get_logger
 
 configure_logging()
+# Every entry point able to mint or revoke a key opens the audit channel, not
+# just the two credential scripts. This process mints nothing today —
+# src/api/deps.py imports hash_key alone — but the channel is configured per
+# entry point, so a route that ever does would put its record untagged in this
+# unit's own journal and `journalctl -t notifier-keys` would miss it silently.
+# That is the shape of #67 itself: a record emitted somewhere nobody reads.
+configure_audit_logging()
 logger = get_logger(__name__)
 
 

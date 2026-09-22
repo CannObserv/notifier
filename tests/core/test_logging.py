@@ -6,6 +6,9 @@ ANSI `color_message` extra (issues #11, #14; skills#69, skills#81, skills#82).
 import json
 import logging
 import logging.config
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from src.core.logging import (
@@ -246,3 +249,40 @@ class TestConfigureScriptLogging:
         assert captured.out == ""
         assert json.loads(captured.err)["message"] == "connected"
         assert audit_socket.records()[0]["message"] == "api key minted"
+
+
+class TestEveryEntryPointConfiguresTheChannel:
+    """#67, CR 4. The channel is configured per entry point, so an entry point
+    that skips it is exactly the defect #67 was: `journalctl -t notifier-keys`
+    is now documented as *the* answer to which key was minted or revoked, and
+    that claim is only true if every process able to mint is on the channel.
+
+    The API mints nothing today — `src/api/deps.py` imports `hash_key` alone —
+    so this asserts the wiring rather than a record. A route that mints would
+    otherwise land its record untagged in `notifier.service`'s own journal, and
+    the documented command would miss it silently.
+    """
+
+    def test_the_api_entry_point_opens_the_audit_channel(self, audit_socket):
+        """A subprocess, not `importlib.reload`: reloading `src.api.main`
+        rebuilds its module-level `app`, and the `client` fixture's
+        `dependency_overrides` are then keyed against an object no later test
+        holds — a green assertion here for a failure two files away."""
+        done = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import src.api.main\n"
+                "from src.core.logging import get_audit_logger\n"
+                "get_audit_logger().info('api key minted')\n",
+            ],
+            cwd=Path(__file__).resolve().parents[2],
+            env={**os.environ, AUDIT_SOCKET_ENV: audit_socket.path},
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert done.returncode == 0, done.stderr
+
+        assert audit_socket.records()[0]["message"] == "api key minted"
+        assert "api key minted" not in done.stdout
