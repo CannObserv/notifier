@@ -422,7 +422,16 @@ def _describe(args: argparse.Namespace) -> str:
 
 
 def _confirm(args: argparse.Namespace) -> bool:
-    """Ask before writing. ``--yes`` skips; a non-terminal stdin must pass it."""
+    """Ask before writing. ``--yes`` skips; a non-terminal stdin must pass it.
+
+    The prompt goes to stderr with the description, not through ``input``'s
+    own argument, which writes to stdout. Piping stdout is the normal thing to
+    do here — it is where the raw key lands, and where an operator keeping a
+    record of a rotation points their `tee` — and that took the prompt into
+    the pipe with it, leaving the description on screen followed by silence
+    while the script waited on something invisible (CR 10, first fixed in
+    ``delete_tenant.py``).
+    """
     if args.yes:
         return True
     print(_describe(args), file=sys.stderr)
@@ -432,7 +441,9 @@ def _confirm(args: argparse.Namespace) -> bool:
             file=sys.stderr,
         )
         return False
-    return input("Type 'yes' to proceed: ").strip() == "yes"
+    print("Type 'yes' to proceed: ", end="", file=sys.stderr)
+    sys.stderr.flush()
+    return input().strip() == "yes"
 
 
 def _open_factory() -> async_sessionmaker[AsyncSession]:

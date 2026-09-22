@@ -773,6 +773,25 @@ class TestConfirmation:
         assert "About to" in err
         assert "nope" in err
 
+    async def test_the_prompt_itself_reaches_a_piped_stdout_run(
+        self, factory, live_tenant, monkeypatch, capsys
+    ):
+        """`input(prompt)` writes to stdout, where this script's raw key also
+        goes — so an operator piping it to keep a copy saw the description on
+        stderr, then silence, while the script waited on a prompt that had
+        gone into the pipe. The description and the prompt it introduces
+        belong on the same stream (CR 10, first fixed in delete_tenant.py).
+        """
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda *_: "yes")
+
+        code = await main(parse_args(["--tenant-id", live_tenant, "--new-label", "piped"]))
+
+        assert code == OK
+        captured = capsys.readouterr()
+        assert "Type 'yes' to proceed" in captured.err
+        assert "Type 'yes'" not in captured.out
+
 
 class TestAuditChannel:
     """A revoke run by hand leaves a record that outlives the shell (#67).
