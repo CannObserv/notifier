@@ -5,10 +5,13 @@ two ruff commands. So the selector list *is* every automated check standing
 between a commit and review; a family dropped from it goes quiet without
 failing anything.
 
-``ASYNC`` is asserted by name rather than left to "ruff check is clean"
-because that is exactly the evidence it cannot provide: the family reported
-zero findings on this tree the day it was adopted (#66), so a clean run looks
-identical whether the rules are selected or not.
+Both families #66 adopted are asserted by name rather than left to "ruff
+check is clean", because a green run is exactly the evidence that cannot
+separate them. ``ASYNC`` reported zero findings on the tree it was adopted
+against, so the linter looks identical whether it is selected or gone.
+``FAST``'s 62 findings were all cleared in the same branch, which puts it in
+the same position from the next commit onward — and it is asserted as the
+family because ``FAST001`` alone, the intermediate state, is also green.
 """
 
 import tomllib
