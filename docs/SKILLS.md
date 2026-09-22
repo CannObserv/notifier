@@ -120,7 +120,11 @@ synced override from a stale one, and `git log` in the submodule can: anything a
 commit that touches the skill's directory is unreviewed here. Keep `metadata.version` alongside it as
 the human-readable vendor version this file was last synced from — not a version of the local file,
 so bump it on every re-sync even when the local deltas are unchanged. Where upstream ships no
-`version:` (obra-superpowers), `synced-from:` carries the submodule tag and stands alone.
+`version:` (obra-superpowers), `synced-from:` carries the submodule tag and is the authoritative
+pin; `version:` there is the one exception to the rule above — a local counter of re-syncs, not a
+vendor version, carried because `doctor.sh` prints it ("last synced at version 1.1") and a stamp
+that never moves reads as an override nobody has touched. Bump it too, and take the release tag
+from `synced-from:` when you need to know what upstream text is in the file.
 
 `init-socraticode` installs its own `SessionStart` entry: `.claude/hooks/socraticode-health.sh`, a symlink into the vendor tree wired by `managing-skills`' shared `install-hook.sh` (`--hook socraticode-health.sh --skill init-socraticode --marker socraticode-health --copy-fallback`; add `--check` to verify without writing). It reports and never repairs — a stopped container, a FAILED last index operation, a degraded graph yield, and since [gregoryfoster/skills#214](https://github.com/gregoryfoster/skills/issues/214) a context artifact declared in `.socraticodecontextartifacts.json` but never indexed, named in the finding. Silent when clean, at most one report per UTC day per project (`.git/socraticode-health.lock` / `.log`), exits 0 on every path. The entry carries an explicit `"timeout": 90` — above the hook's own 60 s driver ceiling (`HEALTH_TIMEOUT_MS`), so a slow check is not killed mid-run. Force a run with `SOCRATICODE_HEALTH_FORCE=1 bash .claude/hooks/socraticode-health.sh`.
 
