@@ -1,6 +1,7 @@
 """Health and readiness check endpoints."""
 
 import os
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
@@ -73,7 +74,7 @@ async def health() -> HealthResponse:
 
 
 @router.get("/ready", response_model=ReadyResponse, responses={503: {"model": NotReadyResponse}})
-async def ready(session: AsyncSession = Depends(get_db_session)) -> JSONResponse:
+async def ready(session: Annotated[AsyncSession, Depends(get_db_session)]) -> JSONResponse:
     """Readiness probe — checks DB connectivity. Returns 503 on failure.
 
     ``current_database()`` rather than ``SELECT 1``: same round trip, and it

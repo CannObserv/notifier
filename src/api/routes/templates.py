@@ -1,6 +1,6 @@
 """Template CRUD + per-template preview endpoint."""
 
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -78,8 +78,8 @@ async def _load_owned(session: AsyncSession, template_id: str, tenant_id: str) -
 
 @router.get("")
 async def list_templates(
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[TemplateOut]:
     """List all templates owned by the calling tenant."""
     result = await session.execute(
@@ -91,8 +91,8 @@ async def list_templates(
 @router.post("", status_code=201)
 async def create_template(
     body: TemplateCreate,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> TemplateOut:
     """Create a new template for the calling tenant."""
     _check_sample(body.variables_schema, body.sample_variables)
@@ -118,8 +118,8 @@ async def create_template(
 @router.get("/{template_id}")
 async def get_template(
     template_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> TemplateOut:
     """Fetch a single template by ID."""
     return _to_out(await _load_owned(session, template_id, tenant_id))
@@ -129,8 +129,8 @@ async def get_template(
 async def update_template(
     template_id: ULIDStr,
     body: TemplateUpdate,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> TemplateOut:
     """Partially update a template; only supplied fields are changed."""
     template = await _load_owned(session, template_id, tenant_id)
@@ -154,8 +154,8 @@ async def update_template(
 @router.delete("/{template_id}", status_code=204)
 async def delete_template(
     template_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> None:
     """Delete a template. Existing dispatch logs retain their template_id as null."""
     template = await _load_owned(session, template_id, tenant_id)
@@ -167,8 +167,8 @@ async def delete_template(
 async def preview_template(
     template_id: ULIDStr,
     body: TemplatePreviewRequest,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> TemplatePreviewResponse:
     """Render a template against supplied or sample variables; never dispatches."""
     template = await _load_owned(session, template_id, tenant_id)

@@ -85,11 +85,13 @@ extend-exclude = [
 # ASYNC210 matches blocking HTTP by *call name* (`httpx.get`, `requests.post`)
 # and does not infer the type of a client instance, so `client.get(...)` still
 # passes. The rule narrows the hole; a reviewer still closes it by eye.
-# FAST001 (#66): drop `response_model=` where the return annotation already
-# says it. Ruff marks the fix unsafe because the two can disagree, and then
-# `response_model=` is what serializes; here the OpenAPI dump is byte-identical
-# across all 20 sites, which is the evidence they do not. FAST002 lands next.
-select = ["ASYNC", "E", "F", "FAST001", "I", "W", "UP"]
+# FAST (#66): FastAPI-specific rules, adopted in two commits — FAST001 (drop
+# `response_model=` where the return annotation already says it) then FAST002
+# (`Annotated[X, Depends(...)]`). Both fixes are marked unsafe and both were
+# checked the same way: the OpenAPI dump is byte-identical across each, so
+# `clients/python/.../generated/` does not go stale and sdk-staleness.yml has
+# nothing to trip on.
+select = ["ASYNC", "E", "F", "FAST", "I", "W", "UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

@@ -1,5 +1,7 @@
 """Stateless template preview endpoint — no persistence."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 
 from src.api.deps import require_api_key
@@ -17,7 +19,7 @@ router = APIRouter(prefix="/preview", tags=["preview"])
 @router.post("")
 async def preview(
     body: PreviewRequest,
-    _tenant_id: str = Depends(require_api_key),
+    _tenant_id: Annotated[str, Depends(require_api_key)],
 ) -> PreviewResponse:
     """Render inline templates with supplied variables; returns errors per section."""
     try:

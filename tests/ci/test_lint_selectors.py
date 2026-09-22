@@ -36,6 +36,18 @@ def test_async_family_is_selected(selectors):
     )
 
 
+def test_fast_family_is_selected(selectors):
+    """FastAPI-specific rules, adopted in two commits after their 62 findings
+    were cleared (#66). Asserted as the family: narrowing it back to a single
+    code (``FAST001``, the intermediate state) leaves a green ``ruff check .``
+    while the other half stops being checked.
+    """
+    assert "FAST" in selectors, (
+        "FAST001 and FAST002 are both clean; selecting the family is what "
+        "keeps the next violation from landing (#66)"
+    )
+
+
 def test_baseline_families_are_still_selected(selectors):
     """The five families predating #66. Named so a rewrite of the list has to
     be deliberate about dropping one.

@@ -1,5 +1,7 @@
 """Channel CRUD + per-channel test endpoint."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -57,8 +59,8 @@ async def _load_owned(session: AsyncSession, channel_id: str, tenant_id: str) ->
 
 @router.get("")
 async def list_channels(
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[ChannelOut]:
     """List all channels owned by the calling tenant."""
     result = await session.execute(
@@ -70,8 +72,8 @@ async def list_channels(
 @router.post("", status_code=201)
 async def create_channel(
     body: ChannelCreate,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ChannelOut:
     """Create a new channel; the plaintext Apprise URL is encrypted at rest."""
     channel = Channel(
@@ -89,8 +91,8 @@ async def create_channel(
 @router.get("/{channel_id}")
 async def get_channel(
     channel_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ChannelOut:
     """Fetch a single channel; URL returned masked."""
     return _to_out(await _load_owned(session, channel_id, tenant_id))
@@ -100,8 +102,8 @@ async def get_channel(
 async def update_channel(
     channel_id: ULIDStr,
     body: ChannelUpdate,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ChannelOut:
     """Partially update a channel; supplied URL is re-encrypted."""
     channel = await _load_owned(session, channel_id, tenant_id)
@@ -118,8 +120,8 @@ async def update_channel(
 @router.delete("/{channel_id}", status_code=204)
 async def delete_channel(
     channel_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> None:
     """Delete a channel. Fails if dispatch attempts still reference it."""
     channel = await _load_owned(session, channel_id, tenant_id)
@@ -137,8 +139,8 @@ async def delete_channel(
 @router.post("/{channel_id}/test")
 async def test_channel(
     channel_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ChannelTestResponse:
     """Fire a test notification to a channel. Useful for connection diagnosis."""
     channel = await _load_owned(session, channel_id, tenant_id)

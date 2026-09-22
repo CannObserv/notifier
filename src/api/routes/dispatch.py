@@ -10,6 +10,8 @@ for the same (tenant_id, idempotency_key), the existing record is returned
 without re-rendering or re-dispatching. This makes consumer retries safe.
 """
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,8 +73,8 @@ async def _attempts_for(session: AsyncSession, dispatch_id: str) -> list[Dispatc
 @router.post("", status_code=202)
 async def create_dispatch(
     body: DispatchRequest,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DispatchOut:
     """Render, validate, dispatch, and log. Returns 202 with the dispatch record."""
 
@@ -147,8 +149,8 @@ async def create_dispatch(
 @router.get("/{dispatch_id}")
 async def get_dispatch(
     dispatch_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DispatchOut:
     """Fetch a single dispatch record with its per-channel attempts."""
     result = await session.execute(

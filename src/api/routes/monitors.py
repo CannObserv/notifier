@@ -12,6 +12,7 @@ timer, not from this process.
 """
 
 from datetime import UTC, datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -119,8 +120,8 @@ async def _owned_template(session: AsyncSession, template_id: str, tenant_id: st
 
 @router.get("")
 async def list_monitors(
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[MonitorOut]:
     """List all monitors owned by the calling tenant."""
     result = await session.execute(
@@ -132,8 +133,8 @@ async def list_monitors(
 @router.post("", status_code=201)
 async def create_monitor(
     body: MonitorCreate,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> MonitorOut:
     """Create a monitor. It starts ``pending`` and its clock starts now.
 
@@ -161,8 +162,8 @@ async def create_monitor(
 @router.get("/{monitor_id}")
 async def get_monitor(
     monitor_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> MonitorOut:
     """Fetch a single monitor, including its last report and next deadline."""
     return _to_out(await _load_owned(session, monitor_id, tenant_id))
@@ -172,8 +173,8 @@ async def get_monitor(
 async def update_monitor(
     monitor_id: ULIDStr,
     body: MonitorUpdate,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> MonitorOut:
     """Partially update a monitor. ``enabled: false`` pauses the timer."""
     monitor = await _load_owned(session, monitor_id, tenant_id)
@@ -196,8 +197,8 @@ async def update_monitor(
 @router.delete("/{monitor_id}", status_code=204)
 async def delete_monitor(
     monitor_id: ULIDStr,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> None:
     """Delete a monitor. Its past dispatches are kept."""
     monitor = await _load_owned(session, monitor_id, tenant_id)
@@ -209,8 +210,8 @@ async def delete_monitor(
 async def checkin(
     monitor_id: ULIDStr,
     body: CheckinRequest,
-    tenant_id: str = Depends(require_api_key),
-    session: AsyncSession = Depends(get_db_session),
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> CheckinResponse:
     """Record a check-in, and dispatch anything it warrants.
 
