@@ -93,26 +93,25 @@ passes, which is exactly the shape in `scripts/rotate_key.py` and why the
 count was 0 rather than 1. The rule narrows the hole; it does not close it,
 and a clean run is not proof no handler blocks.
 
-**`FAST`.** 62 findings on adoption, none of them a bug — a style decision,
-taken deliberately and landed separately from the one-line `ASYNC` change:
+**`FAST`.** 62 findings on adoption, none a bug — a style decision, landed
+separately from the one-line `ASYNC` change and in two commits, because both
+fixes are marked unsafe for real reasons:
 
-- **`FAST001`** (20) drops `response_model=` where the return annotation
-  already says the same thing. Measured before adopting, because anything that
-  moves the generated schema makes `clients/python/src/notifier_client/generated/`
-  stale and trips `sdk-staleness.yml`: the OpenAPI dump is **byte-identical**
-  across the change. Ruff marks the fix unsafe because dropping
-  `response_model=` changes response *serialization* where the two disagree;
-  here they do not, and the identical schema is the evidence.
+- **`FAST001`** (20) drops `response_model=` where the return annotation says
+  the same thing. Where the two *disagree*, `response_model=` is what
+  serializes — so the check before adopting was the OpenAPI dump, which is
+  byte-identical across the change, leaving
+  `clients/python/.../generated/` unchanged and `sdk-staleness.yml` with
+  nothing to trip on. `health.py`'s `ready()` is the site where they do
+  disagree (it returns `JSONResponse`), and it correctly kept its
+  `response_model=`.
 - **`FAST002`** (42) replaces `x: X = Depends(...)` with
-  `Annotated[X, Depends(...)]` across every route handler. Modern FastAPI
-  style, and the reason it is its own commit is that it touches the
-  default-argument shape of every endpoint at once.
-
-  Its reach stops at path operations, which is the family's own blind spot
-  alongside `ASYNC210`'s: the dependency *functions* in `src/api/deps.py` are
-  not endpoints, so `require_api_key` keeps `raw_key: str | None =
-  Depends(api_key_header)` and ruff stays clean. That shape is correct there;
-  it is not an unconverted leftover.
+  `Annotated[X, Depends(...)]` across every route handler — its own commit
+  because it touches the default-argument shape of every endpoint at once.
+  Its reach stops at path operations, the family's blind spot alongside
+  `ASYNC210`'s: the dependency *functions* in `src/api/deps.py` are not
+  endpoints, so `require_api_key` keeps `= Depends(api_key_header)` with ruff
+  clean. That shape is correct there, not an unconverted leftover.
 
 
 ## Dependency policy

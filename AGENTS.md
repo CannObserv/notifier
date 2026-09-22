@@ -247,9 +247,7 @@ channel](docs/DEPLOYMENT.md#the-credential-audit-channel-67)).
 - All UTC
 - ISO 8601: `YYYY-MM-DDTHH:MM:SS.ffffffZ` (timestamps), `YYYY-MM-DD` (dates)
 
-**Lint:** `[tool.ruff.lint] select` is the entire static-analysis surface between a commit and CI — `pre-commit` runs ruff and never pytest. `ASYNC` is selected (#66): every route handler in `src/api/routes/` is `async def` on the one event loop the Apprise dispatch path also uses, so a blocking call there stalls every concurrent request and reads as latency rather than as a failure. It reported 0 findings on adoption, so a clean `ruff check .` is not evidence it is still selected — `tests/ci/test_lint_selectors.py` is.
-
-**`ASYNC210` matches blocking HTTP by call name** (`httpx.get`, `requests.post`); it does not infer the type of a client instance, so `client.get(...)` inside an `async def` passes lint. A clean run is not proof no handler blocks — that one is still found by eye at review. `FAST` is selected too — FastAPI style, so handlers annotate dependencies `Annotated[X, Depends(...)]` and omit `response_model=` where the return annotation already says it. Both halves were adopted only after checking the OpenAPI dump was unchanged, since a moved schema makes the generated SDK stale. Full reasoning: [docs/ARCHITECTURE.md § Lint policy](docs/ARCHITECTURE.md#lint-policy).
+**Lint:** ruff `select` is the whole gate between a commit and CI (`pre-commit` skips pytest), and `tests/ci/test_lint_selectors.py` asserts the list, since `ASYNC` finds nothing here and a clean run proves nothing. **`ASYNC210` matches blocking HTTP by *name*** — `client.get(...)` on an instance passes, so green lint is not proof no handler blocks. [Detail](docs/ARCHITECTURE.md#lint-policy).
 
 **Dependencies:** four rules, all asserted by `tests/ci/test_dependencies.py` — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#dependency-policy) before adding or bumping one
 
