@@ -126,7 +126,7 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 | After editing either unit in `deploy/` | `sudo systemctl daemon-reload && sudo systemctl restart notifier notifier-dev` |
 | After DB model changes | `uv run alembic upgrade head`, then the same against `DEV_DATABASE_URL`, then restart both |
 | Checking the dead-man's sweep | `systemctl list-timers 'notifier-sweep*'`, `sudo journalctl -u notifier-sweep -f` |
-| Which key was minted or revoked, and when | `journalctl -t notifier-keys` |
+| Which key was minted or revoked | `journalctl -t notifier-keys` |
 | Forcing a sweep now | `sudo systemctl start notifier-sweep.service` |
 
 **Dev server workflow:** one launch path serves both the unit and the hand-run
@@ -239,11 +239,9 @@ from src.core.logging import get_logger
 
 logger = get_logger(__name__)
 ```
-Entry points only: call `configure_logging()` once — it binds **stdout**. The
-two credential scripts call `configure_script_logging()` instead, because
-their stdout is an interface: logs go to stderr, and every key mint and revoke
-goes to journald tagged `notifier-keys` (#67). Read them back with
-`journalctl -t notifier-keys`.
+Entry points only: call `configure_logging()` once — it binds **stdout**.
+Credential scripts call `configure_script_logging()` instead ([the audit
+channel](docs/DEPLOYMENT.md#the-credential-audit-channel-67)).
 
 **Date & Time:**
 - All UTC
