@@ -400,4 +400,64 @@ authenticates. `DELETE` fails closed. The audit trail is taken as a log line on
 every mint and revoke — tenant, key id, prefix, label, never the raw key.
 
 **What this deliberately will not do: delete a tenant.** That cascades channels,
-monitors and dispatch history, and is not an incident-time operation.
+monitors and dispatch history, and is not an incident-time operation. It has its
+own script, below.
+
+## Deleting a tenant
+
+`scripts/delete_tenant.py` (#79). Deleting a tenant destroys every credential
+that consumer holds, plus its channels, templates, monitors and dispatch
+history — and until this script there was no sanctioned path for it at all:
+`seed_tenant.py` only creates and `rotate_key.py` only works on keys, so a
+tenant delete meant ad-hoc SQL against production, the failure `rotate_key.py`
+exists to retire, still live for the larger operation.
+
+```bash
+. scripts/load_env.sh
+
+# Read first. A rehearsal names every key and counts everything else.
+DATABASE_URL="$DEV_DATABASE_URL" \
+  uv run python scripts/delete_tenant.py --tenant-id <id> --dry-run
+
+# Then do it, naming the tenant you believe that id belongs to
+NOTIFIER_ALLOW_PROD_DB=1 \
+  uv run python scripts/delete_tenant.py --tenant-id <id> --expect-name <name>
+```
+
+| Flag | What it does |
+|---|---|
+| `--tenant-id` | The tenant to destroy. Its id, never its name |
+| `--expect-name <name>` | The name you believe that id belongs to; refuses if it does not match. **Required with `--yes`** |
+| `--dry-run` | Rehearse everything, refusals included, and roll back. Records nothing |
+| `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal, and rejected with `--dry-run`, which has nothing to confirm |
+
+Exit codes: `0` done, `2` refused (nothing written), `3` aborted at the prompt.
+`1` is unused here — it is `rotate_key.py`'s "committed but not proven", and a
+deleted tenant has no key left to prove anything with.
+
+**`--expect-name` is required with `--yes`, and that is the point of it.** A
+revoke names one key on one tenant, and a mistyped ULID is caught by the
+ownership check. Here the ULID *is* the whole target: a typo that happens to
+name another consumer deletes that consumer instead. The prompt prints the name
+and asks you to type it back; `--yes` removes the prompt, so it has to supply
+the name in its place.
+
+**Every destroyed key lands on the credential audit channel** — `journalctl -t
+notifier-keys` — as one `api key destroyed with tenant` record naming the key
+and never its secret, followed by a `tenant deleted` summary. Before #79 the
+keys went by `ON DELETE CASCADE`, never through `revoke()`, so the operation
+that destroys the most left the least: nothing at all.
+
+**A hand-written `DELETE FROM tenants` does not work**, quite apart from
+recording nothing. `dispatch_attempts.channel_id` is `ON DELETE RESTRICT`, and
+Postgres checks it the moment the cascade reaches `channels` — deleting the
+attempt rows in the same statement does not excuse it, since `RESTRICT` is
+immediate where `NO ACTION` is deferred. So the bare statement raises a
+foreign-key violation for any tenant that has ever dispatched, which is every
+tenant worth deleting. `src/core/tenants.py` clears those rows first.
+
+The deletion and its records are one function there, and it owns its
+transaction — unlike `mint` and `revoke`, which flush and leave the commit to
+the caller. The records follow the commit: a rehearsal that left "api key
+destroyed with tenant" in the journal would be a live credential recorded dead,
+which is worse than no record, because someone will trust it.

@@ -121,7 +121,7 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 | After editing a unit in `deploy/` | `sudo systemctl daemon-reload`, then restart both |
 | After DB model changes | `uv run alembic upgrade head`, the same against `DEV_DATABASE_URL`, then restart both |
 | Checking the dead-man's sweep | `systemctl list-timers 'notifier-sweep*'`, `sudo journalctl -u notifier-sweep -f` |
-| Which key was minted or revoked | `journalctl -t notifier-keys` |
+| Which key was minted, revoked, or destroyed with its tenant | `journalctl -t notifier-keys` |
 | Forcing a sweep now | `sudo systemctl start notifier-sweep.service` |
 
 Fuller spellings, with the reasoning beside each: [docs/DEPLOYMENT.md § Routine ops](docs/DEPLOYMENT.md#routine-ops).

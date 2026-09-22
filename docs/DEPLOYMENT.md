@@ -186,7 +186,7 @@ sudo journalctl -u notifier-dev -f
 systemctl list-timers 'notifier-sweep*'
 sudo journalctl -u notifier-sweep -f
 
-# Every API key mint and revoke, whichever database it was run against
+# Every API key mint, revoke and cascade, whichever database it was run against
 journalctl -t notifier-keys
 ```
 
@@ -197,8 +197,10 @@ but `systemctl daemon-reload` is still required after editing anything in
 
 ### The credential audit channel (#67)
 
-`scripts/seed_tenant.py` and `scripts/rotate_key.py` record every mint and
-every revoke to journald under the syslog identifier `notifier-keys`:
+`scripts/seed_tenant.py`, `scripts/rotate_key.py` and
+`scripts/delete_tenant.py` record every mint, every revoke and every key a
+tenant deletion cascades, to journald under the syslog identifier
+`notifier-keys`:
 
 ```bash
 journalctl -t notifier-keys                       # everything
@@ -207,7 +209,7 @@ journalctl -t notifier-keys --since "7 days ago" -o cat | jq .
 
 Each record names the tenant, the key id, its 8-character prefix, its label
 and its environment — and never the raw key, which reaches stdout once and
-nothing else. Both scripts leave stdout to the operator: the `key=value` lines
+nothing else. All three leave stdout to the operator: the `key=value` lines
 they print themselves, nothing interleaved. Logs go to stderr, audit records
 go to the journal.
 
@@ -238,11 +240,18 @@ They were not backfilled into the journal: a synthesized record carrying a
 2026-09-22 timestamp and a reconstructed payload would be indistinguishable
 from an observed one, which is worse than a gap that names itself.
 
-**Deleting a tenant still records nothing** — the keys go by cascade, never
-through `revoke()`. The first row above is that hole, and there is no
-sanctioned tenant-deletion path at all: today it is ad-hoc SQL, which is the
-failure `rotate_key.py` exists to retire, still live for the larger
-operation. Tracked as #79.
+**Deleting a tenant records every key it destroys** since #79 —
+`scripts/delete_tenant.py` emits one `api key destroyed with tenant` record
+per cascaded key, then a closing `tenant deleted` summary. The first row above
+is the hole that closed. The summary comes last on purpose: per-key records
+with nothing after them are a run that died mid-recording.
+
+It fires on the sanctioned path only. A hand-run `DELETE` still records
+nothing — the cost #62 declined a database-level trail to avoid — and it does
+not work anyway: `dispatch_attempts.channel_id` is `ON DELETE RESTRICT`, so
+the bare statement raises a foreign-key violation for any tenant that has ever
+dispatched. [COMMANDS.md](COMMANDS.md#deleting-a-tenant) has the flags and the
+rest of the reasoning.
 
 ### Worktrees here must not share this checkout's `.venv`
 
