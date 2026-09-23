@@ -227,17 +227,11 @@ scripts print the records on stderr and say loudly that they are not durable;
 they are never dropped silently, which is what happened for the whole life of
 the feature before #67.
 
-**Records through 2026-09-23 include the test suite's** (#84). `src.api.main`
-opens this channel at import, on `/dev/log`, so every in-process mint a
-`pytest` run made after its first app import landed here — as did the key the
-SDK's integration tier seeds. They read exactly like production mints
-(`environment: production`, an `nk_` prefix, label `smoke` among others); a
-`tenant_id` absent from the production `tenants` table is the only tell.
-journald cannot delete single entries, so they age out with rotation. Since
-the fix `tests/conftest.py` points `NOTIFIER_AUDIT_SOCKET` at a drained socket
-in `pytest_configure`, before collection imports anything, and
-`clients/python/tests/conftest.py` does the same for every subprocess it
-spawns.
+**Records through 2026-09-23 include the test suite's** (#84): test mints
+that read exactly like production ones (`environment: production`, an `nk_`
+prefix, label `smoke` among others). A `tenant_id` absent from the production
+`tenants` table is the only tell. journald cannot delete single entries, so
+they age out with rotation; both test suites now send the channel elsewhere.
 
 **Three production credential changes predate this channel** and exist only in
 an agent transcript. They are recorded here because nothing else records them:
