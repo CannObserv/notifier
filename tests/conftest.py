@@ -42,6 +42,20 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("NOTIFIER_SECRET_KEY", Fernet.generate_key().decode())
 
 
+def _audit_payload(datagram: str) -> dict:
+    """Strip the syslog `<PRI>tag: ` prefix and parse what follows.
+
+    A datagram with no JSON in it fails as an assertion naming the bytes
+    that arrived. Bare `str.index` raised `ValueError: substring not
+    found`, which names neither the channel nor the payload — in a helper
+    whose whole job is a legible failure (CR 7).
+    """
+    start = datagram.find("{")
+    if start == -1:
+        raise AssertionError(f"audit datagram carries no JSON payload: {datagram!r}")
+    return json.loads(datagram[start:])
+
+
 class SuiteAuditSink:
     """Where the suite's audit records go instead of journald (#84).
 
@@ -91,7 +105,7 @@ class SuiteAuditSink:
             found = self._arrived.wait_for(match, timeout)
         if found is None:
             raise AssertionError(f"no audit record containing {needle!r} reached the sink")
-        return AuditSocket._payload(found)
+        return _audit_payload(found)
 
     def close(self) -> None:
         """Stop draining and remove the socket file."""
@@ -295,21 +309,7 @@ class AuditSocket:
 
     def records(self, expected: int = 1, timeout: float = 5.0) -> list[dict]:
         """Read *expected* datagrams and return their JSON payloads."""
-        return [self._payload(d) for d in self.datagrams(expected, timeout)]
-
-    @staticmethod
-    def _payload(datagram: str) -> dict:
-        """Strip the syslog `<PRI>tag: ` prefix and parse what follows.
-
-        A datagram with no JSON in it fails as an assertion naming the bytes
-        that arrived. Bare `str.index` raised `ValueError: substring not
-        found`, which names neither the channel nor the payload — in a helper
-        whose whole job is a legible failure (CR 7).
-        """
-        start = datagram.find("{")
-        if start == -1:
-            raise AssertionError(f"audit datagram carries no JSON payload: {datagram!r}")
-        return json.loads(datagram[start:])
+        return [_audit_payload(d) for d in self.datagrams(expected, timeout)]
 
     def assert_silent(self, timeout: float = 1.0) -> None:
         """Fail if anything at all arrives within *timeout*.
