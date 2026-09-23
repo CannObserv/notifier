@@ -43,7 +43,8 @@ class TestTheSuiteNeverWritesToTheJournal:
         assert suite_audit_sink.path != JOURNAL_SOCKET
 
     def test_an_in_process_record_after_the_app_import_reaches_the_sink(self, suite_audit_sink):
-        """The exact path that leaked: import the app, then mint in-process."""
+        """The exact path that leaked: import the app, then emit on the channel
+        in-process, as `mint()` does."""
         importlib.import_module("src.api.main")
         marker = secrets.token_hex(8)
 
