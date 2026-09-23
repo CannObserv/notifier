@@ -21,17 +21,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SETTINGS = REPO_ROOT / ".claude" / "settings.json"
 
-#: The upstream manifest that prescribes the constant. Absent in CI, which
-#: checks out without submodules.
-MANIFEST = (
-    REPO_ROOT
-    / "skills-vendor"
-    / "gregoryfoster-skills"
-    / "skills"
-    / "init-socraticode"
-    / "scripts"
-    / "socraticode-health.install"
-)
+#: The vendored skills repo. Uninitialized in CI, which checks out without
+#: submodules.
+SUBMODULE = REPO_ROOT / "skills-vendor" / "gregoryfoster-skills"
+
+#: The upstream manifest that prescribes the constant.
+MANIFEST = SUBMODULE / "skills" / "init-socraticode" / "scripts" / "socraticode-health.install"
 
 #: The hook script, matched on its basename inside the registered command —
 #: the same `contains` the installer's own dedupe uses.
@@ -96,10 +91,12 @@ def test_constant_matches_the_upstream_manifest():
     """The pinned constant tracks upstream, so a vendor bump that moves it fails here.
 
     Skipped where the submodule is not initialized (CI); the refresh that would
-    move the constant happens on this VM, where it is.
+    move the constant happens on this VM, where it is. The skip keys on the
+    submodule, not the manifest: an upstream rename must fail here, not skip.
     """
-    if not MANIFEST.is_file():
+    if not (SUBMODULE / ".git").exists():
         pytest.skip("gregoryfoster-skills submodule not initialized")
+    assert MANIFEST.is_file(), f"upstream moved or removed {MANIFEST.relative_to(REPO_ROOT)}"
     args = next(
         line
         for line in MANIFEST.read_text().splitlines()
