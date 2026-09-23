@@ -4,6 +4,12 @@ How notifier alerts on the **absence** of a report, not only on its contents.
 Added in #56 for the broker (CannObserv/broker#1, #3); consumer-agnostic, so
 any node with an API key can use it.
 
+> **Frozen (#83).** Monitors take notifier past publication and into
+> originating alerts. They are to be extracted into a separate service that
+> dispatches through notifier like any consumer. Until then, existing monitors
+> keep running and get fixes, and no new monitors or monitor consumers are
+> added. #70 (replicator) was sent to `/dispatch` instead.
+
 ## Why absence
 
 A findings-only push is silent in exactly the cases that matter most. A dead

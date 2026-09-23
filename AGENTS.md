@@ -8,6 +8,8 @@ Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templa
 
 It also runs **dead-man's timers** (#56): a consumer checks in on a cadence, and the *absence* of a check-in is itself an alert — [docs/reference/monitors.md](docs/reference/monitors.md).
 
+**Scope: publication only.** Notifier publishes what consumers send; it does not originate alerts. Monitors are the one exception, **frozen** until they are extracted into a separate service (#83): existing monitors keep running and get fixes, and none are added.
+
 First consumer is the `watcher` project (Cannabis Observer); the API stays consumer-agnostic, with no domain concepts leaking into the service.
 
 ## Development Methodology
@@ -248,6 +250,7 @@ The service is consumer-agnostic. Resist these temptations:
 
 - **Do not** introduce a top-level `event_type` field on dispatch — that's consumer taxonomy. Consumers put it in `metadata` if they want it indexed.
 - **Do not** infer routing/subscriptions in v0 — consumers pass `channel_ids` explicitly. Subscription model is v1.
+- **Do not** add a monitor or monitor consumer (#83 freeze). A consumer that wants to raise alerts uses `/dispatch`; silence detection waits for the extracted service.
 - **Do not** fetch consumer data — no diff loading, no snapshot reads. Consumers ship rendered values via `variables`.
 - **Do not** branch on tenant identity inside business logic. Tenancy is enforced at the auth layer; the rest of the code treats `tenant_id` as a partition key.
 - **Do** validate `variables` against the template's `variables_schema` on dispatch; a miss is a 422 naming the field path. The *schema itself* is checked twice — on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which catches rows stored before that guard (#28).
