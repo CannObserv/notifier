@@ -3,7 +3,7 @@
     {
       "name": "code-exploration",
       "path": "./docs/SOCRATICODE.md",
-      "description": "SocratiCode exploration reference \u2014 full tool table, the ToolSearch prefetch query, per-tool notes, graph-health and index-scope guidance, plus this repo's measured graph yield and artifact inventory."
+      "description": "SocratiCode exploration reference \u2014 full tool table, a pointer to the prefetch hook, per-tool notes, graph-health and index-scope guidance, plus this repo's measured graph yield and artifact inventory."
     },
     {
       "name": "database-schema",

@@ -23,25 +23,34 @@ heading down there, not in `AGENTS.md`.
 | Every symbol declared in a file | `codebase_symbols` |
 | Imports/dependents of a file | `codebase_graph_query` |
 | Import cycles | `codebase_graph_circular` |
-| Alembic schema, deployment topology, runbook, systemd unit | `codebase_context` / `codebase_context_search` |
+| Deployment topology, runbook, systemd units and host config — the declared artifacts | `codebase_context` / `codebase_context_search` |
+| Current DB schema, allowed values, migrations | `codebase_search` or `alembic/versions/`; `codebase_context_search` only with `artifactName: "database-schema"` |
 | Path-pattern walks ("all `*.py` under `src/api/routes/`") | the Explore subagent |
 
 ## Prefetch
 
 The `codebase_*` MCP tools are **deferred**: their schemas are not in the
 session until a `ToolSearch` prefetch loads them, and calling one before that
-fails validation. The SessionStart hook
-(`.claude/hooks/socraticode-reminder.sh`) prints this each session; run it
-verbatim if it did not fire.
+fails validation. The SessionStart hook prints the `select:` query each
+session. If it did not fire, run the hook by hand and use the line it prints:
 
-`select:mcp__plugin_socraticode_socraticode__codebase_search,mcp__plugin_socraticode_socraticode__codebase_symbol,mcp__plugin_socraticode_socraticode__codebase_symbols,mcp__plugin_socraticode_socraticode__codebase_flow,mcp__plugin_socraticode_socraticode__codebase_impact,mcp__plugin_socraticode_socraticode__codebase_graph_query,mcp__plugin_socraticode_socraticode__codebase_graph_circular,mcp__plugin_socraticode_socraticode__codebase_graph_stats,mcp__plugin_socraticode_socraticode__codebase_graph_visualize,mcp__plugin_socraticode_socraticode__codebase_status,mcp__plugin_socraticode_socraticode__codebase_context,mcp__plugin_socraticode_socraticode__codebase_context_search`
+```bash
+bash .claude/hooks/socraticode-reminder.sh
+```
+
+The query is deliberately not copied here: the hook is a vendored symlink, so
+upstream can change which tools it selects, and a copy in this file goes stale
+silently — the hook's output cannot drift from itself.
 
 ## Per-tool notes
 
 - **`codebase_search`** takes a natural-language query, not a regex. It ranks by
   embedding similarity, so an empty result means "nothing scored above the
   threshold", not "no such code" — retry with `minScore: 0` before concluding
-  absence.
+  absence. With `includeLinked: true` it also searches linked projects, but
+  only those whose paths resolve: a missing path — no checkout, no stub — is
+  dropped without a word.
+  The daily health check names any that do not.
 - **`codebase_impact` / `codebase_graph_query`** read the AST dependency graph,
   which is built separately from the embeddings. If the graph is stale or
   low-yield they answer *empty* rather than erroring — see **Graph health**.
@@ -54,8 +63,40 @@ verbatim if it did not fire.
   a correct manifest cannot rule out: the path resolved, the run *completed*,
   and the artifact still is not indexed. Ask `codebase_context`, which is the
   only per-artifact index status there is — `codebase_status` gives a count
-  and never a name — then re-run `codebase_context_index`. The once-per-day
-  health check reports this gap too, and names the artifact.
+  and never a name — then run `codebase_update`. The once-per-day health
+  check reports this gap too, and names the artifact.
+  A third diagnosis has no empty result to warn you at all: the artifact is
+  indexed, the answer arrives, and it is **stale** — behind its source. An
+  edited file, or a new file under a directory artifact like `docs/plans/`,
+  leaves the count at N/N with the superseded chunks still embedded. Measured:
+  three of one repo's fourteen artifacts were behind their sources at a moment
+  this check reported `14/14`.
+  What that costs is usually a **wait, not a wrong answer**:
+  `codebase_context_search` re-indexes changed artifacts before it searches, so
+  the first search after an edit pays that re-embed inline and then answers
+  from current chunks. Old chunks reach an answer only when that staleness
+  check itself errors — it is logged and the search proceeds anyway.
+  `codebase_context` does **not** re-index, which is why a listing can sit at
+  N/N while artifacts are behind. It prints each artifact's index time beside
+  its status; compare it against the source, and for a directory against its
+  **newest file**, not the directory's own timestamp. The daily check does
+  exactly that and names the stale artifacts. `codebase_update` repairs them
+  out of band, so the next search is not the one that pays.
+  And every artifact competes in **one ranking**: a large directory of dated
+  prose outranks a small current file, and a plan answers with the value it
+  was written against. Set `artifactName` to search one artifact.
+- **`codebase_update` is the incremental catch-up**, and the repair for a
+  `stale` artifact. It re-indexes changed files and re-embeds only the
+  artifacts whose content hash moved, synchronously — seconds, on a repo the
+  watcher has been following.
+- **`codebase_context_index` is not.** It re-embeds **every** artifact
+  unconditionally — no content-hash skip, no progress notifications — so on a
+  large manifest against a shared CPU embedder it can outlast Claude Code's
+  1800 s tool idle timeout. Measured: one repo's ~1,500 chunks took 77 minutes
+  and the session gave up at 30. **That timeout is not evidence the index
+  failed** — the server runs on after the client aborts, so check the project's
+  `lastIndexedAt` in the `socraticode_metadata` collection before re-running.
+  Keep it for a first index, or a manifest whose artifacts all changed.
 - **The file watcher is ephemeral.** It lives only while an MCP server process
   is running. After a long gap, or after a reboot, re-run `codebase_index`
   rather than trusting the index to be current.
@@ -67,46 +108,165 @@ anything — `READY` is reachable with a handful of edges across hundreds of
 files. Check yield, not status:
 
 ```bash
-node skills/init-socraticode/scripts/mcp-driver.mjs health-check .
+node skills/init-socraticode/scripts/mcp-driver.mjs health-check \
+  "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 ```
+
+**Name the checkout, not the cwd.** SocratiCode indexes by absolute project
+path, so a literal `.` run from a git worktree asks about a project the server
+never saw and reports a healthy index as broken. The spelling above is the one
+`socraticode-health.sh` uses; `--show-toplevel` is the near miss, because in a
+worktree it yields the worktree. Current drivers resolve a relative argument
+this way themselves, so `.` also works — the explicit form is here because it
+works against an older vendored driver too, and because it says out loud which
+path is being measured.
 
 `verdict: "low"` means dependency questions must go to `grep`, and the
 `AGENTS.md` block should be on its degraded variant.
 
-**`unresolvedPct` is corroboration, not a verdict.** The same check — and the
-daily `socraticode-health.sh` run — report the figure whenever it clears the
-threshold, on a healthy graph too, and word it from the verdict. Beside `low`
-or `unknown`, where a yield finding is already on the list for it to back:
-`graph unresolved N% (> 50%) — corroborates a resolver problem`. Beside `ok`,
-where there is nothing for it to corroborate: `graph unresolved N% (> 50%) —
-share of call edges with no first-party callee; verdict is ok, so this is a
-statistic, not a defect`. It is a *call*-graph statistic: the share of **call
-edges** whose callee resolves to no first-party symbol. A repo that leans on
-frameworks and the stdlib runs high by construction, because those callees are
-not in the repo — no re-index brings them in and none lowers the figure.
-Judge the graph on `verdict` and on **edges/file**, which is what the gate
-keys on. A high `unresolvedPct` beside `verdict: "ok"` is normal; the
+**`unresolvedPct` is a statistic beside the verdict, never evidence for it.**
+The same check — and the daily `socraticode-health.sh` run — report the figure
+whenever it clears the threshold, on a healthy graph too, and word it from the
+verdict. Beside `ok`: `graph unresolved N% (> 50%) — share of captured symbol
+edges (calls, imports, re-exports, type or value references) matching no
+project symbol; edges into builtins and external libraries count by
+construction, so it runs high on healthy code — verdict is ok, so this is a
+statistic, not a defect`. Beside `low` or `unknown`, where the verdict already
+stands on the yield arithmetic and the server's advisory: `graph unresolved N%
+(> 50%) — share of captured symbol edges (calls, imports, re-exports, type or
+value references) matching no project symbol — reported beside the verdict,
+not as evidence for it, since edges into builtins and external libraries count
+by construction`. Either way it is filed as a **note** — it appears as `note:
+graph unresolved N% …` and does not set the exit code, so a repo whose only
+finding is this one stays silent through the daily hook. The denominator is
+the server's own: since v1.14.0 `codebase_graph_status` says the same thing
+and adds that the share "is not a resolver failure rate". A repo that leans on
+frameworks, the stdlib and SDKs runs high by construction, because those
+symbols are not in the repo — no re-index brings them in and none lowers the
+figure. Judge the graph on `verdict` and on **edges/file**, which is what the
+gate keys on. A high `unresolvedPct` beside `verdict: "ok"` is normal; the
 src-layout resolver defect it can be mistaken for
 (<https://github.com/giancarloerra/SocratiCode/issues/107>) shows up instead
-as near-zero edges/file.
+as near-zero edges/file. Do not cite the figure as the *cause* of an
+under-reporting graph query; test the import graph instead
+([#308](https://github.com/gregoryfoster/skills/issues/308)).
 
 **If you suspect the import graph, test the import graph.** Take a file you
 know has first-party importers, run `codebase_graph_query` on it, and compare
 the result against an `rg` sweep over every spelling that import could be
-written as. If the two sets match, the import graph is exact and
-`unresolvedPct` is telling you about call edges, not about imports. Prefer
-that differential to any figure written into this file, which is repo- and
-day-specific. Upstream is adding a server-stated import-resolution advisory
-(<https://github.com/giancarloerra/SocratiCode/issues/112>); once a release
-carries it, that becomes the signal to read — until then, measure.
+written as. If the two sets match, the import graph is exact, and whatever
+`unresolvedPct` counts, it is not your first-party imports. Prefer that
+differential to any figure written into this file, which is repo- and
+day-specific.
+
+**Since SocratiCode 1.13.0 the server states the yield itself, and that is the
+signal to read.** When resolution collapses, `codebase_graph_status` prints an
+advisory beneath the edge count:
+
+```
+Import resolution: 35 of 2959 captured imports resolved to project files (1.2%)
+  Most imports did not resolve, so codebase_graph_query, codebase_graph_stats
+  and codebase_impact will under-report dependencies — an empty answer there
+  means unresolved, not independent.
+```
+
+That ratio is **resolved-over-captured**, which is a better measure than the
+edges/file floor this skill computes locally: it does not move with repo size,
+and it does not read as broken on a repo that is merely orphan-heavy. It is
+also not `unresolvedPct`, which counts every captured symbol edge, external
+ones included (see above).
+
+**Believe a present advisory when `Built by:` is current.** It reports what the
+builder that *cut* this graph resolved, so on a stale graph it judges an older
+resolver and a rebuild may clear it. Either way the `Built by:` line below is
+what tells you whether the reading — advisory or silence — is about the
+resolvers you are actually running.
+
+**Its silence, in particular, is only meaningful if the graph is new enough to
+produce it:**
+
+| `Built by:` | what a missing advisory means |
+|---|---|
+| `v<current server>` | the server measured and found nothing wrong — trust it |
+| `v<older> — STALE` | the graph predates the running resolvers; **rebuild before judging** |
+| `unknown (persisted before…)` | same, from a graph cut before the stamp existed |
+| *(line absent)* | server older than 1.13.0 — **or no built graph here at all**; fall back to edges/file |
+
+The middle two are the trap, and it is not hypothetical: a graph sitting at 37
+edges across 621 files looked like a resolver collapse for over a week and was
+merely stale — rebuilt on 1.13.1 the same repo yields **2156 edges across 627
+files**. Run `codebase_graph_build` before concluding anything from a graph
+whose builder is stale or unstamped. `health-check` reports this as its own
+defect, and reports which measure ruled (`source: "server"` or `"local"`) in
+its JSON.
+
+**Read row 1 as *the server did not call it stale*, not as *it is current*.**
+The annotation is the server's to volunteer, and every way of not volunteering
+it used to land here: `CannObserv/cannabis.observer-wordpress#803` spent three
+rounds concluding a PSR-4 `composer.json` declaration "would not help", from a
+graph **cut by v1.10.0** — PSR-4 resolution having shipped in **v1.11.0**, so the
+graph predated the feature under discussion. READY throughout, and nothing said
+so. Since [#297](https://github.com/gregoryfoster/skills/issues/297)
+`health-check` keeps the running server's `serverInfo.version` from the MCP
+handshake and makes the comparison itself, so row 1 now means *both* parties
+checked. Reading the stamp **by hand**, you do not have that second opinion:
+compare it against the server you are running before you trust it.
+
+**The server that matters is the one answering your queries.** A rebuild runs
+through the session's server — under Claude Code, the plugin's — which need
+not be the one `health-check` launched to measure. Where the plugin's
+definition fixes a version, the check judges the graph against that one, and a
+graph matching it while trailing the check's own server is a *note*: rebuilding
+would re-stamp the same version, so the fix is to update the plugin, restart
+Claude Code so its MCP server reloads, then rebuild. Where the definition
+floats (`socraticode@latest`) the session's version cannot be read, and the
+finding says so; if a rebuild leaves the stamp unchanged, restart and rebuild
+([#305](https://github.com/gregoryfoster/skills/issues/305)). The JSON records
+every version compared: `graph.builderCheck` holds the builder, `checkServer`,
+`sessionServer` and which of the two ruled; `server` is the check's own launch
+and `sessionServer` says how the session's version was known.
+
+**Stale is not the same as unmeasured, and the two answer different
+questions.** A graph a release or two behind still carries the import counts its
+builder recorded, so the running server reads them and its advisory — or its
+silence — is a real ruling about resolution; `health-check` keeps that ruling
+(`source: "server"`) and reports the staleness *beside* it. Only a graph cut
+before **1.13.0**, which recorded no counts at all, leaves the server with
+nothing to measure and sends the verdict back to the edges/file fallback
+(`source: "local"`). Do not read "this graph is old" as "this graph is broken":
+on an orphan-heavy repo the local floor reads LOW on a graph that is perfectly
+fine, which is the reading that writes variant B.
+
+**Rebuild the graph after a SocratiCode upgrade.** A stored graph reports READY
+forever, whatever cut it, and every resolver fix shipped since is absent from
+it. That rule does not need to live in your `AGENTS.md` — the once-per-day hook
+reports it, names both versions and names `codebase_graph_build`.
 
 ## Index scope
 
-`.socraticodeignore` (repo root, gitignore syntax, layered on the built-in
-defaults and `.gitignore`) controls what gets embedded. Editing it affects
-**subsequent** scans only — re-index to apply it. Vendored trees dominate the
-index if left in, and vendored prose outranks first-party code in
-`codebase_search` results.
+**Two stores, two controls.** The repo-root `.socraticodeignore` (gitignore
+syntax, layered on the built-in defaults and `.gitignore`) governs the **code
+index and the graph**. The **context store** is governed by the manifest,
+`.socraticodecontextartifacts.json`. A path excluded from one stays searchable
+in the other: leaving `docs/plans/` out of the code index does not take it out
+of `codebase_context_search`.
+
+A directory artifact (socraticode 1.13+) honours the built-in defaults, the
+`.gitignore` files inside it, nested ones included, and a `.socraticodeignore`
+placed **at the top of the artifact directory**. The repo-root
+`.socraticodeignore` does not reach it. The defaults (`build`, `dist`,
+`vendor`, `coverage`, `*.lock`, `__pycache__`…) drop those names inside an
+artifact silently, so check each artifact's subtree for any you meant to keep.
+
+| To… | Change |
+|-----|--------|
+| Trim what code search and the graph see | the repo-root `.socraticodeignore` |
+| Trim a directory artifact | a `.gitignore` anywhere inside that artifact's directory, or a `.socraticodeignore` at its top |
+| Drop an artifact | its entry in the manifest |
+
+Editing `.socraticodeignore` affects **subsequent** scans only — re-index to
+apply it. Vendored trees dominate the index if left in, and vendored prose
+outranks first-party code in `codebase_search` results.
 <!-- END socraticode-doc -->
 
 ## The server is pinned, not installed at launch
@@ -153,24 +313,20 @@ line and a new literal, as a decision rather than on a schedule.
 
 ## Repo-specific notes
 
-**Measured yield (2026-09-12, on the shared store).** `verdict: ok` — **541
-edges across 237 files = 2.283 edges/file**, 1,611 symbols, 5,355 call edges,
-74.8% unresolved. Denser than the 1.765 edges/file measured 2026-08-22, so the
-move to `co-index` restored the index and then some. A **from-empty index takes
-516 s** (D6: the restore path for this store is a re-index, and that is the
-number the runbook rests on). The policy
-block in `AGENTS.md` is therefore on **variant A** (standard). The unresolved
-figure clears the 50% reporting threshold, so `socraticode-health.sh` prints it
-as a daily line that says in its own text it is a statistic, not a defect — a
-FastAPI service calling into Starlette, SQLAlchemy, Apprise and Jinja runs high
-by construction. Judge this graph on edges/file.
+**Measured yield (2026-09-23, #78 audit).** `verdict: ok`, ruled by the server
+over a graph **built by v1.14.0**, the current release. **598 edges across 258
+files = 2.318 edges/file**, 2,031 symbols, 7,071 call edges, 72.3% unresolved
+— high by construction for a FastAPI service calling into Starlette,
+SQLAlchemy, Apprise and Jinja; judge this graph on edges/file. A **from-empty
+index takes 516 s** (measured 2026-09-12, D6: the restore path for this store
+is a re-index, and that is the number the runbook rests on). The policy block
+in `AGENTS.md` is therefore on **variant A** (standard).
 
-**Import graph verified exact, and current (2026-09-12).**
-`codebase_graph_query src/core/logging.py` now returns **seven** importers
-where 2026-08-22 recorded five; the two additions are `src/core/monitors.py`
-and `scripts/sweep_monitors.py`, both #56's. That is the useful check: an index
-that reproduced the old answer would be stale, not healthy. The unresolved
-figure is about call edges, not imports — trust `codebase_graph_query` here.
+**Import graph verified exact (2026-09-23).** `codebase_graph_query
+src/core/logging.py` returns **19** importers across `src/`, `scripts/` and
+`tests/`, and an `rg` sweep over every spelling of that import returns the
+same 19. So whatever `unresolvedPct` counts, it is not this repo's first-party
+imports — trust `codebase_graph_query` here.
 
 **Context artifacts (5).** All five are knowledge `codebase_search` cannot
 reach from source alone:
@@ -180,11 +336,8 @@ reach from source alone:
 | `database-schema` | `alembic/versions` | Alembic migrations are the authoritative schema — there is no checked-in DDL |
 | `deployment-architecture` | `docs/DEPLOYMENT.md` | systemd topology, ports, the two-env-file layout |
 | `operational-runbook` | `docs/COMMANDS.md` | every runnable command with flags |
-| `systemd-unit` | `deploy/notifier.service` | production runtime config |
+| `systemd-unit` | `deploy/` | every unit and host config file: runtime config, the memory reservation, and `co-index`'s under `deploy/index/` |
 | `code-exploration` | `docs/SOCRATICODE.md` | this file — so `codebase_context_search` can answer questions about exploring the repo |
-
-`codebase_context` is the only per-artifact status there is; `codebase_status`
-reports a count and never a name.
 
 **Why `.socraticodeignore` keeps `skills/`.** The cohort default excludes
 `skills-vendor/`, `skills/` and `.claude/skills/`. This repo excludes only the
@@ -199,9 +352,6 @@ shards — not a hash of the working tree's absolute path. Two consequences wort
 knowing before you re-index: **every worktree now shares one index** instead of
 paying its own full first pass, and a cohort sibling that links this repo
 resolves the same collections wherever its checkout happens to sit.
-`linkedProjects` names the other four repos relatively; a sibling that is not
-cloned locally is skipped **silently** by upstream, and `codebase_search` only
-consults them when called with `includeLinked: true`.
 
 ## The shared store
 
@@ -244,9 +394,8 @@ about it are easy to get wrong and expensive to debug:
 ### Cross-repo search
 
 `codebase_search` with **`includeLinked: true`** spans the cohort; it defaults
-to false, so it must be named. `.socraticode.json` lists the siblings
-relatively, and a sibling whose directory is absent is skipped **silently** —
-the path must exist on disk even though the data is remote.
+to false, so it must be named. A sibling's path must exist on disk even though
+the data is remote.
 
 **Those siblings are link stubs, not clones.** `resolveLinkedCollections` uses a
 linked path for exactly two things — `effectiveBaseProjectId(path)` to name the
@@ -256,18 +405,10 @@ query; content comes wholly from Qdrant. So all four siblings on this VM —
 `../archiver`, `../broker`, `../replicator`, `../watcher` — each hold one
 `.socraticode.json` naming a `projectId`, plus a README saying why.
 
-`../broker` was a real clone until 2026-09-16, because this host indexed broker
-during #57's build. #63 undid that: the `d4eab3ecb321` collections are gone and
-broker indexes itself from its own VM into `codebase_broker`. The stub is what
-makes the handover permanent — a clone here could be re-indexed by anything
-running on this host, and D11's lock is host-local, so a shared Qdrant gives
-two hosts nothing to contend on. A directory with no source cannot be indexed.
-
-Worth recording from broker's side of #63: that VM's checkout sits at
-`/home/exedev/broker` too, since exe.dev checks every repo out at the same
-path. The `d4eab3ecb321` hash was therefore never unique to this host, which is
-why the removal had to pin `SOCRATICODE_PROJECT_ID` rather than trust the
-path.
+A stub is also what keeps each sibling indexed from its own VM (#63): a clone
+here could be re-indexed by anything running on this host, and D11's lock is
+host-local, so a shared Qdrant gives two hosts nothing to contend on. A
+directory with no source cannot be indexed.
 
 Verified 2026-09-13 by moving the broker clone aside and replacing it with a
 single 30-byte `.socraticode.json`: search returned broker source with correct
@@ -282,9 +423,8 @@ directory is dropped by `loadLinkedProjects`'s `fs.existsSync` filter; a stub
 naming a collection that does not exist yet is caught per-collection by
 `searchMultipleCollections` and skipped with a `logger.warn` to stderr. Search
 succeeds either way. **A green cross-repo result is not evidence that every
-sibling answered.** Between #63's removal and broker's first index from its own
-VM, `includeLinked` reaches **no** sibling at all and says nothing about it;
-each of the four contributes only once its own repo adopts (#57 Phase 7).
+sibling answered**: each contributes only once its own repo has indexed
+(#57 Phase 7).
 
 **It reaches `codebase_search` and nothing else.** `codebase_impact`,
 `codebase_graph_query`, `codebase_flow` and `codebase_context_search` are
