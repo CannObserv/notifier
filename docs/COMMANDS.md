@@ -328,6 +328,38 @@ database. Do not "helpfully" copy production channels across — that recreates
 the exact failure watcher#278 documents, where ~1289 fixture notifications
 were delivered to real recipients.
 
+## Copying channels to a new tenant
+
+How a new consumer gets the cohort's existing Slack and Mailgun destinations
+(#70). `scripts/copy_channels.py` copies the stored ciphertext, so the Apprise
+URL is never decrypted, printed or pasted. The API only returns a masked URL,
+so re-creating the channel through `POST /channels` would mean somebody
+handling the secret.
+
+```bash
+. scripts/load_env.sh
+
+# Rehearse: every refusal fires, nothing is written
+NOTIFIER_ALLOW_PROD_DB=1 uv run python scripts/copy_channels.py \
+  --to-tenant <target id> --expect-name <target name> \
+  --channel <source channel id>=<new name> \
+  --channel <source channel id>=<new name> \
+  --dry-run
+
+# Then the same command line without --dry-run
+```
+
+Prints each new `channel_id`, which is what the consumer puts in
+`channel_ids`. `--expect-name` is always required: the target id decides who
+receives the grant, and a typo naming another consumer would hand it the
+destination. A name the target already has is refused, so re-running is safe.
+Every copy is recorded (`journalctl -t notifier-keys`) naming both ends,
+never the URL.
+
+This copies **between tenants in one database**. Copying a production channel
+into `notifier_dev` is the operation the section above forbids, and this
+script cannot reach it.
+
 ## Attaching, revoking, and rotating a key
 
 `seed_tenant.py` always creates a **new** tenant. To give a tenant that already
