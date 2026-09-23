@@ -9,6 +9,7 @@ DATABASE_URL pointing at production for any code that reads it directly
 import importlib
 import os
 import secrets
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -80,3 +81,12 @@ class TestTheSuiteNeverWritesToTheJournal:
         still green — so the drift fails here, on the commit that causes it."""
         sdk_conftest = Path(__file__).resolve().parents[1] / "clients/python/tests/conftest.py"
         assert f'AUDIT_SOCKET_ENV = "{AUDIT_SOCKET_ENV}"' in sdk_conftest.read_text()
+
+    def test_the_sink_never_blocks_a_sender(self, suite_audit_sink):
+        """An unread datagram socket blocks its sender within a few dozen
+        records, which here would be a suite hung inside `SysLogHandler`."""
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sender:
+            sender.settimeout(5)
+            sender.connect(suite_audit_sink.path)
+            for n in range(1000):
+                sender.send(f'<14>notifier-keys: {{"n": {n}}}'.encode())

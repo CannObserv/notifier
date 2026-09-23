@@ -27,3 +27,13 @@ def test_the_sink_needs_no_database(_audit_sink):
     """`_server_env` skips without ``TEST_DATABASE_URL``, which the SDK's CI
     job does not set. The sink needs no database, so CI still exercises it."""
     _assert_reachable(_audit_sink)
+
+
+def test_the_sink_never_blocks_a_sender(_audit_sink):
+    """An unread datagram socket blocks its sender within a few dozen records,
+    which here would be a seed script hung inside ``SysLogHandler``."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sender:
+        sender.settimeout(5)
+        sender.connect(_audit_sink)
+        for n in range(1000):
+            sender.send(f'<14>notifier-keys: {{"n": {n}}}'.encode())
