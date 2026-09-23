@@ -30,6 +30,10 @@ specific to notifier.
   dead-man's timer every ten minutes (#56, CannObserv/broker#3). The rule is
   one-way: notifier still lists no rule with itself as a `src`, so this host
   cannot open a connection back to `broker` — verified, not assumed.
+- **Consumer node:** `replicator`, tag `tag:replicator`, `100.114.136.20` — the
+  `co-replicator` VM. Its `OnFailure=` handler dispatches an incident when the
+  worker's unit fails (#70). Uses `/dispatch` rather than a monitor, per the
+  #83 freeze.
 - **Also on the tailnet:** `observo-primary`, a *user-owned* node (not tagged),
   reached by a `hosts` entry in the ACL rather than by tag. Relevant when the
   Observo → Notifier path is provisioned: that rule needs `observo-primary` as
@@ -61,6 +65,9 @@ specific to notifier.
       "dst": ["tag:index:6333,11434"] },
     // The store checks in to notifier's dead-man's timer. :9000 only, as above.
     { "action": "accept", "src": ["tag:index"], "dst": ["tag:notifier:9000"] },
+    // Replicator's OnFailure= handler dispatches here (#70). :9000 only — one
+    // production unit, no dev process to point at :9001.
+    { "action": "accept", "src": ["tag:replicator"], "dst": ["tag:notifier:9000"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
@@ -101,6 +108,14 @@ specific to notifier.
 > the ACL alone, so anything in that rule's `src` can pull an arbitrary model
 > onto the shared box. Accepted deliberately (#57 D4) rather than proxied, and
 > written down here so it is a decision rather than an oversight.
+
+> **The replicator rule was verified from both ends, 2026-09-23.** From here,
+> `replicator` appeared in `tailscale status` once the policy was applied. From
+> `co-replicator`, per replicator's own measurement, `:9000/health` answered with
+> `"environment":"production"` and `:9001` **timed out** rather than being
+> refused. A timeout is the expected result: the tailnet filter drops a
+> disallowed packet, it doesn't send a reset. When checking that a port is
+> closed, expect a hang, not "connection refused".
 
 > **Peer visibility follows `acls`, not `ssh`.** A node absent from the peer's
 > netmap does not resolve over MagicDNS at all, so this rule has to exist in
