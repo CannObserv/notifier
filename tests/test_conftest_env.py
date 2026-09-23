@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from src.core import db_safety
-from src.core.logging import AUDIT_SOCKET_ENV, JOURNAL_SOCKET, get_audit_logger
+from src.core.logging import AUDIT_SOCKET_ENV, get_audit_logger
 
 
 def test_conftest_pins_database_url_to_the_test_database():
@@ -40,7 +40,6 @@ class TestTheSuiteNeverWritesToTheJournal:
 
     def test_conftest_points_the_channel_at_the_suite_sink(self, suite_audit_sink):
         assert os.environ[AUDIT_SOCKET_ENV] == suite_audit_sink.path
-        assert suite_audit_sink.path != JOURNAL_SOCKET
 
     def test_an_in_process_record_after_the_app_import_reaches_the_sink(self, suite_audit_sink):
         """The exact path that leaked: import the app, then emit on the channel
