@@ -5,9 +5,11 @@ import http.server
 import json
 import os
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import AsyncGenerator, Iterator
@@ -38,6 +40,90 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 # Ensure crypto has a key in test env even when /etc/notifier/.env is not loaded.
 os.environ.setdefault("NOTIFIER_SECRET_KEY", Fernet.generate_key().decode())
+
+
+class SuiteAuditSink:
+    """Where the suite's audit records go instead of journald (#84).
+
+    `src.api.main` opens the audit channel at import, for the life of the
+    process, and nothing in a test chooses when that import happens — test
+    modules do it at collection. Left alone it binds ``/dev/log``, and every
+    in-process mint after it lands in ``journalctl -t notifier-keys`` looking
+    exactly like a production one. Pointing ``NOTIFIER_AUDIT_SOCKET`` here
+    before collection covers that import, and every subprocess that inherits
+    the suite's environment.
+
+    Drained on a thread, not merely bound: an unread ``AF_UNIX`` datagram
+    socket fills, and ``SysLogHandler`` then blocks in ``send`` — a hung suite
+    in place of a polluted journal.
+    """
+
+    def __init__(self) -> None:
+        self._dir = tempfile.mkdtemp(prefix="notifier-audit-")
+        self.path = os.path.join(self._dir, "sink.sock")
+        self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        self._sock.bind(self.path)
+        self._datagrams: list[str] = []
+        self._arrived = threading.Condition()
+        self._closing = False
+        self._thread = threading.Thread(target=self._drain, daemon=True)
+        self._thread.start()
+
+    def _drain(self) -> None:
+        while True:
+            try:
+                data = self._sock.recv(65536)
+            except OSError:
+                return
+            if self._closing:
+                return
+            with self._arrived:
+                self._datagrams.append(data.decode(errors="replace").rstrip("\x00"))
+                self._arrived.notify_all()
+
+    def wait_for(self, needle: str, timeout: float = 5.0) -> dict:
+        """Return the first record whose datagram contains *needle*."""
+
+        def match() -> str | None:
+            return next((d for d in self._datagrams if needle in d), None)
+
+        with self._arrived:
+            found = self._arrived.wait_for(match, timeout)
+        if found is None:
+            raise AssertionError(f"no audit record containing {needle!r} reached the sink")
+        return AuditSocket._payload(found)
+
+    def close(self) -> None:
+        """Stop draining and remove the socket file."""
+        self._closing = True
+        # shutdown() wakes a recv() blocked on another thread; close() alone
+        # does not on Linux.
+        self._sock.shutdown(socket.SHUT_RDWR)
+        self._sock.close()
+        self._thread.join(timeout=5)
+        shutil.rmtree(self._dir, ignore_errors=True)
+
+
+_SUITE_AUDIT_SINK = pytest.StashKey[SuiteAuditSink]()
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Point the audit channel at the suite sink before any module is collected."""
+    sink = SuiteAuditSink()
+    config.stash[_SUITE_AUDIT_SINK] = sink
+    os.environ[AUDIT_SOCKET_ENV] = sink.path
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    sink = config.stash.get(_SUITE_AUDIT_SINK, None)
+    if sink is not None:
+        sink.close()
+
+
+@pytest.fixture(scope="session")
+def suite_audit_sink(pytestconfig) -> SuiteAuditSink:
+    """The sink every audit record not bound for an `audit_socket` reaches."""
+    return pytestconfig.stash[_SUITE_AUDIT_SINK]
 
 
 @pytest.fixture(scope="session")

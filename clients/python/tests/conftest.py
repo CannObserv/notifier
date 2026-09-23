@@ -6,7 +6,8 @@ subprocess wired to the test DB on an ephemeral port, seeds a tenant against
 the same DB, and tears all of it down on session exit. Every subprocess
 receives ``DATABASE_URL=$TEST_DATABASE_URL`` and a fresh per-session
 ``NOTIFIER_SECRET_KEY`` so production cannot be touched even if
-``/etc/notifier/.env`` was exported into the parent shell.
+``/etc/notifier/.env`` was exported into the parent shell — and an audit
+socket of its own, so the seeded key's mint never reaches journald (#84).
 """
 
 import base64
@@ -16,7 +17,9 @@ import secrets
 import socket
 import subprocess
 import tempfile
+import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal
 
@@ -33,6 +36,10 @@ UVICORN_READY_TIMEOUT_SECONDS = 15.0
 UVICORN_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 HEALTH_PROBE_TIMEOUT_SECONDS = 1.0
 HEALTH_POLL_INTERVAL_SECONDS = 0.2
+
+#: ``src.core.logging.AUDIT_SOCKET_ENV``. Spelled out rather than imported:
+#: this suite reaches notifier only through subprocesses.
+AUDIT_SOCKET_ENV = "NOTIFIER_AUDIT_SOCKET"
 
 
 def _free_port() -> int:
@@ -54,11 +61,45 @@ def _test_db_url() -> str:
 
 
 @pytest.fixture(scope="session")
-def _server_env(_test_db_url: str) -> dict[str, str]:
+def _audit_sink() -> Iterator[str]:
+    """A drained datagram socket standing in for journald's ``/dev/log`` (#84).
+
+    Without it ``seed_tenant.py`` records its mint in ``journalctl -t
+    notifier-keys``, where a test key reads exactly like a production one.
+    Drained rather than merely bound: an unread datagram socket fills and the
+    sender's ``SysLogHandler`` then blocks.
+    """
+    with tempfile.TemporaryDirectory(prefix="notifier-sdk-audit-") as tmp:
+        path = os.path.join(tmp, "sink.sock")
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        sock.bind(path)
+
+        def drain() -> None:
+            # recv() returns b"" once shutdown() runs; syslog never sends an
+            # empty datagram.
+            try:
+                while sock.recv(65536):
+                    pass
+            except OSError:
+                return
+
+        thread = threading.Thread(target=drain, daemon=True)
+        thread.start()
+        try:
+            yield path
+        finally:
+            sock.shutdown(socket.SHUT_RDWR)
+            sock.close()
+            thread.join(timeout=5)
+
+
+@pytest.fixture(scope="session")
+def _server_env(_test_db_url: str, _audit_sink: str) -> dict[str, str]:
     return {
         **os.environ,
         "DATABASE_URL": _test_db_url,
         "NOTIFIER_SECRET_KEY": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),
+        AUDIT_SOCKET_ENV: _audit_sink,
     }
 
 
