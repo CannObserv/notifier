@@ -98,10 +98,14 @@ def test_constant_matches_the_upstream_manifest():
         pytest.skip("gregoryfoster-skills submodule not initialized")
     assert MANIFEST.is_file(), f"upstream moved or removed {MANIFEST.relative_to(REPO_ROOT)}"
     args = next(
-        line
-        for line in MANIFEST.read_text().splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
+        (
+            line
+            for line in MANIFEST.read_text().splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ),
+        None,
     )
+    assert args, f"{MANIFEST.name} has no argument line"
     match = re.search(r"--timeout\s+(\d+)", args)
     assert match, f"{MANIFEST.name} prescribes no --timeout: {args!r}"
     assert int(match.group(1)) == HEALTH_TIMEOUT, (
