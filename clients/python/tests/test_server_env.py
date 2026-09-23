@@ -11,9 +11,19 @@ import socket
 from tests.conftest import AUDIT_SOCKET_ENV
 
 
+def _assert_reachable(path: str) -> None:
+    """Reachable, so a subprocess sends there rather than degrading to stderr."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as probe:
+        probe.connect(path)
+
+
 def test_the_audit_channel_points_at_a_live_sink_not_the_journal(_server_env):
     path = _server_env[AUDIT_SOCKET_ENV]
     assert path != "/dev/log"
-    # Reachable, so a subprocess sends there rather than degrading to stderr.
-    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as probe:
-        probe.connect(path)
+    _assert_reachable(path)
+
+
+def test_the_sink_needs_no_database(_audit_sink):
+    """`_server_env` skips without ``TEST_DATABASE_URL``, which the SDK's CI
+    job does not set. The sink needs no database, so CI still exercises it."""
+    _assert_reachable(_audit_sink)
