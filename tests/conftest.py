@@ -129,6 +129,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
+    """Close the suite sink once the session is over."""
     sink = config.stash.get(_SUITE_AUDIT_SINK, None)
     if sink is not None:
         sink.close()
