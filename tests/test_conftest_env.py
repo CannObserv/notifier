@@ -72,3 +72,11 @@ class TestTheSuiteNeverWritesToTheJournal:
         assert done.returncode == 0, done.stderr
 
         assert suite_audit_sink.wait_for(marker)["key_id"] == marker
+
+    def test_the_sdk_suite_spells_the_same_variable(self):
+        """`clients/python/tests/conftest.py` transcribes the name rather than
+        importing it. A rename here would leave the SDK's sink bound and
+        unused, and its seeded mint back in the journal with its own test
+        still green — so the drift fails here, on the commit that causes it."""
+        sdk_conftest = Path(__file__).resolve().parents[1] / "clients/python/tests/conftest.py"
+        assert f'AUDIT_SOCKET_ENV = "{AUDIT_SOCKET_ENV}"' in sdk_conftest.read_text()
