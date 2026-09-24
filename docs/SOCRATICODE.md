@@ -269,9 +269,9 @@ apply it. Vendored trees dominate the index if left in, and vendored prose
 outranks first-party code in `codebase_search` results.
 <!-- END socraticode-doc -->
 
-## The server is pinned, not installed at launch
+## Both servers are pinned, not installed at launch
 
-The plugin's own `mcp.json` is `npx -y --prefer-online socraticode@latest`, so
+Unpinned, the plugin launches `npx -y --prefer-online socraticode@latest`, so
 **every launch installs** — and `--prefer-online` revalidates against the
 registry on each one, meaning a warm npx cache is not a warm path on any day
 the package moved. That install, not the indexing, is the memory cost: on
@@ -303,13 +303,45 @@ rather than broker's 8 GB; it leaves the live service real headroom, and
 because earlyoom now prefers `^npm`, a genuinely tight install is killed
 rather than allowed to starve production. Re-run it if that happens.
 
-**What the pin does not fix.** Claude Code cannot override a plugin's MCP
-command, so the *session's* own server still launches `@latest` — only the
-driver (and therefore the daily health hook) takes the pin. The hook measures
-that gap and splits on it: a patch apart stays quiet, since a pin is meant to
-lag; a **minor or major** apart is reported as a defect, being two feature
-releases writing one shared store. Re-pin with the same `npm install --prefix`
-line and a new literal, as a decision rather than on a schedule.
+**The session is pinned too: `SOCRATICODE_SPEC` (#87).** The pre-install
+covers only the driver — the health hook, `index`, `verify`. The session's
+server is the plugin's, and since upstream
+[`0c33776`](https://github.com/giancarloerra/socraticode/commit/0c33776)
+(2026-09-20) its live manifest, `.claude-plugin/mcp.json`, launches
+`npx -y --prefer-online ${SOCRATICODE_SPEC:-socraticode@latest}`.
+`.claude/settings.json`'s `env` block sets it to **`socraticode@1.14.0`**, the
+pre-install's version, so both launches run one build. An exact version
+resolves from the npx cache without installing; that entry was already warm
+here. Like any settings variable it reaches only sessions started after it.
+
+Two traps, both met on this host on 2026-09-24:
+
+- **A plugin labelled `1.14.0` can predate the variable** — it shipped with no
+  version bump. `claude plugin update` recorded the new commit but reused the
+  cached `~/.claude/plugins/cache/socraticode/socraticode/1.14.0`, whose
+  `plugin.json` still named the root `./.mcp.json`. Moving that directory aside
+  and re-running the update fetched the live build. `preflight.sh --check`
+  says when the installed plugin never reads the variable.
+- **Verify what launched, never a manifest.** The two at the plugin's root
+  still hardcode `@latest`.
+
+```bash
+SOCRATICODE_AUTO_RESUME=off claude mcp list | grep socraticode  # prints the command
+ps -eo args | grep '[s]ocraticode@'                              # expect socraticode@1.14.0
+bash skills-vendor/gregoryfoster-skills/skills/init-socraticode/scripts/preflight.sh --check
+```
+
+preflight then reports *Plugin session launches socraticode 1.14.0 …, as the
+driver pin does*.
+
+**Nothing now reports an upstream release.** The daily hook measured the
+driver's pin against the session's floating spec; with the session fixed to
+the same version, it has nothing to measure and says nothing. Check
+`npm view socraticode version` when deciding whether to move. **Re-pinning
+changes three things together** — the `npm install --prefix` line with a new
+literal, `SOCRATICODE_SPEC`, and the version named above —
+and `tests/deploy/test_socraticode_pin.py` fails until they agree. Do it as a
+decision, not on a schedule: the pin exists so no unattended launch installs.
 
 ## Repo-specific notes
 
