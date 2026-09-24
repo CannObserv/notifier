@@ -410,9 +410,9 @@ here could be re-indexed by anything running on this host, and D11's lock is
 host-local, so a shared Qdrant gives two hosts nothing to contend on. A
 directory with no source cannot be indexed.
 
-Verified 2026-09-13 by moving the broker clone aside and replacing it with a
-single 30-byte `.socraticode.json`: search returned broker source with correct
-paths and line numbers, zero bytes of it on disk.
+Verified 2026-09-13 by moving `../broker`, then a real clone, aside and
+replacing it with a single 30-byte `.socraticode.json`: search returned broker
+source with correct paths and line numbers, zero bytes of it on disk.
 
 A stub also cannot drift. A real checkout carries the sibling's own
 `.socraticode.json`, so a `projectId` change upstream leaves a stale clone
