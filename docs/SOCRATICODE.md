@@ -339,25 +339,23 @@ Two traps, both met on this host on 2026-09-24:
   `plugin.json` still named the root `./.mcp.json`. Moving that directory aside
   and re-running the update fetched the live build. `preflight.sh --check`
   says when the installed plugin never reads the variable.
-- **A reading of the variable is not a reading of the setting.** Upstream
-  names `claude mcp list` as the check; here it shows only the environment of
-  the shell that ran it. From an agent's Bash tool, which inherits the
-  variable, it read the pinned spec; with the variable stripped, `@latest`.
-  Neither is what a session launches, and neither is a manifest — the two at
-  the plugin's root still hardcode `@latest`.
+- **A reading of the variable is not a reading of the launch.** The settings
+  block reaches every child of a session — the Bash tool, hooks, the driver —
+  whether or not it reached the plugin's launch. From a session shell,
+  `claude mcp list` read the pinned spec and preflight printed *✓ Plugin session
+  launches socraticode <version> … — no launch installs*, both while that
+  session's server ran `@latest`. Stripped of the variable, `claude mcp list`
+  reads `@latest`. Nor is a manifest evidence: the two at the plugin's root
+  still hardcode `@latest`.
 
-Verify from the process table, in a session started after the setting — the
-server under that session's `claude` PID must carry the pinned spec:
+The process table is the only evidence. Run from the agent's Bash tool, whose
+`$PPID` is the session's `claude`, so the filter excludes any server a
+`claude mcp list` spawned:
 
 ```bash
-ps -eo pid,ppid,args | grep '[n]pm exec socraticode'
-bash skills-vendor/gregoryfoster-skills/skills/init-socraticode/scripts/preflight.sh --check
+ps -o pid,args --ppid "$PPID" | grep '[n]pm exec socraticode'  # the pinned spec, never @latest
+tr '\0' '\n' < "/proc/$PPID/environ" | grep SOCRATICODE_SPEC    # in claude's env from its start
 ```
-
-preflight's *Plugin session launches socraticode <version> …, as the driver
-pin does* checks configuration, not a launch: it says whether the variable came
-from the environment or from `.claude/settings.json`, and the former means only
-that the calling shell carries it.
 
 **Nothing now reports an upstream release.** The daily hook measured the
 driver's pin against the session's floating spec; with the session fixed to
