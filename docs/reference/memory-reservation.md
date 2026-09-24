@@ -76,8 +76,8 @@ The chain as installed:
   cluster, one floor.
 - **A floor is not an allocation.** It protects only what its unit actually
   uses, so 384M bounds what the sessions can lose to it; at today's usage
-  that is ~150 MiB. The sessions run in `/init.scope`, beside `system.slice`
-  rather than inside it, which is what makes the grant protection *from* them.
+  that is ~150 MiB. The sessions run in `/init.scope`, beside `system.slice`,
+  so no grant here covers them.
 
 `daemon-reload` applies every link to the running units, with no restart
 (PostgreSQL's floor included, verified 2026-09-24).
