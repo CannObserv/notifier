@@ -23,7 +23,7 @@
     {
       "name": "systemd-unit",
       "path": "./deploy",
-      "description": "systemd units and host config for the notifier service \u2014 notifier.service (production, :9000), notifier-dev.service (dev endpoint, :9001, notifier_dev), and the notifier-sweep{,-dev} timer/service pairs that run the dead-man's-timer sweep every 60s. Carries User, ExecStart, EnvironmentFile sources, restart bounds, which unit holds the production-database opt-in, and the memory reservation (MemoryLow/OOMScoreAdjust, 99-notifier-memory.conf, earlyoom.default). Authoritative for runtime config."
+      "description": "systemd units and host config for the notifier service \u2014 notifier.service (production, :9000), notifier-dev.service (dev endpoint, :9001, notifier_dev), and the notifier-sweep{,-dev} timer/service pairs that run the dead-man's-timer sweep every 60s. Carries User, ExecStart, EnvironmentFile sources, restart bounds, which unit holds the production-database opt-in, and the memory reservation (MemoryLow/OOMScoreAdjust, 99-notifier-memory.conf, earlyoom.default), and co-index's host units under deploy/index/. Authoritative for runtime config."
     }
   ]
 }
