@@ -86,7 +86,6 @@ docs/SOCRATICODE.md :: | `code-exploration` | `docs/SOCRATICODE.md` | this file
 .claude/hooks/socraticode-reminder.sh :: re-run this hook by hand for the ToolSearch
 .claude/hooks/socraticode-reminder.sh :: generated `docs/SOCRATICODE.md` — points here instead of transcribing it
 .socraticodecontextartifacts.json :: "path": "./docs/SOCRATICODE.md",
-scripts/install_qdrant_key.sh :: # docs/SOCRATICODE.md and CannObserv/notifier#57.
 
 # The drift-test annex pointing back at its parent section (#74 follow-up). The
 # `## Project Layout` heading it anchors on is still there — that section is
