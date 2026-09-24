@@ -48,8 +48,6 @@ DEV_UNIT = DEPLOY / "notifier-dev.service"
 DEV_SWEEP = DEPLOY / "notifier-sweep-dev.service"
 
 POSTGRES_UNIT = DEPLOY / "postgresql@16-main.service.d" / "10-memory.conf"
-POSTGRES_SLICE = DEPLOY / "system-postgresql.slice.d" / "10-memory-protection.conf"
-SYSTEM_SLICE = DEPLOY / "system.slice.d" / "10-memory-protection.conf"
 
 #: co-index's units (#57), which run on that host's slices, not this one's.
 OTHER_HOST_UNITS = DEPLOY / "index"
