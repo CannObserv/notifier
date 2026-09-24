@@ -37,9 +37,9 @@ def pinned_install_version() -> str | None:
     """The pre-install's version, found where mcp-driver.mjs looks; None if absent.
 
     VM-local, like the driver's own lookup: SOCRATICODE_PIN_DIR, else
-    ~/.socraticode/pin.
+    ~/.socraticode/pin — an empty value falls back too, as the driver's `||` does.
     """
-    pin_dir = Path(os.environ.get("SOCRATICODE_PIN_DIR", "~/.socraticode/pin")).expanduser()
+    pin_dir = Path(os.environ.get("SOCRATICODE_PIN_DIR") or "~/.socraticode/pin").expanduser()
     manifest = pin_dir / "node_modules" / "socraticode" / "package.json"
     if not manifest.exists():
         return None
