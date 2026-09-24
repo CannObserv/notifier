@@ -27,6 +27,7 @@ README.md: orientation and the curated links into docs/ — only the README-owne
 clients/python/CHANGELOG.md: the top `## X.Y.Z — YYYY-MM-DD` heading — the SDK's compatibility record, and the only CHANGELOG.md this repo tracks
 docs/ARCHITECTURE.md: Project Layout (src/api/, src/core/, alembic/versions/, tests/ci/) and Dependency policy (pyproject.toml, uv.lock)
 docs/COMMANDS.md: the runnable command and its flags (scripts/), and the section that command belongs to
+docs/reference/scripts.md: the script's entry in the per-script inventory — what it is responsible for (scripts/)
 docs/DEPLOYMENT.md: unit install, routine ops and the environment-variable reference (deploy/, alembic/versions/)
 docs/RELEASING.md: the version sites and the gates holding them in lockstep (pyproject.toml, uv.lock, CHANGELOG.md)
 docs/SKILLS.md: the Skills Inventory, the vendor pins, and the .skills/ policy it records (skills/, skills-vendor/, .skills/)
