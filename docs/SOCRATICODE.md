@@ -325,6 +325,12 @@ which `co-watcher` hit first). So it lives in two places:
 | `.claude/settings.json` `env`: **`socraticode@1.14.0`**, the pre-install's version | **Declares** it — the value the driver, preflight and the tests read |
 | `claudeCode.environmentVariables` in `~/.vscode-server/data/Machine/settings.json` | **Delivers** it — the extension sets it in `claude`'s environment at startup. Machine-scoped, so VM-local and never committed; it reaches every VS Code session on this host, whatever the folder |
 
+**Verified 2026-09-24** after a reconnect with the machine setting: the
+session's server launched the pinned spec from the warm npx cache, and the
+variable was in `claude`'s environment from its start. The extension moved from
+2.1.280 to 2.1.281 in the same reconnect, so whether 2.1.281 honours the block
+alone is not measured.
+
 A new value reaches only sessions started after a full VS Code reconnect. The
 terminal CLI gets neither: `~/.claude.json` has never trusted this folder, so
 `claude` and `claude -p` run here ignore the whole `env` block, store variables
