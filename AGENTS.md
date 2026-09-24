@@ -267,5 +267,5 @@ The service is consumer-agnostic. Resist these temptations:
 - [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version, every site mirroring it, the CI gates, and how a consumer adopts the SDK
 - [docs/reference/monitors.md](docs/reference/monitors.md) — the dead-man's timer: why absence is the alert, the check-in contract, and what nothing watches
 - [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet: node identity, ACL, the bind decision and the boot race it buys
-- [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — tool table, prefetch query, graph-health guidance, the shared store's traps, and this repo's measured yield
+- [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — tool table, graph-health guidance, the shared store's traps, and this repo's measured yield
 - [docs/SKILLS.md](docs/SKILLS.md) — skill layout, vendored submodules and refresh procedure, full inventory
