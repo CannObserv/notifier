@@ -12,7 +12,8 @@ the ~1.2 G peak a 3.8 GiB no-swap host running production cannot afford
 (gregoryfoster/skills#295). One that differs from the pre-install puts two
 builds on one shared store. Re-pinning means changing all three — the
 pre-install, ``SOCRATICODE_SPEC`` and docs/SOCRATICODE.md — and these fail
-until all three agree.
+until all three agree. The pre-install is VM-local, so CI, which has none,
+holds only the spec and the doc; the comparison with the pre-install runs here.
 """
 
 import json
