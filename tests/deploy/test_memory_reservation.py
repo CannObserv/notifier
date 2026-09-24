@@ -152,15 +152,18 @@ def parent_slice(unit: str) -> str | None:
     A plain unit lands in ``system.slice``. A template instance
     ``foo@bar.service`` lands in the implicit ``system-foo.slice``, which
     systemd creates with no settings — so it grants 0 like any other link.
-    A slice ``a-b.slice`` sits in ``a.slice``. No unit here sets ``Slice=``;
-    the live test checks this derivation against the real ``ControlGroup``.
+    Its ``-`` is escaped to ``\\x2d`` there, as ``systemd-escape`` does, since
+    ``-`` is what separates slice levels. A slice ``a-b.slice`` sits in
+    ``a.slice``. No unit here sets ``Slice=``; the live test checks this
+    derivation against the real ``ControlGroup``.
     """
     name, _, kind = unit.rpartition(".")
     if kind == "slice":
         prefix = name.rpartition("-")[0]
         return f"{prefix}.slice" if prefix else None
     if "@" in name:
-        return f"system-{name.split('@')[0]}.slice"
+        template = name.split("@")[0].replace("-", "\\x2d")
+        return f"system-{template}.slice"
     return "system.slice"
 
 
@@ -331,6 +334,18 @@ def _fake_cgroup(fs: Path, cgroup: str, low_mib: int) -> None:
     node = fs / cgroup.lstrip("/")
     node.mkdir(parents=True, exist_ok=True)
     (node / "memory.low").write_text(f"{low_mib * MIB}\n")
+
+
+def test_a_dashed_template_lands_in_its_escaped_slice():
+    """``-`` separates slice levels, so systemd escapes it in the template's name.
+
+    Named from this host: ``serial-getty@`` runs in ``system-serial\\x2dgetty.slice``,
+    one level below ``system.slice``, not two.
+    """
+    assert parent_slice("serial-getty@ttyS0.service") == "system-serial\\x2dgetty.slice"
+    assert cgroup_of("serial-getty@ttyS0.service") == (
+        "/system.slice/system-serial\\x2dgetty.slice/serial-getty@ttyS0.service"
+    )
 
 
 def test_a_slice_at_zero_clamps_the_unit_below_it(tmp_path):
