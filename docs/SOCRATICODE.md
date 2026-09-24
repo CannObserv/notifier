@@ -436,7 +436,7 @@ cosine so results from different collections can be ordered against each other;
 an unlinked one returns the single-collection hybrid score. The numbers are on
 different scales.
 
-### Two corrections to the table above
+### Two things the tool descriptions leave out
 
 - **`codebase_impact` takes `target`**, not a file-path argument. Passing
   `filePath` returns `Missing required argument: target or symbolId`.
