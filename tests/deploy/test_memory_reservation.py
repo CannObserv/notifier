@@ -1,4 +1,4 @@
-"""Drift tests for the production memory reservation (#74).
+"""Drift tests for the production memory reservation (#74, #85, #88).
 
 This host is 3.8 GiB with no swap, and it runs the live service, the dev
 endpoint, PostgreSQL and interactive agent sessions on the one kernel. The
