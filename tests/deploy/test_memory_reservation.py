@@ -16,7 +16,8 @@ Three settings, none of which substitutes for another:
   too (#85).
 * ``OOMScoreAdjust=`` — makes the killer prefer almost anything else. On this
   host agent sessions sit at adj 0 (only `sshd` and `exe-init` carry -1000),
-  so a negative score here is what puts production last in line.
+  so a negative score here is what puts production last in line. That premise
+  is exe.dev's, not ours, so it is pinned live (#88).
 * ``vm.min_free_kbytes`` — the reserve the *atomic* allocations draw on. The
   other two are per-cgroup and cannot help an allocation in `ksoftirqd`.
 
@@ -24,12 +25,13 @@ The dev units deliberately carry none of it: a reservation everything holds is
 a reservation nobody holds, and dev losing memory to production is the
 outcome this is choosing.
 
-One premise here is the host's rather than the repo's — what the kernel
-actually grants — so that test reads the live host and skips everywhere else,
-CI included.
+Two premises here are the host's rather than the repo's — what the kernel
+actually grants, and what score exe.dev starts a session at — so those tests
+read the live host and skip everywhere else, CI included.
 """
 
 import math
+import os
 import re
 import socket
 import subprocess
@@ -71,6 +73,7 @@ live_host_only = pytest.mark.skipif(
 )
 
 CGROUP_FS = Path("/sys/fs/cgroup")
+PROC_FS = Path("/proc")
 
 
 def directives(unit: Path) -> str:
@@ -503,3 +506,85 @@ def test_earlyoom_args_survive_systemd_word_splitting():
             f"{flag} is followed by {value!r}, not a regex — the regex was split"
         )
         re.compile(value)  # earlyoom would reject an unparseable one at startup
+
+
+# ── the session premise earlyoom and OOMScoreAdjust= rest on (#88) ───────────
+
+#: What exe.dev starts a session from. The -1000 is theirs; what matters is
+#: whether the session beneath them inherits it.
+SESSION_PARENTS = frozenset({"exe-init", "sshd"})
+
+
+def session_root_adj(proc: Path, pid: int) -> int | None:
+    """``oom_score_adj`` of the process exe.dev started ``pid``'s session from.
+
+    Walks the ancestry to the first process whose parent is in
+    ``SESSION_PARENTS`` and reads that one, not ``pid``: a leaf can be
+    ``choom``'d (the capped SocratiCode install is), the session root cannot.
+    ``None`` when no ancestor is a session — a systemd unit, cron. The same
+    walk as CannObserv/replicator@bcf3e5a, which pins the mirror image, -1000.
+    """
+    while pid > 1:
+        status = (proc / str(pid) / "status").read_text()
+        ppid = int(re.search(r"^PPid:\s*(\d+)", status, re.MULTILINE).group(1))
+        if ppid < 1:
+            return None
+        if (proc / str(ppid) / "comm").read_text().strip() in SESSION_PARENTS:
+            return int((proc / str(pid) / "oom_score_adj").read_text())
+        pid = ppid
+    return None
+
+
+def _fake_process(proc: Path, pid: int, ppid: int, comm: str, adj: int) -> None:
+    (proc / str(pid)).mkdir(parents=True)
+    (proc / str(pid) / "status").write_text(f"Name:\t{comm}\nPPid:\t{ppid}\n")
+    (proc / str(pid) / "comm").write_text(f"{comm}\n")
+    (proc / str(pid) / "oom_score_adj").write_text(f"{adj}\n")
+
+
+def test_a_session_under_sshd_reports_its_root_not_its_leaf(tmp_path):
+    """This host's shape, measured 2026-09-24: sshd-session at 0 under sshd."""
+    _fake_process(tmp_path, 216, 1, "sshd", -1000)
+    _fake_process(tmp_path, 700, 216, "sshd-session", 0)
+    _fake_process(tmp_path, 701, 700, "bash", 0)
+    _fake_process(tmp_path, 702, 701, "npm", 500)  # a choom'd leaf
+    assert session_root_adj(tmp_path, 702) == 0
+
+
+def test_a_session_under_exe_init_reports_its_root(tmp_path):
+    """broker's shape: the session inherits -1000 from exe-init."""
+    _fake_process(tmp_path, 217, 1, "exe-init", -1000)
+    _fake_process(tmp_path, 581, 217, "bash", -1000)
+    _fake_process(tmp_path, 900, 581, "python3", 0)
+    assert session_root_adj(tmp_path, 900) == -1000
+
+
+def test_no_session_ancestor_is_none(tmp_path):
+    """A unit or a timer: no session, so nothing to measure."""
+    _fake_process(tmp_path, 1, 0, "systemd", 0)
+    _fake_process(tmp_path, 300, 1, "systemd", 100)
+    _fake_process(tmp_path, 301, 300, "python3", 0)
+    assert session_root_adj(tmp_path, 301) is None
+
+
+@live_host_only
+def test_sessions_here_sit_at_adj_zero():
+    """Everything above assumes the killer can reach a session, and nothing set it.
+
+    ``--prefer`` in earlyoom.default, ``OOMScoreAdjust=-500`` on the
+    production units and docs/SOCRATICODE.md's "a genuinely tight install is
+    killed" all rest on sessions sitting at 0 — measured 2026-09-18 (#74) and
+    again 2026-09-24 (#88). That is exe.dev's setup, not this repo's, and it
+    differs by host: broker and address-validator sessions sit at -1000, which
+    earlyoom 1.7 skips outright as the kernel does. What decides it was never
+    determined. If it changes here, no config drifts and no other test fails.
+    """
+    adj = session_root_adj(PROC_FS, os.getpid())
+    if adj is None:
+        pytest.skip("not run from an exe.dev session")
+    assert adj == 0, (
+        f"this session's root reads oom_score_adj={adj}, not 0: exe.dev changed "
+        f"how it starts sessions here. At -1000 earlyoom's --prefer reaches nothing "
+        f"and OOMScoreAdjust=-500 no longer puts production behind the sessions — "
+        f"launch them under `choom -n 500 --` (host-memory.md § 1) and reopen #88"
+    )

@@ -1,7 +1,7 @@
 # The memory reservation — production on a shared 3.8 GiB host
 
 What keeps the live service up when an agent session on the same kernel runs
-the host out of memory (#74, #85). Companion to
+the host out of memory (#74, #85, #88). Companion to
 [DEPLOYMENT.md](../DEPLOYMENT.md), whose first-time setup installs all of it.
 
 Measured on this host 2026-09-18 (#74): **3.8 GiB, no swap, 2 cores**, running the
@@ -108,12 +108,25 @@ effective value, the cgroup systemd actually chose, and that no slice's
 children claim past its grant. That last check catches a unit that was
 installed from outside `deploy/`. The live tests skip in CI.
 
-## One divergence from broker worth knowing
+## Sessions sit at adj 0 here, pinned live (#88)
 
 Row U attributes half its severity to exe.dev session processes inheriting
 `oom_score_adj` **-1000** from `exe-init` and `sshd`, which would make them
-unkillable. **That does not hold here.** Measured on this host, only `sshd`
-and `exe-init` themselves carry -1000; every `claude` and `npm exec socrat`
-process sits at adj **0**. So the killer *can* pick them, and the
-`OOMScoreAdjust=-500` above is what makes it prefer them over production.
-Re-check with `cat /proc/<pid>/oom_score_adj` before assuming either shape.
+unkillable. **That does not hold here.** Measured on this host 2026-09-18 (#74)
+and again 2026-09-24 (#88): only `sshd` and `exe-init` carry -1000. The
+session root beneath `sshd` (`sshd-session`) and every `claude`, `MainThread`
+and `npm exec socrat` under it sit at **0**. So the killer *can* pick them,
+and `OOMScoreAdjust=-500` is what makes it prefer them over production.
+
+That makes notifier's earlyoom the only one of three cohort installs that works
+as intended (CannObserv/replicator#112). Elsewhere, sessions sit at -1000, and
+earlyoom 1.7 skips those outright, whether they match `--prefer` or not. What
+decides the score is exe.dev's setup, and it is still undetermined. Whether
+`exe-init` is present does not decide it: address-validator has no `exe-init`
+and its sessions still sit at -1000. If the score changes here, earlyoom
+silently becomes a killer of small daemons with no config drift, so the premise
+is pinned. `test_sessions_here_sit_at_adj_zero` walks from the test process to
+the child of `sshd` or `exe-init` and asserts that it is at 0. That child is the
+session root, which a `choom`'d leaf cannot distort. The test skips in CI and
+outside a session. If it fails, launch sessions under `choom -n 500 --`
+(gregoryfoster/skills `host-memory.md` § 1).
