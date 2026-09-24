@@ -322,17 +322,25 @@ Two traps, both met on this host on 2026-09-24:
   `plugin.json` still named the root `./.mcp.json`. Moving that directory aside
   and re-running the update fetched the live build. `preflight.sh --check`
   says when the installed plugin never reads the variable.
-- **Verify what launched, never a manifest.** The two at the plugin's root
-  still hardcode `@latest`.
+- **A reading of the variable is not a reading of the setting.** Upstream
+  names `claude mcp list` as the check; here it shows only the environment of
+  the shell that ran it. From an agent's Bash tool, which inherits the
+  variable, it read the pinned spec; with the variable stripped, `@latest`.
+  Neither is what a session launches, and neither is a manifest — the two at
+  the plugin's root still hardcode `@latest`.
+
+Verify from the process table, in a session started after the setting — the
+server under that session's `claude` PID must carry the pinned spec:
 
 ```bash
-SOCRATICODE_AUTO_RESUME=off claude mcp list | grep socraticode  # prints the command
-ps -eo args | grep '[s]ocraticode@'                              # expect socraticode@1.14.0
+ps -eo pid,ppid,args | grep '[n]pm exec socraticode'
 bash skills-vendor/gregoryfoster-skills/skills/init-socraticode/scripts/preflight.sh --check
 ```
 
-preflight then reports *Plugin session launches socraticode 1.14.0 …, as the
-driver pin does*.
+preflight's *Plugin session launches socraticode <version> …, as the driver
+pin does* checks configuration, not a launch: it says whether the variable came
+from the environment or from `.claude/settings.json`, and the former means only
+that the calling shell carries it.
 
 **Nothing now reports an upstream release.** The daily hook measured the
 driver's pin against the session's floating spec; with the session fixed to
