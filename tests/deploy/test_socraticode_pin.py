@@ -71,10 +71,15 @@ def test_session_spec_matches_the_driver_pin(session_spec):
     )
 
 
-def test_socraticode_doc_names_the_session_spec(session_spec):
-    """The doc says what the session launches; a re-pin that skips it leaves it lying."""
+def test_socraticode_doc_names_only_the_session_spec(session_spec):
+    """The doc says what the session launches; a re-pin that skips it leaves it lying.
+
+    Every literal spec in it, not one: a re-pin that updates the first mention
+    and misses a later one would otherwise pass.
+    """
     doc = SOCRATICODE_DOC.read_text()
     assert SPEC_VARIABLE in doc, f"{SOCRATICODE_DOC.name} does not name {SPEC_VARIABLE}"
-    assert session_spec is not None and session_spec in doc, (
-        f"{SOCRATICODE_DOC.name} does not name {session_spec}"
+    named = {match.group(0) for match in EXACT_SPEC.finditer(doc)}
+    assert named == {session_spec}, (
+        f"{SOCRATICODE_DOC.name} names {sorted(named)}; the session launches {session_spec}"
     )
