@@ -90,7 +90,7 @@ committed to main is the deployed code.
 OOM-killed, the kernel fails atomic allocations and the service drops. Hence
 **never cap the service** and **never install at launch** — SocratiCode is
 pinned under `~/.socraticode/pin` (#74,
-[reservation](docs/DEPLOYMENT.md#the-memory-reservation)).
+[reservation](docs/reference/memory-reservation.md)).
 
 The two sweeps are the only thing watching for consumer silence, so a timer
 that stops is a silent outage of the outage detector: `systemctl list-timers
