@@ -45,6 +45,10 @@ Environment=NOTIFIER_ALLOW_PROD_DB=1
 # twice: it bounds the victim rather than the cause, and on a process the
 # killer will not pick it stalls instead of killing. 192M against a measured
 # 90 MiB peak — room for the working set, not a reservation of idle pages.
+#
+# Inert on its own (#85): a unit keeps at most what every slice above it
+# grants, and system.slice ships 0. deploy/system.slice.d/ is the grant; read
+# the effective value, never this one (docs/reference/memory-reservation.md).
 MemoryLow=192M
 
 # Negative so the killer prefers almost anything else — on this host agent

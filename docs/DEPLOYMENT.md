@@ -69,6 +69,16 @@ sudo cp deploy/earlyoom.default /etc/default/earlyoom
 sudo sysctl -p /etc/sysctl.d/99-notifier-memory.conf
 sudo apt-get install -y earlyoom
 sudo systemctl enable --now earlyoom
+
+# The PostgreSQL floor, and the grant on every slice above both floors (#85).
+# Without the slice grants neither MemoryLow= protects anything. daemon-reload
+# applies all three to the running units; nothing restarts.
+for f in system.slice.d/10-memory-protection.conf \
+         system-postgresql.slice.d/10-memory-protection.conf \
+         postgresql@16-main.service.d/10-memory.conf; do
+  sudo install -D -m 644 "deploy/$f" "/etc/systemd/system/$f"
+done
+sudo systemctl daemon-reload
 ```
 
 ## Production database opt-in
@@ -346,62 +356,13 @@ verification gate, and the rollback path — is in that issue.
 
 ## The memory reservation
 
-Measured on this host 2026-09-18 (#74): **3.8 GiB, no swap, 2 cores**, running the
-live service, the dev endpoint, PostgreSQL *and* interactive agent sessions on
-one kernel. Live peaks: `notifier.service` 90 MiB, `notifier-dev.service`
-69 MiB, PostgreSQL 121 MiB. The agent sessions dwarf all three.
-
-The failure this guards against is not an OOM kill — it is the **absence** of
-one. Past the ceiling the kernel fails *atomic* allocations in whatever asks
-next (`tailscaled`, `ksoftirqd`) and the production service is what goes down.
-That is how `CannObserv/broker` lost its bus for 57m 48s on 2026-09-16 with
-nothing killed at all (gregoryfoster/skills#295, `references/troubleshooting.md`
-row U).
-
-Four settings, none of which substitutes for another:
-
-| Setting | Where | What it does |
-|---|---|---|
-| `MemoryLow=192M` | `deploy/notifier.service` | Soft floor the kernel will not reclaim below. Protects the working set, which is what a stall eats |
-| `OOMScoreAdjust=-500` | `notifier.service`, `notifier-sweep.service` | Puts production last in line for the killer |
-| `vm.min_free_kbytes=65536` | `deploy/99-notifier-memory.conf` | The reserve *atomic* allocations draw on. The two above are per-cgroup and cannot help `ksoftirqd` |
-| `-m 12,6` + `--prefer`/`--avoid` | `deploy/earlyoom.default` | Acts while the host is still responsive; the kernel's own killer is too late on a no-swap host |
-
-Three things are deliberate and easy to get wrong:
-
-- **`MemoryLow=`, never `MemoryMax=`, on the service.** A cap bounds the
-  victim rather than the cause, and on a process the killer will not pick it
-  *stalls* instead of killing. The cap belongs on the SocratiCode pre-install
-  below — a deliberate one-off run — never on the always-on service.
-- **`-500`, never `-1000`.** Unkillable turns a leak in the service into a
-  wedged host with no kill and no report.
-- **The dev units carry none of it.** A reservation everything holds is a
-  reservation nobody holds; under pressure dev is what loses, on purpose.
-
-**No spaces inside the earlyoom regexes.** `earlyoom.service` is
-`ExecStart=/usr/bin/earlyoom $EARLYOOM_ARGS`, unquoted, so systemd splits on
-whitespace with no shell quoting — a space would silently become a second
-argument, earlyoom would exit on it, and the host would be left with no early
-killer and an `active`-looking unit. The SocratiCode server's `comm` is
-literally `npm exec socrat`, so match it start-anchored as `^npm`.
-
-`tests/deploy/test_memory_reservation.py` asserts all of it. Verify live:
-
-```bash
-systemctl show notifier -p MemoryLow -p OOMScoreAdjust
-cat /proc/sys/vm/min_free_kbytes
-tr '\0' '\n' < /proc/$(systemctl show earlyoom -p MainPID --value)/cmdline
-```
-
-### One divergence from broker worth knowing
-
-Row U attributes half its severity to exe.dev session processes inheriting
-`oom_score_adj` **-1000** from `exe-init` and `sshd`, which would make them
-unkillable. **That does not hold here.** Measured on this host, only `sshd`
-and `exe-init` themselves carry -1000; every `claude` and `npm exec socrat`
-process sits at adj **0**. So the killer *can* pick them, and the
-`OOMScoreAdjust=-500` above is what makes it prefer them over production.
-Re-check with `cat /proc/<pid>/oom_score_adj` before assuming either shape.
+3.8 GiB, no swap, shared with agent sessions. Production gets four protections:
+a memory floor (`MemoryLow=` on `notifier.service` and PostgreSQL), a lower OOM
+score, a raised atomic-allocation reserve, and earlyoom. The floor does nothing
+unless every slice above it also grants it (#85). The dev units carry none of
+this. The reference covers why each one exists, what is easy to get wrong, and
+how to check the *effective* value rather than the configured one:
+[reference/memory-reservation.md](reference/memory-reservation.md).
 
 ## SocratiCode indexing (agent tooling)
 
