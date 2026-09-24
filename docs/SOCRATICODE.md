@@ -308,16 +308,28 @@ covers only the driver — the health hook, `index`, `verify`. The session's
 server is the plugin's, and since upstream
 [`0c33776`](https://github.com/giancarloerra/socraticode/commit/0c33776)
 (2026-09-20) its live manifest, `.claude-plugin/mcp.json`, launches
-`npx -y --prefer-online ${SOCRATICODE_SPEC:-socraticode@latest}`.
-`.claude/settings.json`'s `env` block sets it to **`socraticode@1.14.0`**, the
-pre-install's version, so both launches run one build. An exact version
-resolves from the npx cache without installing; that entry was already warm
-here. Like any settings variable it reaches only sessions started after it,
-and only those that trust the folder. The VS Code extension's do, through VS
-Code's own workspace trust. The terminal CLI does not — `~/.claude.json` has
-never accepted this folder — so `claude` and `claude -p` run here ignore the
-whole `env` block, store variables included, and launch `@latest` (measured
-2026-09-24). Accepting that trust dialog is a deliberate choice, not a fix.
+`npx -y --prefer-online ${SOCRATICODE_SPEC:-socraticode@latest}`. An exact
+version resolves from the npx cache without installing; that entry was already
+warm here.
+
+**The variable must be in `claude`'s environment when it starts.** Claude Code
+expands the plugin's args *before* it merges the settings `env` block, so the
+block alone never reaches the launch. Measured here 2026-09-24 on 2.1.280,
+after a full VS Code reconnect: the session's server carried `SOCRATICODE_SPEC`
+in its own environment and was still launched `@latest`
+([gregoryfoster/skills#332](https://github.com/gregoryfoster/skills/issues/332),
+which `co-watcher` hit first). So it lives in two places:
+
+| Where | Role |
+|---|---|
+| `.claude/settings.json` `env`: **`socraticode@1.14.0`**, the pre-install's version | **Declares** it — the value the driver, preflight and the tests read |
+| `claudeCode.environmentVariables` in `~/.vscode-server/data/Machine/settings.json` | **Delivers** it — the extension sets it in `claude`'s environment at startup. Machine-scoped, so VM-local and never committed; it reaches every VS Code session on this host, whatever the folder |
+
+A new value reaches only sessions started after a full VS Code reconnect. The
+terminal CLI gets neither: `~/.claude.json` has never trusted this folder, so
+`claude` and `claude -p` run here ignore the whole `env` block, store variables
+included, and launch `@latest` unless the launching shell exports the
+variable. Accepting that trust dialog is a deliberate choice, not a fix.
 
 Two traps, both met on this host on 2026-09-24:
 
@@ -351,8 +363,8 @@ that the calling shell carries it.
 driver's pin against the session's floating spec; with the session fixed to
 the same version, it has nothing to measure and says nothing. Check
 `npm view socraticode version` when deciding whether to move. **Re-pinning
-changes three things together** — the `npm install --prefix` line with a new
-literal, `SOCRATICODE_SPEC`, and the version named above —
+changes four things together** — the `npm install --prefix` line with a new
+literal, `SOCRATICODE_SPEC` in both places above, and the version named there —
 and `tests/deploy/test_socraticode_pin.py` fails until they agree. Do it as a
 decision, not on a schedule: the pin exists so no unattended launch installs.
 
