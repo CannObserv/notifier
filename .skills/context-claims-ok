@@ -1,4 +1,0 @@
-# The bare backticked `docs/SKILLS.md` became an anchored link in the same
-# sentence ([docs/SKILLS.md § Skills Inventory]). The pointer it carried is
-# present twice over — that link, and the Detail Docs index entry.
-AGENTS.md :: duplicate :: docs/SKILLS.md

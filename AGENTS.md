@@ -128,21 +128,13 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 
 Fuller spellings, with the reasoning beside each: [docs/DEPLOYMENT.md § Routine ops](docs/DEPLOYMENT.md#routine-ops).
 
-**Dev server workflow:** `scripts/dev_server.sh` is the one launch path, for
-the unit and by hand alike — it swaps in `DEV_DATABASE_URL`, runs the
-production-database guard, checks the dev database is migrated, then starts
-uvicorn on 9001, leaving the live service up:
+**Dev server by hand** ([what the script checks, and the unit's reloader](docs/COMMANDS.md#development)):
 
 ```bash
 sudo systemctl stop notifier-dev   # the unit owns 9001; take it first
 ./scripts/dev_server.sh            # foreground, --reload on
 sudo systemctl start notifier-dev  # hand it back
 ```
-
-`deploy/notifier-dev.service` runs it with `NOTIFIER_DEV_RELOAD=0`: a wedged
-reloader keeps *running* after a syntax error, so the unit looks active while
-the endpoint is dead. Reasoning and the restart bounds:
-[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 **Never hand-run uvicorn.** Sourcing `/etc/notifier/.env` points
 `DATABASE_URL` at **production**, which is how a "dev" server once shared the
@@ -267,5 +259,5 @@ The service is consumer-agnostic. Resist these temptations:
 - [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version, every site mirroring it, the CI gates, and how a consumer adopts the SDK
 - [docs/reference/monitors.md](docs/reference/monitors.md) — the dead-man's timer: why absence is the alert, the check-in contract, and what nothing watches
 - [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet: node identity, ACL, the bind decision and the boot race it buys
-- [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — tool table, graph-health guidance, the shared store's traps, and this repo's measured yield
+- [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — tool table, graph-health guidance, the shared store's traps ([shared-store.md](docs/reference/shared-store.md)), and this repo's measured yield
 - [docs/SKILLS.md](docs/SKILLS.md) — skill layout, vendored submodules and refresh procedure, full inventory

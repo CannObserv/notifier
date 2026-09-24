@@ -101,6 +101,11 @@ DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head
 
 ## Development
 
+**Dev server workflow:** `scripts/dev_server.sh` is the one launch path, for
+the unit and by hand alike — it swaps in `DEV_DATABASE_URL`, runs the
+production-database guard, checks the dev database is migrated, then starts
+uvicorn on 9001, leaving the live service up:
+
 ```bash
 # Dev server by hand — same script the notifier-dev unit runs, with --reload
 # on. The unit holds port 9001, so stop it first and hand it back after.
@@ -109,6 +114,11 @@ sudo systemctl stop notifier-dev
 ./scripts/dev_server.sh
 sudo systemctl start notifier-dev
 ```
+
+`deploy/notifier-dev.service` runs it with `NOTIFIER_DEV_RELOAD=0`: a wedged
+reloader keeps *running* after a syntax error, so the unit looks active while
+the endpoint is dead. Reasoning and the restart bounds:
+[docs/DEPLOYMENT.md](DEPLOYMENT.md).
 
 First-time setup of the dev database:
 
