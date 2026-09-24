@@ -1,7 +1,8 @@
-# Test inventory — what each module's tests pin
+# Test inventory — what the notable tests pin
 
-The per-module enumeration behind the `tests/` entry in
-[ARCHITECTURE.md](../ARCHITECTURE.md#project-layout). `tests/ci/` and
+What the notable test files pin, behind the `tests/` entry in
+[ARCHITECTURE.md](../ARCHITECTURE.md#project-layout) — the ones whose coverage
+is worth stating, not a listing of every file. `tests/ci/` and
 `tests/deploy/` are drift tests, enumerated assertion by assertion in
 [drift-tests.md](drift-tests.md).
 

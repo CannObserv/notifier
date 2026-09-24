@@ -107,7 +107,8 @@ docs/SOCRATICODE.md :: That rule does not need to live in your `AGENTS.md`
 # Each annex links back to the entry it was split from; the `tests/` and
 # `scripts/` entries, and #project-layout, are still in ARCHITECTURE.md.
 docs/reference/scripts.md :: [ARCHITECTURE.md](../ARCHITECTURE.md#project-layout): what each script is
-docs/reference/test-inventory.md :: [ARCHITECTURE.md](../ARCHITECTURE.md#project-layout). `tests/ci/` and
+docs/reference/test-inventory.md :: [ARCHITECTURE.md](../ARCHITECTURE.md#project-layout) — the ones whose coverage
+docs/reference/test-inventory.md :: the `RESTRICT` in ARCHITECTURE.md's `src/core/tenants.py` entry
 
 # shared-store.md links back to its parent; SOCRATICODE.md's pointer names the
 # two titles it moved, which is the pointer doing its job.

@@ -9,10 +9,10 @@ is the enumeration behind them.
 The `tests/` entries below name what each directory covers; the
 assertion-by-assertion enumeration behind them is in
 [reference/drift-tests.md](reference/drift-tests.md).
-Two more annexes carry what outgrew the block: per-module test coverage —
-each file under `tests/api/` and `tests/core/`, the script tests and the
-conftest fixtures — in [reference/test-inventory.md](reference/test-inventory.md),
-and the per-script inventory of `scripts/` in
+Two more annexes carry what outgrew the block: what the notable tests under
+`tests/api/` and `tests/core/`, the script tests and the conftest fixtures
+pin, in [reference/test-inventory.md](reference/test-inventory.md), and the
+per-script inventory of `scripts/` in
 [reference/scripts.md](reference/scripts.md).
 
 ```
