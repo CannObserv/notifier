@@ -359,7 +359,10 @@ tr '\0' '\n' < "/proc/$PPID/environ" | grep SOCRATICODE_SPEC    # in claude's en
 
 **Nothing now reports an upstream release.** The daily hook measured the
 driver's pin against the session's floating spec; with the session fixed to
-the same version, it has nothing to measure and says nothing. Check
+the same version, it has nothing to measure and says nothing. It judges
+"fixed" from the variable in its *own* environment, though, so it fell silent
+here while the session still floated (gregoryfoster/skills#332) — its silence
+is not evidence either. Check
 `npm view socraticode version` when deciding whether to move. **Re-pinning
 changes four things together** — the `npm install --prefix` line with a new
 literal, `SOCRATICODE_SPEC` in both places above, and the version named there —
