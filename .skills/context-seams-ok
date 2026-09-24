@@ -9,10 +9,10 @@
 docs/ARCHITECTURE.md :: are summarised in [AGENTS.md](../AGENTS.md#project-layout)
 docs/ARCHITECTURE.md :: [AGENTS.md § Detail Docs](../AGENTS.md#detail-docs)
 
-# docs/ARCHITECTURE.md — names the tenancy rule as stated in AGENTS.md
+# docs/reference/test-inventory.md — names the tenancy rule as stated in AGENTS.md
 # (§ API Boundary Principles: tenancy enforced at the auth layer, business
 # logic never branches on it); tests/api/test_tenant_isolation.py exists.
-docs/ARCHITECTURE.md :: The rule AGENTS.md states — tenancy is enforced at the boundary
+docs/reference/test-inventory.md :: The rule AGENTS.md states — tenancy is enforced at the boundary
 
 # docs/SKILLS.md — describes the context-budget write guard; hook file,
 # uninstall path, and both budget values (6000 / 10000) verified against
@@ -29,7 +29,7 @@ docs/SKILLS.md :: Triggers: `curate context`, `context budget`, `trim AGENTS.md`
 docs/SOCRATICODE.md :: Detail doc for the `## Code Exploration Policy` block in `AGENTS.md`
 docs/SOCRATICODE.md :: heading down there, not in `AGENTS.md`.
 docs/SOCRATICODE.md :: `AGENTS.md` block should be on its degraded variant.
-docs/SOCRATICODE.md :: block in `AGENTS.md` is therefore on **variant A** (standard).
+docs/SOCRATICODE.md :: in `AGENTS.md` is therefore on **variant A** (standard).
 # Judged 2026-09-12 during the #57 curation.
 # AGENTS.md's API Boundary Principles did NOT move in this run, so these two
 # pointers still resolve to the section they name.
@@ -86,7 +86,6 @@ docs/SOCRATICODE.md :: | `code-exploration` | `docs/SOCRATICODE.md` | this file
 .claude/hooks/socraticode-reminder.sh :: re-run this hook by hand for the ToolSearch
 .claude/hooks/socraticode-reminder.sh :: generated `docs/SOCRATICODE.md` — points here instead of transcribing it
 .socraticodecontextartifacts.json :: "path": "./docs/SOCRATICODE.md",
-scripts/install_qdrant_key.sh :: # docs/SOCRATICODE.md and CannObserv/notifier#57.
 
 # The drift-test annex pointing back at its parent section (#74 follow-up). The
 # `## Project Layout` heading it anchors on is still there — that section is
@@ -99,3 +98,27 @@ docs/reference/drift-tests.md :: [ARCHITECTURE.md](../ARCHITECTURE.md#project-la
 # that link was tightened and kept the link intact — so the heading stays as it
 # is rather than being renamed for a curation that did not touch it.
 docs/DEPLOYMENT.md :: The credential audit channel (#67)
+
+# 2026-09-24 curation (ARCHITECTURE.md and SOCRATICODE.md split into annexes).
+# The generated template's own advice about the policy block — the upstream
+# text above the END marker, which a re-run rewrites; nothing it names moved.
+docs/SOCRATICODE.md :: That rule does not need to live in your `AGENTS.md`
+
+# Each annex links back to the entry it was split from; the `tests/` and
+# `scripts/` entries, and #project-layout, are still in ARCHITECTURE.md.
+docs/reference/scripts.md :: [ARCHITECTURE.md](../ARCHITECTURE.md#project-layout): what each script is
+docs/reference/test-inventory.md :: [ARCHITECTURE.md](../ARCHITECTURE.md#project-layout) — the ones whose coverage
+docs/reference/test-inventory.md :: the `RESTRICT` in ARCHITECTURE.md's `src/core/tenants.py` entry
+
+# shared-store.md links back to its parent; SOCRATICODE.md's pointer names the
+# two titles it moved, which is the pointer doing its job.
+docs/reference/shared-store.md :: Detail for [SOCRATICODE.md](../SOCRATICODE.md)
+docs/SOCRATICODE.md :: **The shared store** — `co-index`, the configuration traps that come with it,
+docs/SOCRATICODE.md :: and cross-repo search over it: [reference/shared-store.md](reference/shared-store.md).
+
+# The moved titles as ordinary phrases, pointing at no section: DEPLOYMENT.md
+# tells the operator how to verify linking, and the drift test's docstring
+# says what .socraticode.json is for.
+docs/DEPLOYMENT.md :: cross-repo search (`codebase_search` with `includeLinked: true`
+tests/deploy/test_socraticode_config.py :: sibling repo linked for cross-repo search resolves
+tests/deploy/test_socraticode_config.py :: The guards below are the NOTIFIER_BIND_HOST rule applied to the shared store

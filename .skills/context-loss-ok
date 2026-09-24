@@ -119,3 +119,5 @@ AGENTS.md :: tighten :: **Logging:**
 AGENTS.md :: tighten :: ```python
 AGENTS.md :: tighten :: logger = get_logger(__name__)
 AGENTS.md :: tighten :: - No inline module imports; all at file top
+AGENTS.md :: index :: - [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — tool table, graph-health guidance, the shared store's traps, and this repo's measured yield
+docs/ARCHITECTURE.md :: retarget :: tests/core/test_tenants.py         — `src/core/tenants.py`: the cascade surviving the `RESTRICT` above (10 of these fail without the clearing step), the `FOR UPDATE` that keeps a concurrently minted key from dying unrecorded, a rehearsal leaving neither rows nor records, and the record itself — one per cascaded key, spelled `api key destroyed with tenant` so a cascade and a deliberate revoke are told apart, summary always last
