@@ -312,7 +312,12 @@ server is the plugin's, and since upstream
 `.claude/settings.json`'s `env` block sets it to **`socraticode@1.14.0`**, the
 pre-install's version, so both launches run one build. An exact version
 resolves from the npx cache without installing; that entry was already warm
-here. Like any settings variable it reaches only sessions started after it.
+here. Like any settings variable it reaches only sessions started after it,
+and only those that trust the folder. The VS Code extension's do, through VS
+Code's own workspace trust. The terminal CLI does not — `~/.claude.json` has
+never accepted this folder — so `claude` and `claude -p` run here ignore the
+whole `env` block, store variables included, and launch `@latest` (measured
+2026-09-24). Accepting that trust dialog is a deliberate choice, not a fix.
 
 Two traps, both met on this host on 2026-09-24:
 
