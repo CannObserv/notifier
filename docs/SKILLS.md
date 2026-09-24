@@ -152,7 +152,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |
 | `using-git-worktrees` | gregoryfoster-skills symlink | |
-| `using-mayfly-chat` | gregoryfoster-skills symlink | Triggers: `mayfly`, `open a channel`, `join the channel`, `chat with <repo>`, `agent chat`. Needs Node ≥18 (#89). **Never commit a channel URL** — upstream's structural test guards its own tree only; run the leak check in its `references/security.md` before committing session output |
+| `using-mayfly-chat` | gregoryfoster-skills symlink | Triggers: `mayfly`, `open a channel`, `join the channel`, `chat with <repo>`, `agent chat`. Needs Node ≥18 (#89). **Never commit a channel URL** — upstream's structural test guards only its own tree, so `tests/ci/test_no_channel_urls.py` ports it here; still run the leak check in its `references/security.md` before committing session output, since CI catches a URL only after it is pushed |
 | `verification-before-completion` | obra-superpowers symlink | |
 | `writing-plans` | gregoryfoster-skills symlink | |
 | `writing-skills` | obra-superpowers symlink | |
