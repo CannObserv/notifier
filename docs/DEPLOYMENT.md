@@ -79,6 +79,12 @@ for f in system.slice.d/10-memory-protection.conf \
   sudo install -D -m 644 "deploy/$f" "/etc/systemd/system/$f"
 done
 sudo systemctl daemon-reload
+
+# needrestart lists restarts, never performs them (#91). Takes effect at the
+# next apt run; `sudo needrestart -m u -r l -b` prints "Disabling Ubuntu mode"
+# once it is read, and restarts nothing.
+sudo install -D -m 644 deploy/needrestart.conf.d/notifier.conf \
+     /etc/needrestart/conf.d/notifier.conf
 ```
 
 ## Production database opt-in
