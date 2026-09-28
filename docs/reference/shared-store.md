@@ -7,7 +7,8 @@ how a session reaches it, and what `includeLinked` does and does not span.
 
 A fifth cohort VM, `co-index`, runs the shared SocratiCode store (#57). **No
 production path touches it**: its outage degrades search to `grep` and stops
-no service. It checks in to a dead-man's timer here like any other consumer.
+no service. It checks in to a dead-man's timer on co-status (#83) like any other
+consumer.
 
 Stood up in #57. Everything persisted lives in Qdrant on `co-index` — chunks,
 the dependency graph, the symbol graph and the context artifacts alike.
