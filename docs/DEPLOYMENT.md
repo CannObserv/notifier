@@ -18,6 +18,11 @@ sudo tailscale up --auth-key=file:/run/ts.key --hostname=notifier
 sudo shred -u /run/ts.key
 tailscale ip -4
 
+# The cohort's git identity (#94). Unset, git falls back to the image default
+# `exe.dev user <exedev@notifier.exe.xyz>`, which GitHub attributes to no one.
+git config --global user.name gregoryfoster
+git config --global user.email gregoryfoster@users.noreply.github.com
+
 sudo apt-get install -y postgresql-16 postgresql-client-16
 
 # Create the production env file
