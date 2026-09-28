@@ -65,10 +65,14 @@ sudo systemctl enable --now notifier-sweep.timer notifier-sweep-dev.timer
 # Memory reservation for the production units (#74). This host is 3.8 GiB with
 # no swap and shares a kernel with agent sessions; see the section below.
 sudo cp deploy/99-notifier-memory.conf /etc/sysctl.d/
-sudo cp deploy/earlyoom.default /etc/default/earlyoom
 sudo sysctl -p /etc/sysctl.d/99-notifier-memory.conf
+# Install earlyoom BEFORE copying its config. The other order leaves dpkg
+# asking whether to keep a modified conffile, which fails without a terminal
+# and aborts the install half-configured (found building co-status,
+# CannObserv/status#2).
 sudo apt-get install -y earlyoom
-sudo systemctl enable --now earlyoom
+sudo cp deploy/earlyoom.default /etc/default/earlyoom
+sudo systemctl enable earlyoom && sudo systemctl restart earlyoom
 
 # The PostgreSQL floor, and the grant on every slice above both floors (#85).
 # Without the slice grants neither MemoryLow= protects anything. daemon-reload
