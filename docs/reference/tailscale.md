@@ -34,6 +34,10 @@ specific to notifier.
   `co-replicator` VM. Its `OnFailure=` handler dispatches an incident when the
   worker's unit fails (#70). Uses `/dispatch` rather than a monitor, per the
   #83 freeze.
+- **Consumer node:** `address-validator`, tag `tag:address-validator`,
+  `100.75.8.39`. Its `OnFailure=` handler dispatches when one of its four
+  timer-driven oneshots fails (#95, CannObserv/address-validator#232). It has
+  the same shape as replicator's: `/dispatch` only, no monitor.
 - **Also on the tailnet:** `observo-primary`, a *user-owned* node (not tagged),
   reached by a `hosts` entry in the ACL rather than by tag. Relevant when the
   Observo → Notifier path is provisioned: that rule needs `observo-primary` as
@@ -68,6 +72,8 @@ specific to notifier.
     // Replicator's OnFailure= handler dispatches here (#70). :9000 only — one
     // production unit, no dev process to point at :9001.
     { "action": "accept", "src": ["tag:replicator"], "dst": ["tag:notifier:9000"] },
+    // Address Validator's OnFailure= handler, the same shape (#95). :9000 only.
+    { "action": "accept", "src": ["tag:address-validator"], "dst": ["tag:notifier:9000"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
@@ -116,6 +122,12 @@ specific to notifier.
 > refused. A timeout is the expected result: the tailnet filter drops a
 > disallowed packet, it doesn't send a reset. When checking that a port is
 > closed, expect a hang, not "connection refused".
+>
+> **The address-validator rule was verified the same way, 2026-09-29.** From
+> here, `address-validator` (`100.75.8.39`) shows in `tailscale status` as a
+> tagged device. From its own end, per address-validator's measurement,
+> `:9000/health` reported `"environment":"production"` (build `6d8b613`) and
+> `:9001` timed out.
 
 > **Peer visibility follows `acls`, not `ssh`.** A node absent from the peer's
 > netmap does not resolve over MagicDNS at all, so this rule has to exist in
