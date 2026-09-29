@@ -556,7 +556,7 @@ def _fake_process(proc: Path, pid: int, ppid: int, comm: str, adj: int) -> None:
 
 
 def test_a_session_under_sshd_reports_its_root_not_its_leaf(tmp_path):
-    """This host's shape, measured 2026-09-24: sshd-session at 0 under sshd."""
+    """This host's shape until 2026-09-28: sshd-session at 0 under sshd."""
     _fake_process(tmp_path, 216, 1, "sshd", -1000)
     _fake_process(tmp_path, 700, 216, "sshd-session", 0)
     _fake_process(tmp_path, 701, 700, "bash", 0)
@@ -564,8 +564,17 @@ def test_a_session_under_sshd_reports_its_root_not_its_leaf(tmp_path):
     assert session_root_adj(tmp_path, 702) == 0
 
 
+def test_a_session_under_a_fixed_exe_init_reports_zero(tmp_path):
+    """This host's shape after the exe-init 14fd603 swap: no sshd, root at 0."""
+    _fake_process(tmp_path, 217, 1, "exe-init", -1000)
+    _fake_process(tmp_path, 535, 217, "bash", 0)
+    _fake_process(tmp_path, 561, 535, "code-520fb30b2d", 0)
+    _fake_process(tmp_path, 604, 561, "MainThread", 500)  # a choom'd leaf
+    assert session_root_adj(tmp_path, 604) == 0
+
+
 def test_a_session_under_exe_init_reports_its_root(tmp_path):
-    """broker's shape: the session inherits -1000 from exe-init."""
+    """A buggy exe-init build's shape: the session inherits its -1000."""
     _fake_process(tmp_path, 217, 1, "exe-init", -1000)
     _fake_process(tmp_path, 581, 217, "bash", -1000)
     _fake_process(tmp_path, 900, 581, "python3", 0)
@@ -587,10 +596,11 @@ def test_sessions_here_sit_at_adj_zero():
     ``--prefer`` in earlyoom.default, ``OOMScoreAdjust=-500`` on the
     production units and docs/SOCRATICODE.md's "a genuinely tight install is
     killed" all rest on sessions sitting at 0 — measured 2026-09-18 (#74) and
-    again 2026-09-24 (#88). That is exe.dev's setup, not this repo's, and it
-    differs by host: broker and address-validator sessions sit at -1000, which
-    earlyoom 1.7 skips outright as the kernel does. What decides it was never
-    determined. If it changes here, no config drifts and no other test fails.
+    again 2026-09-24 (#88). That is exe.dev's setup, not this repo's: some
+    ``exe-init`` builds hand their own -1000 to every session they start, which
+    earlyoom 1.7 skips outright as the kernel does. This host ran one from the
+    2026-09-28 reboot until the 14fd603 swap (#88). If it recurs here, no config
+    drifts and no other test fails.
     """
     adj = session_root_adj(PROC_FS, os.getpid())
     if adj is None:
@@ -599,5 +609,6 @@ def test_sessions_here_sit_at_adj_zero():
         f"this session's root reads oom_score_adj={adj}, not 0: exe.dev changed "
         f"how it starts sessions here. At -1000 earlyoom's --prefer reaches nothing "
         f"and OOMScoreAdjust=-500 no longer puts production behind the sessions — "
-        f"launch them under `choom -n 500 --` (host-memory.md § 1) and reopen #88"
+        f"check `/exe.dev/bin/exe-init --version` against a new VM's, replace a "
+        f"buggy build and restart (memory-reservation.md), and reopen #88"
     )

@@ -112,21 +112,38 @@ installed from outside `deploy/`. The live tests skip in CI.
 
 Row U attributes half its severity to exe.dev session processes inheriting
 `oom_score_adj` **-1000** from `exe-init` and `sshd`, which would make them
-unkillable. **That does not hold here.** Measured on this host 2026-09-18 (#74)
-and again 2026-09-24 (#88): only `sshd` and `exe-init` carry -1000. The
-session root beneath `sshd` (`sshd-session`) and every `claude`, `MainThread`
-and `npm exec socrat` under it sit at **0**. So the killer *can* pick them,
-and `OOMScoreAdjust=-500` is what makes it prefer them over production.
+unkillable. **Here, sessions must sit at 0**, so the killer *can* pick them and
+`OOMScoreAdjust=-500` makes it prefer them over production. Only `exe-init`
+and `sshd` themselves carry -1000.
 
-That makes notifier's earlyoom the only one of three cohort installs that works
-as intended (CannObserv/replicator#112). Elsewhere, sessions sit at -1000, and
-earlyoom 1.7 skips those outright, whether they match `--prefer` or not. What
-decides the score is exe.dev's setup, and it is still undetermined. Whether
-`exe-init` is present does not decide it: address-validator has no `exe-init`
-and its sessions still sit at -1000. If the score changes here, earlyoom
-silently becomes a killer of small daemons with no config drift, so the premise
-is pinned. `test_sessions_here_sit_at_adj_zero` walks from the test process to
-the child of `sshd` or `exe-init` and asserts that it is at 0. That child is the
-session root, which a `choom`'d leaf cannot distort. The test skips in CI and
-outside a session. If it fails, launch sessions under `choom -n 500 --`
-(gregoryfoster/skills `host-memory.md` § 1).
+That held on 2026-09-18 (#74) and 2026-09-24, with the session root under
+`sshd` (`sshd-session`). After #91's reboot on 2026-09-28, the editor's server
+started straight under `exe-init`, and every session read -1000. **Cause:**
+some `exe-init` builds hand their own -1000 to every session they start. exe.dev
+confirmed this as a bug. This host's build reported `version unknown` (sha256
+`72e0fab8…`, built 2026-08-25). The fix is `14fd603`, copied from a newly
+created VM, and the same swap was proven first on co-status (CannObserv/status#5).
+Cohort-wide status is on gregoryfoster/skills#313.
+
+While it read -1000, earlyoom 1.7 skipped every session outright, whether or
+not it matched `--prefer`. Production at -500 ranked *ahead* of all of them in
+the kernel's order. Nothing in the repo drifted, so the premise is pinned.
+`test_sessions_here_sit_at_adj_zero` walks from the test process to the child
+of `sshd` or `exe-init` and asserts that it reads 0. That child is the session
+root, which a `choom`'d leaf cannot distort. The test skips in CI and outside a
+session.
+
+**If it fails**, compare `/exe.dev/bin/exe-init --version` against a new VM's.
+If this host's build is older, replace it:
+
+```bash
+sudo cp -p /exe.dev/bin/exe-init /exe.dev/bin/exe-init.bak   # for rollback
+sudo install -m 755 -o root -g root <new-binary> /exe.dev/bin/exe-init
+ssh exe.dev restart notifier   # a whole-VM restart: exe-init is not a unit
+```
+
+Then run `cat /proc/self/oom_score_adj` in a new session. It should read 0, as
+should every process up to the session root. To roll back, move `.bak` over
+the binary and restart. `choom -n 500 --` on the session launch
+(gregoryfoster/skills `host-memory.md` § 1) is the fallback where no fixed
+build exists.
