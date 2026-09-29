@@ -137,18 +137,17 @@ In steady state the ACL opens port 22 on no tagged node. Administering this
 host goes over the public `ssh notifier.exe.xyz`, not the tailnet, and `index`
 is the same — `ssh co-index.exe.xyz`.
 
-> **Two build-phase exceptions are live (verified 2026-09-29):**
-> `tag:notifier → tag:status:22` and `tag:notifier → tag:index:22`, each with a
-> matching `ssh` block, and neither in the policy excerpt above. exe.dev VMs are
+> **One build-phase exception is live:** `tag:notifier → tag:status:22`, with
+> a matching `ssh` block, not in the policy excerpt above. exe.dev VMs are
 > isolated from one another, so without a tailnet edge no agent session could
-> build `co-status` (#83), or operate `co-index` from here. The index edge was
-> first retired on 2026-09-13 after #57 D13, and later restored.
+> have built `co-status` (#83). It goes in #83's teardown, step 5.
 >
-> **Both go in #83's teardown, step 5.** The index edge goes only after
-> `co-index` has its own session for CannObserv/index (#90): until then this
-> host is the only one that operates it.
+> **The index edge is gone (2026-09-29).** `tag:notifier → tag:index:22` was
+> removed once `co-index` got its own session for CannObserv/index (#90); from
+> here `ssh index` now times out. It had been retired once before, on
+> 2026-09-13 after #57 D13, and restored for #90.
 >
-> The `autogroup:member → *:*` rule below is why removing them does not lock
+> The `autogroup:member → *:*` rule below is why removing these does not lock
 > *people* out: a user-owned device still has the network path to `:22`. What a
 > retired `ssh` block takes with it is Tailscale SSH's identity-based auth on
 > that node, not reachability.
