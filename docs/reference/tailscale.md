@@ -133,22 +133,24 @@ specific to notifier.
 > wrong name admits nobody while reading correctly, and surfaces on their side
 > as a DNS failure rather than a permission denial.
 
-Note the ACL does **not** open port 22 on any tagged node. Administering this
+In steady state the ACL opens port 22 on no tagged node. Administering this
 host goes over the public `ssh notifier.exe.xyz`, not the tailnet, and `index`
 is the same — `ssh co-index.exe.xyz`.
 
-> **`tag:index` briefly had a port-22 edge, and it is gone (#57 D13).** A
-> `tag:notifier → tag:index:22` rule plus a matching `ssh` block existed so
-> that `co-index` could be built at all: exe.dev VMs are isolated from one
-> another, so without a tailnet edge there is no host from which to provision
-> it. Both were retired 2026-09-13 once the store was soaked. Consequence worth
-> stating: **no agent session on this host can reach `co-index` any more**. Its
-> health arrives here as D10's dead-man's check-in and nothing else, which is
-> what that timer was built to be.
+> **Two build-phase exceptions are live (verified 2026-09-29):**
+> `tag:notifier → tag:status:22` and `tag:notifier → tag:index:22`, each with a
+> matching `ssh` block, and neither in the policy excerpt above. exe.dev VMs are
+> isolated from one another, so without a tailnet edge no agent session could
+> build `co-status` (#83), or operate `co-index` from here. The index edge was
+> first retired on 2026-09-13 after #57 D13, and later restored.
 >
-> The `autogroup:member → *:*` rule below is why this does not lock *people*
-> out: a user-owned device still has the network path to `index:22`. What the
-> retired `ssh` block took with it is Tailscale SSH's identity-based auth on
+> **Both go in #83's teardown, step 5.** The index edge goes only after
+> `co-index` has its own session for CannObserv/index (#90): until then this
+> host is the only one that operates it.
+>
+> The `autogroup:member → *:*` rule below is why removing them does not lock
+> *people* out: a user-owned device still has the network path to `:22`. What a
+> retired `ssh` block takes with it is Tailscale SSH's identity-based auth on
 > that node, not reachability.
 
 ## The bind, and the boot race it buys

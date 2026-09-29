@@ -49,9 +49,6 @@ DEV_SWEEP = DEPLOY / "notifier-sweep-dev.service"
 
 POSTGRES_UNIT = DEPLOY / "postgresql@16-main.service.d" / "10-memory.conf"
 
-#: co-index's units (#57), which run on that host's slices, not this one's.
-OTHER_HOST_UNITS = DEPLOY / "index"
-
 SYSCTL = DEPLOY / "99-notifier-memory.conf"
 EARLYOOM = DEPLOY / "earlyoom.default"
 
@@ -128,9 +125,7 @@ def claiming_files() -> list[Path]:
     return [
         path
         for path in sorted(DEPLOY.rglob("*"))
-        if path.is_file()
-        and OTHER_HOST_UNITS not in path.parents
-        and setting(path, "MemoryLow") is not None
+        if path.is_file() and setting(path, "MemoryLow") is not None
     ]
 
 

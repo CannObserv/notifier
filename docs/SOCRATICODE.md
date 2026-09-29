@@ -400,7 +400,7 @@ reach from source alone:
 | `database-schema` | `alembic/versions` | Alembic migrations are the authoritative schema — there is no checked-in DDL |
 | `deployment-architecture` | `docs/DEPLOYMENT.md` | systemd topology, ports, the two-env-file layout |
 | `operational-runbook` | `docs/COMMANDS.md` | every runnable command with flags |
-| `systemd-unit` | `deploy/` | every unit and host config file: runtime config, the memory reservation, and `co-index`'s under `deploy/index/` |
+| `systemd-unit` | `deploy/` | every unit and host config file: runtime config and the memory reservation (`co-index`'s live in CannObserv/index, #90) |
 | `code-exploration` | `docs/SOCRATICODE.md` | this file — so `codebase_context_search` can answer questions about exploring the repo |
 
 **Why `.socraticodeignore` keeps `skills/`.** The cohort default excludes

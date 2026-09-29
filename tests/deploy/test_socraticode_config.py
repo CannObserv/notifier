@@ -9,7 +9,7 @@ on the linking host's directory layout.
 
 The guards below are the NOTIFIER_BIND_HOST rule applied to the shared store:
 both variables widen or fragment the cohort's namespace while every health
-check stays green. See docs/plans/2026-09-11-shared-qdrant-vm-design.md, D0/D12.
+check stays green. See CannObserv/index's design record, D0/D12.
 """
 
 import json
