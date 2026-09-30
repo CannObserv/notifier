@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 — 2026-09-30
 
 ### Added
 - `client.redeliver(dispatch_id)` — retry a dispatch's failed channels, as each one's next attempt under the same dispatch. Until now a transient failure was final: replaying the idempotency key returns the stored `failed` record, and a new key resends to every channel, including those that already succeeded. Channels that succeeded are never resent. Each channel gets at most 5 attempts, and past that the call is a 409. Never auto-retried. `DispatchOut.attempts` can now list a channel more than once; its outcome is the entry with the highest `attempt` (CannObserv/notifier#96).
