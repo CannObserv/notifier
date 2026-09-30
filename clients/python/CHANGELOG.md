@@ -14,6 +14,9 @@
 - `ready()` raises on a 503 rather than returning the not-ready body, as it always has — now documented, because the server newly models that body and the generated client parses it, so the two layers differ in what a caller can observe. Retry behaviour is unchanged: the 5xx is retried before it is raised.
 - `health()` and `ready()` still return `dict[str, Any]`, deliberately, though a typed model now exists for both. These are the first calls made against an endpoint the caller is not yet sure of; a mapping tolerates a field a newer server added.
 
+### Fixed
+- `POST /dispatch` with a channel listed twice in `channel_ids` sends to it once and returns 202 with one attempt. Before this fix it sent twice, then failed with a 500 whose rollback left no record, so replaying the same idempotency key sent twice more (CannObserv/notifier#96).
+
 ## 0.3.1 — 2026-09-01
 
 ### Removed
