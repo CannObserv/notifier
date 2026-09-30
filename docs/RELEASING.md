@@ -76,7 +76,7 @@ From a clean `main`, CI green:
 
    ```bash
    git commit -am "release: vX.Y.Z"
-   git tag vX.Y.Z
+   git tag -a vX.Y.Z -m "vX.Y.Z"
    git push --follow-tags
    ```
 
@@ -84,6 +84,12 @@ From a clean `main`, CI green:
    --tags`) leaves `main` carrying an untagged release commit whenever the
    second command fails, which is exactly how `v0.3.0` and `v0.3.1` were lost.
    One command cannot half-succeed that way.
+
+   **The tag must be annotated (`-a`).** `--follow-tags` pushes annotated tags
+   only, and passes over a lightweight one without a word: the push reports
+   success, `main` moves, and the tag stays local. That happened to `v0.3.2`,
+   and was caught only by checking `git ls-remote --tags origin`. Do that check
+   after every release.
 
 7. **Confirm the run is green.** `main` is the deployed code.
 

@@ -189,7 +189,7 @@ uv run pytest --no-cov tests/ci/test_version_lockstep.py tests/ci/test_release_t
 
 # Cut a release (after bumping every version site, rolling the CHANGELOG,
 # and refreshing both lockfiles)
-git commit -am "release: vX.Y.Z" && git tag vX.Y.Z && git push --follow-tags
+git commit -am "release: vX.Y.Z" && git tag -a vX.Y.Z -m "vX.Y.Z" && git push --follow-tags
 ```
 
 ## SDK regeneration
