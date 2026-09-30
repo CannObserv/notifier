@@ -5,7 +5,7 @@ description = "Multi-tenant notifications service: Apprise-backed dispatcher wit
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0,<0.137",
+    "fastapi>=0.141.1,<0.142",
     # Every model in src/api/schemas/ imports it. Arrived transitively via
     # fastapi (>=2.9.0) until #32 — a floor for our own code set by someone
     # else's packaging.
