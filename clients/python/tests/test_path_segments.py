@@ -61,18 +61,6 @@ CALLS = [
         lambda c: c.apprise.assemble(HOSTILE, tokens={}),
         f"/api/v1/apprise/plugins/{ESCAPED}/assemble",
     ),
-    ("monitors.get", lambda c: c.monitors.get(HOSTILE), f"/api/v1/monitors/{ESCAPED}"),
-    (
-        "monitors.update",
-        lambda c: c.monitors.update(HOSTILE, name="n"),
-        f"/api/v1/monitors/{ESCAPED}",
-    ),
-    ("monitors.delete", lambda c: c.monitors.delete(HOSTILE), f"/api/v1/monitors/{ESCAPED}"),
-    (
-        "monitors.checkin",
-        lambda c: c.monitors.checkin(HOSTILE),
-        f"/api/v1/monitors/{ESCAPED}/checkin",
-    ),
     ("redeliver", lambda c: c.redeliver(HOSTILE), f"/api/v1/dispatch/{ESCAPED}/redeliver"),
 ]
 

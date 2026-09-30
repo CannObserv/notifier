@@ -11,14 +11,10 @@ from notifier_client.types import (
     AssembleResponse,
     ChannelOut,
     ChannelTestResponse,
-    CheckinResponse,
-    CheckinResponseState,
     DispatchAttemptOut,
     DispatchAttemptOutStatus,
     DispatchOut,
     DispatchOutStatus,
-    MonitorOut,
-    MonitorOutState,
     PluginDetail,
     PluginListItem,
     PreviewResponse,
@@ -33,10 +29,8 @@ def test_public_type_names_importable():
         AssembleResponse,
         ChannelOut,
         ChannelTestResponse,
-        CheckinResponse,
         DispatchAttemptOut,
         DispatchOut,
-        MonitorOut,
         PluginDetail,
         PluginListItem,
         PreviewResponse,
@@ -137,9 +131,12 @@ def test_top_level_init_re_exports_types():
     assert hasattr(notifier_client, "TemplatePreviewResponse")
 
 
-def test_monitor_state_enums_importable():
-    """The dead-man's timer's three states, as the wire spells them (#56)."""
-    assert MonitorOutState.PENDING == "pending"
-    assert MonitorOutState.OK == "ok"
-    assert MonitorOutState.MISSING == "missing"
-    assert CheckinResponseState.OK == "ok"
+def test_monitors_are_not_part_of_the_public_surface():
+    """Monitors leave notifier for co-status (#83), so the SDK never released
+    a wrapper for them: no ``client.monitors``, no monitor types. The
+    generated modules stay until the server's routes go."""
+    client = notifier_client.NotifierClient(base_url="https://t.local", api_key="nk_x")
+    assert not hasattr(client, "monitors")
+    for name in ("MonitorOut", "MonitorOutState", "CheckinResponse", "CheckinResponseState"):
+        assert name not in notifier_client.__all__
+        assert name not in notifier_client.types.__all__
