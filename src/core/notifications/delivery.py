@@ -114,9 +114,13 @@ async def redeliver(session: AsyncSession, dispatch: Dispatch) -> Delivery:
     every attempt, oldest first. Flushes but does not commit.
     """
     history = await attempts_of(session, dispatch.id)
+    # By attempt number, not position: `history` is in clock order, and a
+    # clock stepped back between attempts would otherwise pick a stale one.
     latest: dict[str, DispatchAttempt] = {}
     for attempt in history:
-        latest[str(attempt.channel_id)] = attempt
+        seen = latest.get(str(attempt.channel_id))
+        if seen is None or attempt.attempt > seen.attempt:
+            latest[str(attempt.channel_id)] = attempt
 
     failed = [a for a in latest.values() if a.status == DispatchAttemptStatus.FAILED]
     if not failed:
