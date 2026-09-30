@@ -16,6 +16,7 @@ import secrets
 import pytest
 from ulid import ULID
 
+from src.api.main import app
 from src.core.models.template import Template
 from src.core.notifications.constants import MAX_ATTEMPTS_PER_CHANNEL
 from src.core.notifications.validate import VariablesValidationError, validate_variables
@@ -489,3 +490,11 @@ class TestRedelivery:
     async def test_redelivering_an_unknown_dispatch_is_404(self, client, headers):
         response = await _redeliver(client, headers, str(ULID()))
         assert response.status_code == 404, response.text
+
+    def test_the_repeated_attempts_rule_is_in_the_openapi_schema(self):
+        """CR 3: `/docs` is the contract for callers without the SDK, and a
+        client counting `attempts` entries as channels miscounts after one
+        redelivery."""
+        spec = app.openapi()
+        attempts = spec["components"]["schemas"]["DispatchOut"]["properties"]["attempts"]
+        assert "highest `attempt`" in attempts["description"]

@@ -73,7 +73,13 @@ class DispatchOut(BaseModel):
     status: Literal["succeeded", "partial", "failed"]
     metadata: dict[str, Any]
     created_at: datetime
-    attempts: list[DispatchAttemptOut]
+    attempts: list[DispatchAttemptOut] = Field(
+        description=(
+            "Every delivery attempt, oldest first. A redelivered channel "
+            "appears once per attempt; its outcome is the entry with the "
+            "highest `attempt`."
+        )
+    )
 
     @classmethod
     def from_models(cls, d: Dispatch, attempts: list[DispatchAttempt]) -> "DispatchOut":

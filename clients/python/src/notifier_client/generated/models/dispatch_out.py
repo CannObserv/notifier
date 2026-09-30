@@ -22,7 +22,8 @@ class DispatchOut:
     """Response body for POST /dispatch and GET /dispatch/{id}.
 
     Attributes:
-        attempts (list[DispatchAttemptOut]):
+        attempts (list[DispatchAttemptOut]): Every delivery attempt, oldest first. A redelivered channel appears once
+            per attempt; its outcome is the entry with the highest `attempt`.
         created_at (datetime.datetime):
         id (str):
         idempotency_key (None | str):
