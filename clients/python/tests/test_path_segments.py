@@ -3,8 +3,9 @@
 Every hand-written method used to put its ID straight into an f-string path,
 so an ID holding ``/``, ``?``, ``#`` or ``%`` changed which URL was requested:
 ``channels.delete("x/../templates/y")`` named one resource and hit another.
-The generated client never had the bug; it quotes with ``safe=""``, and so
-does every method here now.
+Every method now quotes with ``safe=""``, as the generated client does. The
+generated client also passes a bare ``..`` through (CR 7), which ``segment()``
+refuses; its IDs are server-validated ULIDs, so it is left as generated.
 
 A 404 answers every request, so each method raises before parsing a body and
 the test reads the path off the one request that went out.
