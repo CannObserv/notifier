@@ -376,3 +376,4 @@ async def test_redeliver_at_the_attempt_cap_raises_409(fast_retry):
         with pytest.raises(NotifierError) as exc:
             await c.redeliver("d1")
     assert exc.value.status_code == 409
+    assert exc.value.response.json()["detail"]["channel_ids"] == ["ch1"]

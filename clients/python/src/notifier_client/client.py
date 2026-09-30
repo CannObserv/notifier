@@ -192,8 +192,8 @@ class NotifierClient:
 
         Raises:
             NotifierError: 404 for an unknown dispatch; 409 once every failed
-                channel has reached the attempt cap (``detail.channel_ids``
-                names them).
+                channel has reached the attempt cap —
+                ``exc.response.json()["detail"]["channel_ids"]`` names them.
             AuthError: 401 or 403.
             ServerError: 5xx.
         """
