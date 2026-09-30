@@ -11,6 +11,7 @@ A 404 answers every request, so each method raises before parsing a body and
 the test reads the path off the one request that went out.
 """
 
+import ast
 import re
 from pathlib import Path
 
@@ -95,15 +96,31 @@ async def test_an_id_is_sent_as_one_escaped_segment(name, call, path):
     assert url.fragment == ""
 
 
-_F_STRING = re.compile(r"""(?<![A-Za-z0-9_])(?:[rR][fF]|[fF][rR]?)(["'])(.*?)\1""")
+def _raw_path_lines(source: str) -> list[int]:
+    """Lines where an f-string path has a placeholder outside ``segment()``.
 
-
-def _builds_a_raw_path(line: str) -> bool:
-    """Whether *line* has an f-string path with a placeholder outside ``segment()``."""
-    return any(
-        re.search(r"(?:^|/)api/", body) and re.search(r"\{(?!segment\()", body)
-        for _, body in _F_STRING.findall(line)
-    )
+    Reads the syntax tree, not the text: Python joins an f-string split
+    across lines into one node, and quoting, prefix and layout are gone by
+    then, so no spelling of a path escapes the check (CR 10).
+    """
+    offenders = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.JoinedStr):
+            continue
+        literal = "".join(v.value for v in node.values if isinstance(v, ast.Constant))
+        if not re.search(r"(?:^|/)api/", literal):
+            continue
+        offenders += [
+            v.lineno
+            for v in node.values
+            if isinstance(v, ast.FormattedValue)
+            and not (
+                isinstance(v.value, ast.Call)
+                and isinstance(v.value.func, ast.Name)
+                and v.value.func.id == "segment"
+            )
+        ]
+    return offenders
 
 
 @pytest.mark.parametrize(
@@ -115,12 +132,13 @@ def _builds_a_raw_path(line: str) -> bool:
         'rf"/api/v1/channels/{channel_id}"',
         'f"api/v1/channels/{channel_id}"',
         'f"/api/v1/channels/{segment(channel_id)}/x/{other}"',
+        '(\n    f"/api/v1/channels/"\n    f"{channel_id}/test"\n)',
     ],
 )
 def test_the_scan_sees_every_spelling_of_a_raw_path(line):
-    """CR 8: it matched only ``f"/...``, so a single-quoted, uppercase, raw
-    or relative f-string would have slipped past."""
-    assert _builds_a_raw_path(line)
+    """CR 8 and CR 10: the line regex missed single-quoted, uppercase and
+    relative f-strings, then one split across lines."""
+    assert _raw_path_lines(line)
 
 
 @pytest.mark.parametrize(
@@ -132,7 +150,7 @@ def test_the_scan_sees_every_spelling_of_a_raw_path(line):
     ],
 )
 def test_the_scan_passes_escaped_and_unrelated_strings(line):
-    assert not _builds_a_raw_path(line)
+    assert not _raw_path_lines(line)
 
 
 def test_no_hand_written_path_interpolates_a_raw_value():
@@ -141,11 +159,10 @@ def test_no_hand_written_path_interpolates_a_raw_value():
     here even if nobody adds it to ``CALLS``."""
     package = Path(notifier_client.__file__).parent
     offenders = [
-        f"{path.relative_to(package)}:{number}: {line.strip()}"
+        f"{path.relative_to(package)}:{number}"
         for path in sorted(package.rglob("*.py"))
         if "generated" not in path.parts
-        for number, line in enumerate(path.read_text().splitlines(), start=1)
-        if _builds_a_raw_path(line)
+        for number in _raw_path_lines(path.read_text())
     ]
     assert offenders == []
 
