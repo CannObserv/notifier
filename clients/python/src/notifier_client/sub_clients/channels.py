@@ -8,6 +8,7 @@ from notifier_client.errors import error_from_response
 from notifier_client.generated.models.channel_create import ChannelCreate
 from notifier_client.generated.models.channel_update import ChannelUpdate
 from notifier_client.generated.types import UNSET, Unset
+from notifier_client.paths import segment
 from notifier_client.types import ChannelOut, ChannelTestResponse
 
 if TYPE_CHECKING:
@@ -52,7 +53,7 @@ class ChannelsAPI:
         """GET /api/v1/channels/{id}."""
         return await self._client._typed_request(
             "GET",
-            f"/api/v1/channels/{channel_id}",
+            f"/api/v1/channels/{segment(channel_id)}",
             model=ChannelOut,
             retry_safe=True,
         )
@@ -73,7 +74,7 @@ class ChannelsAPI:
         ).to_dict()
         return await self._client._typed_request(
             "PATCH",
-            f"/api/v1/channels/{channel_id}",
+            f"/api/v1/channels/{segment(channel_id)}",
             model=ChannelOut,
             json=body,
             retry_safe=False,
@@ -87,7 +88,7 @@ class ChannelsAPI:
         """
         response = await self._client._http.request(
             "DELETE",
-            f"/api/v1/channels/{channel_id}",
+            f"/api/v1/channels/{segment(channel_id)}",
             extensions={"notifier_no_retry": True},
         )
         if response.status_code >= 400:
@@ -97,7 +98,7 @@ class ChannelsAPI:
         """POST /api/v1/channels/{id}/test — fire a test notification."""
         return await self._client._typed_request(
             "POST",
-            f"/api/v1/channels/{channel_id}/test",
+            f"/api/v1/channels/{segment(channel_id)}/test",
             model=ChannelTestResponse,
             retry_safe=False,
         )

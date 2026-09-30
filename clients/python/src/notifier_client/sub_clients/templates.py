@@ -24,6 +24,7 @@ from notifier_client.generated.models.template_update_variables_schema_type_0 im
     TemplateUpdateVariablesSchemaType0,
 )
 from notifier_client.generated.types import UNSET, Unset
+from notifier_client.paths import segment
 from notifier_client.types import TemplateOut, TemplatePreviewResponse
 
 if TYPE_CHECKING:
@@ -84,7 +85,7 @@ class TemplatesAPI:
         """GET /api/v1/templates/{id}."""
         return await self._client._typed_request(
             "GET",
-            f"/api/v1/templates/{template_id}",
+            f"/api/v1/templates/{segment(template_id)}",
             model=TemplateOut,
             retry_safe=True,
         )
@@ -121,7 +122,7 @@ class TemplatesAPI:
         ).to_dict()
         return await self._client._typed_request(
             "PATCH",
-            f"/api/v1/templates/{template_id}",
+            f"/api/v1/templates/{segment(template_id)}",
             model=TemplateOut,
             json=body,
             retry_safe=False,
@@ -135,7 +136,7 @@ class TemplatesAPI:
         """
         response = await self._client._http.request(
             "DELETE",
-            f"/api/v1/templates/{template_id}",
+            f"/api/v1/templates/{segment(template_id)}",
             extensions={"notifier_no_retry": True},
         )
         if response.status_code >= 400:
@@ -156,7 +157,7 @@ class TemplatesAPI:
         body = TemplatePreviewRequest(variables=vars_field).to_dict()
         return await self._client._typed_request(
             "POST",
-            f"/api/v1/templates/{template_id}/preview",
+            f"/api/v1/templates/{segment(template_id)}/preview",
             model=TemplatePreviewResponse,
             json=body,
             retry_safe=False,

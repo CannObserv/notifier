@@ -8,6 +8,7 @@ from notifier_client.errors import error_from_response
 from notifier_client.generated.models.assemble_request import AssembleRequest
 from notifier_client.generated.models.assemble_request_tokens import AssembleRequestTokens
 from notifier_client.generated.types import UNSET
+from notifier_client.paths import segment
 from notifier_client.types import AssembleResponse, PluginDetail, PluginListItem
 
 if TYPE_CHECKING:
@@ -34,7 +35,7 @@ class AppriseAPI:
         """GET /api/v1/apprise/plugins/{schema} — full plugin detail."""
         return await self._client._typed_request(
             "GET",
-            f"/api/v1/apprise/plugins/{schema}",
+            f"/api/v1/apprise/plugins/{segment(schema)}",
             model=PluginDetail,
             retry_safe=True,
         )
@@ -57,7 +58,7 @@ class AppriseAPI:
         ).to_dict()
         return await self._client._typed_request(
             "POST",
-            f"/api/v1/apprise/plugins/{schema}/assemble",
+            f"/api/v1/apprise/plugins/{segment(schema)}/assemble",
             model=AssembleResponse,
             json=body,
             retry_safe=False,

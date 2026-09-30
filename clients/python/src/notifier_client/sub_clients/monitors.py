@@ -18,6 +18,7 @@ from notifier_client.generated.models.checkin_request_variables import CheckinRe
 from notifier_client.generated.models.monitor_create import MonitorCreate
 from notifier_client.generated.models.monitor_update import MonitorUpdate
 from notifier_client.generated.types import UNSET, Unset
+from notifier_client.paths import segment
 from notifier_client.types import CheckinResponse, MonitorOut
 
 if TYPE_CHECKING:
@@ -80,7 +81,7 @@ class MonitorsAPI:
         """GET /api/v1/monitors/{id} — including ``next_deadline_at``."""
         return await self._client._typed_request(
             "GET",
-            f"/api/v1/monitors/{monitor_id}",
+            f"/api/v1/monitors/{segment(monitor_id)}",
             model=MonitorOut,
             retry_safe=True,
         )
@@ -117,7 +118,7 @@ class MonitorsAPI:
         ).to_dict()
         return await self._client._typed_request(
             "PATCH",
-            f"/api/v1/monitors/{monitor_id}",
+            f"/api/v1/monitors/{segment(monitor_id)}",
             model=MonitorOut,
             json=body,
             retry_safe=False,
@@ -131,7 +132,7 @@ class MonitorsAPI:
         """
         response = await self._client._http.request(
             "DELETE",
-            f"/api/v1/monitors/{monitor_id}",
+            f"/api/v1/monitors/{segment(monitor_id)}",
             extensions={"notifier_no_retry": True},
         )
         if response.status_code >= 400:
@@ -167,7 +168,7 @@ class MonitorsAPI:
         ).to_dict()
         return await self._client._typed_request(
             "POST",
-            f"/api/v1/monitors/{monitor_id}/checkin",
+            f"/api/v1/monitors/{segment(monitor_id)}/checkin",
             model=CheckinResponse,
             json=body,
             retry_safe=True,

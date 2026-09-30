@@ -15,6 +15,7 @@
 - `health()` and `ready()` still return `dict[str, Any]`, deliberately, though a typed model now exists for both. These are the first calls made against an endpoint the caller is not yet sure of; a mapping tolerates a field a newer server added.
 
 ### Fixed
+- Every method that takes an ID or plugin schema (`channels.*`, `templates.*`, `apprise.get_plugin`/`assemble`, `monitors.*`, `redeliver`) now URL-escapes it as a single path segment, as the generated client always has. Before, the value went into the path unescaped, so `/`, `?`, `#` or `%` changed which URL was requested, and httpx resolved `..`: `redeliver("a/../b?c=1")` requested `/api/v1/dispatch/b?c=1`. The server validates ULIDs, and a key reaches only its own tenant, so the realistic effect was a wrong 404 or hitting a different resource of your own. Valid ULIDs and schema names produce the same URLs as before (CannObserv/notifier#97).
 - `POST /dispatch` with a channel listed twice in `channel_ids` sends to it once and returns 202 with one attempt. Before this fix it sent twice, then failed with a 500 whose rollback left no record, so replaying the same idempotency key sent twice more (CannObserv/notifier#96).
 
 ## 0.3.1 — 2026-09-01

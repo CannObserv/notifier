@@ -27,6 +27,7 @@ from notifier_client.generated.models.preview_request_variables_schema_type_0 im
 )
 from notifier_client.generated.types import UNSET
 from notifier_client.idempotency import _AutoIdempotencyKey, resolve_idempotency_key
+from notifier_client.paths import segment
 from notifier_client.retry import RetryConfig, RetryTransport
 from notifier_client.sub_clients.apprise import AppriseAPI
 from notifier_client.sub_clients.channels import ChannelsAPI
@@ -199,7 +200,7 @@ class NotifierClient:
         """
         return await self._typed_request(
             "POST",
-            f"/api/v1/dispatch/{dispatch_id}/redeliver",
+            f"/api/v1/dispatch/{segment(dispatch_id)}/redeliver",
             model=DispatchOut,
             retry_safe=False,
         )
