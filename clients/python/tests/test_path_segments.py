@@ -94,18 +94,57 @@ async def test_an_id_is_sent_as_one_escaped_segment(name, call, path):
     assert url.fragment == ""
 
 
+_F_STRING = re.compile(r"""(?<![A-Za-z0-9_])(?:[rR][fF]|[fF][rR]?)(["'])(.*?)\1""")
+
+
+def _builds_a_raw_path(line: str) -> bool:
+    """Whether *line* has an f-string path with a placeholder outside ``segment()``."""
+    return any(
+        re.search(r"(?:^|/)api/", body) and re.search(r"\{(?!segment\()", body)
+        for _, body in _F_STRING.findall(line)
+    )
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'f"/api/v1/channels/{channel_id}"',
+        "f'/api/v1/channels/{channel_id}'",
+        'F"/api/v1/channels/{channel_id}"',
+        'rf"/api/v1/channels/{channel_id}"',
+        'f"api/v1/channels/{channel_id}"',
+        'f"/api/v1/channels/{segment(channel_id)}/x/{other}"',
+    ],
+)
+def test_the_scan_sees_every_spelling_of_a_raw_path(line):
+    """CR 8: it matched only ``f"/...``, so a single-quoted, uppercase, raw
+    or relative f-string would have slipped past."""
+    assert _builds_a_raw_path(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'f"/api/v1/channels/{segment(channel_id)}/test"',
+        '"/api/v1/channels"',
+        'f"expected {model.__name__}"',
+    ],
+)
+def test_the_scan_passes_escaped_and_unrelated_strings(line):
+    assert not _builds_a_raw_path(line)
+
+
 def test_no_hand_written_path_interpolates_a_raw_value():
     """The table above covers today's methods; this covers tomorrow's. A new
     method that builds ``f"/api/v1/.../{x}"`` without ``segment()`` fails
     here even if nobody adds it to ``CALLS``."""
     package = Path(notifier_client.__file__).parent
-    raw = re.compile(r'f"/[^"]*\{(?!segment\()[^}]*\}')
     offenders = [
         f"{path.relative_to(package)}:{number}: {line.strip()}"
         for path in sorted(package.rglob("*.py"))
         if "generated" not in path.parts
         for number, line in enumerate(path.read_text().splitlines(), start=1)
-        if raw.search(line)
+        if _builds_a_raw_path(line)
     ]
     assert offenders == []
 
