@@ -174,3 +174,29 @@ class TestDispatchIsolation:
 
         theirs = await client.get(f"/api/v1/dispatch/{dispatch_id}", headers={HEADER: intruder})
         assert theirs.status_code == 404, theirs.text
+
+    async def test_cannot_redeliver_a_foreign_dispatch(
+        self, client, api_key, intruder, owned_channel
+    ):
+        """Redelivery sends through the owner's channels — a stranger's
+        dispatch id must not resolve (#96)."""
+        raw_key, _ = api_key
+        created = await client.post(
+            "/api/v1/dispatch",
+            headers={HEADER: raw_key},
+            json={
+                "title_template": "t",
+                "body_template": "b",
+                "variables": {},
+                "channel_ids": [owned_channel],
+            },
+        )
+        assert created.status_code == 202, created.text
+        dispatch_id = created.json()["id"]
+
+        theirs = await client.post(
+            f"/api/v1/dispatch/{dispatch_id}/redeliver", headers={HEADER: intruder}
+        )
+        assert theirs.status_code == 404, theirs.text
+        after = await client.get(f"/api/v1/dispatch/{dispatch_id}", headers={HEADER: raw_key})
+        assert len(after.json()["attempts"]) == 1

@@ -8,6 +8,11 @@ per-channel results.
 Idempotency: if ``idempotency_key`` is supplied and a Dispatch already exists
 for the same (tenant_id, idempotency_key), the existing record is returned
 without re-rendering or re-dispatching. This makes consumer retries safe.
+
+Redelivery: ``POST /dispatch/{id}/redeliver`` retries the channels whose latest
+attempt failed, as the next attempt under the same dispatch (#96). A caller
+cannot do this itself — replaying the key returns the stored failure, and a
+new key resends to every channel, including those that already succeeded.
 """
 
 from typing import Annotated
@@ -21,9 +26,15 @@ from src.api.deps import get_db_session, require_api_key
 from src.api.schemas.dispatch import DispatchOut, DispatchRequest
 from src.api.schemas.types import ULIDStr
 from src.core.models.channel import Channel
-from src.core.models.dispatch import Dispatch, DispatchAttempt
+from src.core.models.dispatch import Dispatch
 from src.core.models.template import Template
-from src.core.notifications.delivery import deliver
+from src.core.notifications.constants import MAX_ATTEMPTS_PER_CHANNEL
+from src.core.notifications.delivery import (
+    RedeliveryExhausted,
+    attempts_of,
+    deliver,
+    redeliver,
+)
 from src.core.notifications.render import TemplateRenderError, render_template
 from src.core.notifications.validate import (
     SchemaDocumentError,
@@ -61,15 +72,6 @@ async def _load_owned_template(session: AsyncSession, template_id: str, tenant_i
     return template
 
 
-async def _attempts_for(session: AsyncSession, dispatch_id: str) -> list[DispatchAttempt]:
-    result = await session.execute(
-        select(DispatchAttempt)
-        .where(DispatchAttempt.dispatch_id == dispatch_id)
-        .order_by(DispatchAttempt.started_at)
-    )
-    return list(result.scalars().all())
-
-
 @router.post("", status_code=202)
 async def create_dispatch(
     body: DispatchRequest,
@@ -87,7 +89,7 @@ async def create_dispatch(
         )
         prior = existing.scalar_one_or_none()
         if prior is not None:
-            return DispatchOut.from_models(prior, await _attempts_for(session, prior.id))
+            return DispatchOut.from_models(prior, await attempts_of(session, prior.id))
 
     title_src = body.title_template
     body_src = body.body_template
@@ -161,4 +163,42 @@ async def get_dispatch(
     dispatch = result.scalar_one_or_none()
     if dispatch is None:
         raise HTTPException(status_code=404, detail="Dispatch not found")
-    return DispatchOut.from_models(dispatch, await _attempts_for(session, dispatch.id))
+    return DispatchOut.from_models(dispatch, await attempts_of(session, dispatch.id))
+
+
+@router.post("/{dispatch_id}/redeliver", status_code=202)
+async def redeliver_dispatch(
+    dispatch_id: ULIDStr,
+    tenant_id: Annotated[str, Depends(require_api_key)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DispatchOut:
+    """Retry the channels whose latest attempt failed, as their next attempt.
+
+    Channels that succeeded are not sent again; a dispatch with none failed
+    is returned unchanged. 409 once every failed channel has used all
+    ``MAX_ATTEMPTS_PER_CHANNEL`` attempts. The row is locked for the duration,
+    so concurrent calls run one after the other rather than colliding on an
+    attempt number.
+    """
+    result = await session.execute(
+        select(Dispatch)
+        .where(Dispatch.id == dispatch_id, Dispatch.tenant_id == tenant_id)
+        .with_for_update()
+    )
+    dispatch = result.scalar_one_or_none()
+    if dispatch is None:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+    try:
+        delivery = await redeliver(session, dispatch)
+    except RedeliveryExhausted as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"attempt cap of {MAX_ATTEMPTS_PER_CHANNEL} per channel reached",
+                "channel_ids": exc.channel_ids,
+            },
+        ) from exc
+
+    await session.commit()
+    await session.refresh(dispatch)
+    return DispatchOut.from_models(dispatch, delivery.attempts)

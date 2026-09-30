@@ -17,6 +17,7 @@ import pytest
 from ulid import ULID
 
 from src.core.models.template import Template
+from src.core.notifications.constants import MAX_ATTEMPTS_PER_CHANNEL
 from src.core.notifications.validate import VariablesValidationError, validate_variables
 
 HEADER = "X-API-Key"
@@ -334,4 +335,144 @@ class TestStatusAggregation:
 
     async def test_reading_an_unknown_dispatch_is_404(self, client, headers):
         response = await client.get(f"/api/v1/dispatch/{ULID()}", headers=headers)
+        assert response.status_code == 404, response.text
+
+
+async def _dispatch(client, headers, channel_ids: list[str], **extra) -> dict:
+    response = await client.post(
+        "/api/v1/dispatch",
+        headers=headers,
+        json={
+            "title_template": "Retry {{ n }}",
+            "body_template": "Body {{ n }}",
+            "variables": {"n": 7},
+            "channel_ids": channel_ids,
+            **extra,
+        },
+    )
+    assert response.status_code == 202, response.text
+    return response.json()
+
+
+async def _redeliver(client, headers, dispatch_id: str):
+    return await client.post(f"/api/v1/dispatch/{dispatch_id}/redeliver", headers=headers)
+
+
+def _trail(payload: dict) -> list[tuple[str, int, str]]:
+    """Every attempt as (channel_id, attempt, status), in the order made."""
+    return [(a["channel_id"], a["attempt"], a["status"]) for a in payload["attempts"]]
+
+
+class TestRedelivery:
+    """POST /dispatch/{id}/redeliver retries failed channels, and only those (#96).
+
+    Before this a transient failure was final: replaying the idempotency key
+    returns the stored `failed` record, and a new key resends to every
+    channel — twice over for the ones that already succeeded.
+    """
+
+    async def test_a_failed_channel_is_retried_as_the_next_attempt(
+        self, client, headers, bad_channel, sink_server
+    ):
+        created = await _dispatch(client, headers, [bad_channel])
+        assert created["status"] == "failed"
+        # The failure was transient — the target answers now.
+        fixed = await client.patch(
+            f"/api/v1/channels/{bad_channel}",
+            headers=headers,
+            json={"apprise_url": f"json://127.0.0.1:{sink_server.port}/fixed"},
+        )
+        assert fixed.status_code == 200, fixed.text
+
+        response = await _redeliver(client, headers, created["id"])
+
+        assert response.status_code == 202, response.text
+        payload = response.json()
+        assert payload["id"] == created["id"]
+        assert payload["status"] == "succeeded"
+        assert _trail(payload) == [(bad_channel, 1, "failed"), (bad_channel, 2, "succeeded")]
+
+    async def test_redelivery_resends_the_stored_render(
+        self, client, headers, bad_channel, sink_server
+    ):
+        """No re-render: what goes out is what the original dispatch rendered."""
+        created = await _dispatch(client, headers, [bad_channel])
+        await client.patch(
+            f"/api/v1/channels/{bad_channel}",
+            headers=headers,
+            json={"apprise_url": f"json://127.0.0.1:{sink_server.port}/render"},
+        )
+
+        await _redeliver(client, headers, created["id"])
+
+        assert sink_server.received[-1]["title"] == "Retry 7"
+        assert sink_server.received[-1]["message"] == "Body 7"
+
+    async def test_channels_that_succeeded_are_not_sent_again(
+        self, client, headers, good_channel, bad_channel, sink_server
+    ):
+        created = await _dispatch(client, headers, [good_channel, bad_channel])
+        assert created["status"] == "partial"
+        delivered = len(sink_server.received)
+
+        response = await _redeliver(client, headers, created["id"])
+
+        assert response.status_code == 202, response.text
+        payload = response.json()
+        assert payload["status"] == "partial"
+        assert _trail(payload) == [
+            (good_channel, 1, "succeeded"),
+            (bad_channel, 1, "failed"),
+            (bad_channel, 2, "failed"),
+        ]
+        assert len(sink_server.received) == delivered
+
+    async def test_a_succeeded_dispatch_is_returned_unchanged(
+        self, client, headers, good_channel, sink_server
+    ):
+        created = await _dispatch(client, headers, [good_channel])
+        delivered = len(sink_server.received)
+
+        response = await _redeliver(client, headers, created["id"])
+
+        assert response.status_code == 202, response.text
+        assert response.json() == created
+        assert len(sink_server.received) == delivered
+
+    async def test_the_attempt_cap_is_409_naming_the_channels(self, client, headers, bad_channel):
+        """Apprise answers a bool, so a revoked webhook fails forever; the cap
+        is what bounds the attempt log, not error classification."""
+        created = await _dispatch(client, headers, [bad_channel])
+        for _ in range(MAX_ATTEMPTS_PER_CHANNEL - 1):
+            assert (await _redeliver(client, headers, created["id"])).status_code == 202
+
+        response = await _redeliver(client, headers, created["id"])
+
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"]["channel_ids"] == [bad_channel]
+        fetched = await client.get(f"/api/v1/dispatch/{created['id']}", headers=headers)
+        assert len(fetched.json()["attempts"]) == MAX_ATTEMPTS_PER_CHANNEL
+
+    async def test_the_redelivered_record_is_what_get_and_replay_return(
+        self, client, headers, bad_channel, sink_server
+    ):
+        """Replaying the key hands back the current record, so a caller that
+        only ever replays sees the retry land without learning a new call."""
+        created = await _dispatch(client, headers, [bad_channel], idempotency_key="evt-96")
+        await client.patch(
+            f"/api/v1/channels/{bad_channel}",
+            headers=headers,
+            json={"apprise_url": f"json://127.0.0.1:{sink_server.port}/replay"},
+        )
+        await _redeliver(client, headers, created["id"])
+
+        fetched = await client.get(f"/api/v1/dispatch/{created['id']}", headers=headers)
+        replayed = await _dispatch(client, headers, [bad_channel], idempotency_key="evt-96")
+
+        for payload in (fetched.json(), replayed):
+            assert payload["status"] == "succeeded"
+            assert [a["attempt"] for a in payload["attempts"]] == [1, 2]
+
+    async def test_redelivering_an_unknown_dispatch_is_404(self, client, headers):
+        response = await _redeliver(client, headers, str(ULID()))
         assert response.status_code == 404, response.text

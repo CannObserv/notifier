@@ -6,17 +6,25 @@ check-in carrying findings, and the sweep that fires on a *missing* check-in.
 The sweep has no HTTP request behind it, so this deliberately raises nothing
 HTTP-shaped and commits nothing; rendering, validation, and ownership stay
 with the caller.
+
+``redeliver`` retries a stored dispatch's failed channels as the next attempt
+(#96), under the same rules: no HTTP, no commit.
 """
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.models.channel import Channel
 from src.core.models.dispatch import Dispatch, DispatchAttempt
-from src.core.notifications.constants import DispatchAttemptStatus, DispatchStatus
+from src.core.notifications.constants import (
+    MAX_ATTEMPTS_PER_CHANNEL,
+    DispatchAttemptStatus,
+    DispatchStatus,
+)
 from src.core.notifications.dispatcher import dispatch_to_channel
 
 
@@ -26,6 +34,14 @@ class Delivery:
 
     dispatch: Dispatch
     attempts: list[DispatchAttempt]
+
+
+class RedeliveryExhausted(Exception):
+    """Every failed channel has used all ``MAX_ATTEMPTS_PER_CHANNEL`` attempts."""
+
+    def __init__(self, channel_ids: list[str]) -> None:
+        super().__init__(f"attempt cap reached for channels {channel_ids}")
+        self.channel_ids = channel_ids
 
 
 def aggregate_status(successes: int, total: int) -> str:
@@ -72,31 +88,85 @@ async def deliver(
     session.add(dispatch)
     await session.flush()  # populate dispatch.id without releasing the txn
 
-    successes = 0
-    attempts: list[DispatchAttempt] = []
-    for channel in channels:
-        started = datetime.now(UTC)
-        result = await dispatch_to_channel(
-            apprise_url_encrypted=channel.apprise_url_encrypted,
-            title=rendered_title,
-            body=rendered_body,
-        )
-        finished = datetime.now(UTC)
-        attempt = DispatchAttempt(
-            dispatch_id=dispatch.id,
-            channel_id=channel.id,
-            attempt=1,
-            status=(
-                DispatchAttemptStatus.SUCCEEDED if result.success else DispatchAttemptStatus.FAILED
-            ),
-            reason=result.reason,
-            started_at=started,
-            finished_at=finished,
-        )
-        session.add(attempt)
-        attempts.append(attempt)
-        if result.success:
-            successes += 1
-
+    attempts = [await _attempt(session, dispatch, channel, attempt=1) for channel in channels]
+    successes = sum(a.status == DispatchAttemptStatus.SUCCEEDED for a in attempts)
     dispatch.status = aggregate_status(successes, len(channels))
     return Delivery(dispatch=dispatch, attempts=attempts)
+
+
+async def redeliver(session: AsyncSession, dispatch: Dispatch) -> Delivery:
+    """Retry each channel whose latest attempt failed, as its next attempt.
+
+    Resends the stored render — nothing is re-rendered — through each
+    channel's *current* URL, so fixing a channel and then redelivering works.
+    Channels that succeeded are never sent again, and a channel already at
+    ``MAX_ATTEMPTS_PER_CHANNEL`` is skipped; if that leaves failed channels
+    but nothing to retry, raises ``RedeliveryExhausted``. A dispatch with no
+    failed channel comes back untouched.
+
+    The caller should hold the dispatch row ``FOR UPDATE``: two concurrent
+    redeliveries would otherwise both claim the same attempt number. Returns
+    every attempt, oldest first. Flushes but does not commit.
+    """
+    history = await attempts_of(session, dispatch.id)
+    latest: dict[str, DispatchAttempt] = {}
+    for attempt in history:
+        latest[str(attempt.channel_id)] = attempt
+
+    failed = [a for a in latest.values() if a.status == DispatchAttemptStatus.FAILED]
+    if not failed:
+        return Delivery(dispatch=dispatch, attempts=history)
+    retryable = [a for a in failed if a.attempt < MAX_ATTEMPTS_PER_CHANNEL]
+    if not retryable:
+        raise RedeliveryExhausted([str(a.channel_id) for a in failed])
+
+    result = await session.execute(
+        select(Channel).where(
+            Channel.id.in_([a.channel_id for a in retryable]),
+            Channel.tenant_id == dispatch.tenant_id,
+        )
+    )
+    channels = {str(c.id): c for c in result.scalars()}
+    for prior in retryable:
+        channel_id = str(prior.channel_id)
+        retry = await _attempt(session, dispatch, channels[channel_id], attempt=prior.attempt + 1)
+        history.append(retry)
+        latest[channel_id] = retry
+
+    successes = sum(a.status == DispatchAttemptStatus.SUCCEEDED for a in latest.values())
+    dispatch.status = aggregate_status(successes, len(latest))
+    await session.flush()
+    return Delivery(dispatch=dispatch, attempts=history)
+
+
+async def attempts_of(session: AsyncSession, dispatch_id: str) -> list[DispatchAttempt]:
+    """Every attempt for a dispatch, oldest first — the order they were made."""
+    result = await session.execute(
+        select(DispatchAttempt)
+        .where(DispatchAttempt.dispatch_id == dispatch_id)
+        .order_by(DispatchAttempt.started_at)
+    )
+    return list(result.scalars().all())
+
+
+async def _attempt(
+    session: AsyncSession, dispatch: Dispatch, channel: Channel, *, attempt: int
+) -> DispatchAttempt:
+    """Send the dispatch's render to one channel and add the attempt row."""
+    started = datetime.now(UTC)
+    result = await dispatch_to_channel(
+        apprise_url_encrypted=channel.apprise_url_encrypted,
+        title=dispatch.rendered_title,
+        body=dispatch.rendered_body,
+    )
+    row = DispatchAttempt(
+        dispatch_id=dispatch.id,
+        channel_id=channel.id,
+        attempt=attempt,
+        status=DispatchAttemptStatus.SUCCEEDED if result.success else DispatchAttemptStatus.FAILED,
+        reason=result.reason,
+        started_at=started,
+        finished_at=datetime.now(UTC),
+    )
+    session.add(row)
+    return row

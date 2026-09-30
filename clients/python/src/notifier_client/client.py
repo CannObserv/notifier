@@ -176,6 +176,34 @@ class NotifierClient:
             retry_safe=resolved_key is not None,
         )
 
+    async def redeliver(self, dispatch_id: str) -> DispatchOut:
+        """POST /api/v1/dispatch/{id}/redeliver — retry the failed channels.
+
+        Resends the stored render to each channel whose latest attempt failed,
+        as its next attempt under the same dispatch. Channels that succeeded
+        are not sent again; a dispatch with none failed comes back unchanged.
+        A channel's outcome is its highest-numbered entry in ``.attempts``.
+
+        Never auto-retried: each call can spend an attempt against the
+        server's per-channel cap, and a 5xx may follow a send that landed.
+
+        Returns:
+            The dispatch's ``DispatchOut``, every attempt included, oldest first.
+
+        Raises:
+            NotifierError: 404 for an unknown dispatch; 409 once every failed
+                channel has reached the attempt cap (``detail.channel_ids``
+                names them).
+            AuthError: 401 or 403.
+            ServerError: 5xx.
+        """
+        return await self._typed_request(
+            "POST",
+            f"/api/v1/dispatch/{dispatch_id}/redeliver",
+            model=DispatchOut,
+            retry_safe=False,
+        )
+
     async def preview(
         self,
         *,

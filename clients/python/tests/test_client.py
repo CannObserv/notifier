@@ -298,3 +298,81 @@ async def test_dispatch_omits_variables_when_caller_passes_none(fast_retry):
     body = route.calls.last.request.read().decode()
     assert "variables" not in body
     assert "metadata" not in body  # same omit-on-None contract
+
+
+_REDELIVERED = {
+    "id": "01HABCDEFGHJKMNPQRSTVWXYZ0",
+    "tenant_id": "t1",
+    "template_id": None,
+    "idempotency_key": None,
+    "rendered_title": "T",
+    "rendered_body": "B",
+    "status": "succeeded",
+    "metadata": {},
+    "created_at": "2026-04-30T00:00:00Z",
+    "attempts": [
+        {
+            "channel_id": "ch1",
+            "status": "failed",
+            "reason": "Delivery failed: 503",
+            "attempt": 1,
+            "started_at": "2026-04-30T00:00:00Z",
+        },
+        {
+            "channel_id": "ch1",
+            "status": "succeeded",
+            "reason": "Notification sent successfully",
+            "attempt": 2,
+            "started_at": "2026-04-30T00:01:00Z",
+        },
+    ],
+}
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_redeliver_posts_to_the_dispatch_and_returns_typed(fast_retry):
+    route = respx.post("https://t.local/api/v1/dispatch/01HABCDEFGHJKMNPQRSTVWXYZ0/redeliver").mock(
+        return_value=httpx.Response(202, json=_REDELIVERED)
+    )
+    async with NotifierClient(
+        base_url="https://t.local", api_key="nk_secret", retry_config=fast_retry
+    ) as c:
+        result = await c.redeliver("01HABCDEFGHJKMNPQRSTVWXYZ0")
+    assert route.calls.last.request.headers["X-API-Key"] == "nk_secret"
+    assert isinstance(result, DispatchOut)
+    assert result.status == "succeeded"
+    assert [a.attempt for a in result.attempts] == [1, 2]
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_redeliver_is_never_auto_retried(fast_retry):
+    """Each call may spend an attempt against the per-channel cap, and a 5xx
+    may follow a send that landed — whether to go again is the caller's call."""
+    route = respx.post("https://t.local/api/v1/dispatch/d1/redeliver").mock(
+        return_value=httpx.Response(503),
+    )
+    async with NotifierClient(
+        base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
+    ) as c:
+        with pytest.raises(ServerError):
+            await c.redeliver("d1")
+    assert route.call_count == 1
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_redeliver_at_the_attempt_cap_raises_409(fast_retry):
+    respx.post("https://t.local/api/v1/dispatch/d1/redeliver").mock(
+        return_value=httpx.Response(
+            409,
+            json={"detail": {"message": "attempt cap reached", "channel_ids": ["ch1"]}},
+        ),
+    )
+    async with NotifierClient(
+        base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
+    ) as c:
+        with pytest.raises(NotifierError) as exc:
+            await c.redeliver("d1")
+    assert exc.value.status_code == 409

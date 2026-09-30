@@ -88,6 +88,8 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
 
 `result.status` is a `DispatchOutStatus` enum with values `SUCCEEDED`, `PARTIAL`, and `FAILED`. Each `result.attempts[n].status` is a `DispatchAttemptOutStatus` with values `SUCCEEDED` and `FAILED`. Both inherit from `str`, so `result.status == "succeeded"` works alongside the enum form.
 
+A dispatch makes one attempt per channel. To retry the channels that failed, call `client.redeliver(result.id)`: it resends the stored render to each channel whose latest attempt failed, as that channel's next attempt under the same dispatch, and returns the updated `DispatchOut`. Channels that succeeded are not sent again. Once a channel has redelivery attempts, `result.attempts` holds several entries for it, and its outcome is the one with the highest `.attempt`. Each channel gets at most 5 attempts; after that the call raises `NotifierError` with `status_code == 409`. `redeliver()` is never auto-retried. A channel whose URL is revoked fails every time, so fix the channel before redelivering.
+
 ### Sub-clients
 
 - `client.channels.{list, create, get, update, delete, send_test}` → `ChannelOut` / `ChannelTestResponse`
@@ -96,7 +98,7 @@ async with NotifierClient(base_url="https://notifier.exe.xyz", api_key="nk_...")
 - `client.apprise.{list_plugins, get_plugin, assemble}` → `PluginListItem` / `PluginDetail` / `AssembleResponse`
 - `client.monitors.{list, create, get, update, delete, checkin}` → `MonitorOut` / `CheckinResponse`
 
-`client.dispatch(...)` returns `DispatchOut`. `client.health()` and `client.ready()` continue to return `dict[str, Any]` because the server's response is a free-form key/value bag.
+`client.dispatch(...)` and `client.redeliver(dispatch_id)` return `DispatchOut`. `client.health()` and `client.ready()` continue to return `dict[str, Any]` because the server's response is a free-form key/value bag.
 
 ### Monitors and check-ins
 

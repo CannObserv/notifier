@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- `client.redeliver(dispatch_id)` — retry a dispatch's failed channels, as each one's next attempt under the same dispatch. Until now a transient failure was final: replaying the idempotency key returns the stored `failed` record, and a new key resends to every channel, including those that already succeeded. Channels that succeeded are never resent. Each channel gets at most 5 attempts, and past that the call is a 409. Never auto-retried. `DispatchOut.attempts` can now list a channel more than once; its outcome is the entry with the highest `attempt` (CannObserv/notifier#96).
 - `client.monitors.*` — CRUD for notifier's dead-man's timers plus `checkin()`, the method a consumer calls on every tick of its own probe. Notifier alerts on the *absence* of a check-in, so a probe that only speaks up when it finds something is silent in exactly the cases that matter: a stopped timer, a wedged process, a dead node (CannObserv/notifier#56).
 - `MonitorOut`, `MonitorOutState`, `CheckinResponse`, and `CheckinResponseState` exported from `notifier_client` and `notifier_client.types`.
 - `checkin()` is auto-retried on transport and 5xx failures, alone among the write methods. A dropped heartbeat is indistinguishable from a dead consumer, and the replay is harmless: the second check-in simply overwrites the first.

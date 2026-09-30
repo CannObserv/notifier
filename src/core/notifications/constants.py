@@ -24,3 +24,9 @@ class DispatchAttemptStatus(enum.StrEnum):
 
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+
+
+#: Attempts per channel within one dispatch, counting the first (#96). Apprise
+#: reports a bool, so a revoked webhook and a momentary 503 look identical; the
+#: cap, not error classification, is what keeps the attempt log bounded.
+MAX_ATTEMPTS_PER_CHANNEL = 5
