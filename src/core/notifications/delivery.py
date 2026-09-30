@@ -72,9 +72,14 @@ async def deliver(
 ) -> Delivery:
     """Insert a Dispatch, deliver to each channel in order, record attempts.
 
+    A channel listed twice is sent once: the attempt log holds one first
+    attempt per channel, and a second would violate its unique constraint
+    only *after* both sends went out.
+
     Adds and flushes rows but does not commit — the caller owns the
     transaction, so a route can still return a 4xx after this runs.
     """
+    channels = list({c.id: c for c in channels}.values())
     dispatch = Dispatch(
         tenant_id=tenant_id,
         template_id=template_id,

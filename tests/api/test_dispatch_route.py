@@ -333,6 +333,19 @@ class TestStatusAggregation:
         assert fetched.json()["status"] == "partial"
         assert len(fetched.json()["attempts"]) == 2
 
+    async def test_a_channel_listed_twice_is_sent_once(
+        self, client, headers, good_channel, sink_server
+    ):
+        """CR 1: `[A, A]` sent twice, then hit the attempt unique constraint —
+        a 500 whose rollback left no record, so replaying the key sent twice
+        more."""
+        delivered = len(sink_server.received)
+
+        payload = await _dispatch(client, headers, [good_channel, good_channel])
+
+        assert _trail(payload) == [(good_channel, 1, "succeeded")]
+        assert len(sink_server.received) == delivered + 1
+
     async def test_reading_an_unknown_dispatch_is_404(self, client, headers):
         response = await client.get(f"/api/v1/dispatch/{ULID()}", headers=headers)
         assert response.status_code == 404, response.text
