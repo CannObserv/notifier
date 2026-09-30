@@ -19,6 +19,7 @@ import respx
 
 import notifier_client
 from notifier_client import NotifierClient, NotifierError, RetryConfig
+from notifier_client.paths import segment
 
 HOSTILE = "a/../b?c=1#d %"
 ESCAPED = "a%2F..%2Fb%3Fc%3D1%23d%20%25"
@@ -107,3 +108,22 @@ def test_no_hand_written_path_interpolates_a_raw_value():
         if raw.search(line)
     ]
     assert offenders == []
+
+
+@pytest.mark.parametrize("value", ["", ".", ".."])
+def test_a_value_that_is_itself_a_dot_segment_is_refused(value):
+    """CR 7: dots are unreserved, so quoting leaves ``..`` as is and httpx
+    resolves it — ``templates.preview("..")`` requested ``POST /api/v1/preview``,
+    another endpoint. No ID or schema name is empty or all dots."""
+    with pytest.raises(ValueError, match="path segment"):
+        segment(value)
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_a_dot_segment_id_sends_no_request():
+    route = respx.route(host="t.local").mock(return_value=httpx.Response(200, json={}))
+    async with NotifierClient(base_url="https://t.local", api_key="nk_x") as c:
+        with pytest.raises(ValueError):
+            await c.templates.preview("..")
+    assert route.call_count == 0
