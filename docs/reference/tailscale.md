@@ -38,10 +38,11 @@ specific to notifier.
   `100.75.8.39`. Its `OnFailure=` handler dispatches when one of its four
   timer-driven oneshots fails (#95, CannObserv/address-validator#232). It has
   the same shape as replicator's: `/dispatch` only, no monitor.
-- **Also on the tailnet:** `observo-primary`, a *user-owned* node (not tagged),
-  reached by a `hosts` entry in the ACL rather than by tag. Relevant when the
-  Observo → Notifier path is provisioned: that rule needs `observo-primary` as
-  a source, not `tag:observo-*`.
+- **Also on the tailnet:** `observo-primary`, tag `tag:observo-primary`,
+  `100.105.63.31`. This file used to call it a *user-owned*, untagged node
+  reached by a `hosts` entry; it carries the tag as of 2026-10-01 (`tailscale
+  status` here), and is one of the index store's clients. When the Observo →
+  Notifier path is provisioned, that rule's source is `tag:observo-primary`.
 
 ### ACL
 
@@ -61,14 +62,13 @@ specific to notifier.
     // The broker reports bus health here every ten minutes (#56). Port 9000
     // only, unlike watcher above — see the note below.
     { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000"] },
-    // #57: the cohort's service VMs are CLIENTS of the shared index store.
+    // #57, index D17: every cohort VM is a CLIENT of the shared index store.
     // Qdrant is TLS + API-key gated; Ollama has no auth and is gated by this
     // rule alone. This is the one rule listing tag:notifier as a source.
     { "action": "accept",
-      "src": ["tag:notifier", "tag:watcher", "tag:archiver", "tag:replicator", "tag:broker"],
+      "src": ["tag:notifier", "tag:watcher", "tag:archiver", "tag:replicator",
+              "tag:broker", "tag:status", "tag:observo-primary", "tag:power-map"],
       "dst": ["tag:index:6333,11434"] },
-    // The store checks in to notifier's dead-man's timer. :9000 only, as above.
-    { "action": "accept", "src": ["tag:index"], "dst": ["tag:notifier:9000"] },
     // Replicator's OnFailure= handler dispatches here (#70). :9000 only — one
     // production unit, no dev process to point at :9001.
     { "action": "accept", "src": ["tag:replicator"], "dst": ["tag:notifier:9000"] },
@@ -110,6 +110,10 @@ specific to notifier.
 > tailnet **on any production path**. The one outbound rule serves developer
 > tooling, whose entire outage budget is "search degrades to `grep`".
 >
+> **`tag:index → tag:notifier:9000` is gone (2026-10-01, #98).** co-index has
+> checked in to co-status since #83 (index D16), so nothing used it; from
+> `co-index`, `notifier:9000` now times out. The edge to `index` is one-way.
+>
 > **Ollama has no authentication**, and none to enable — port 11434 is gated by
 > the ACL alone, so anything in that rule's `src` can pull an arbitrary model
 > onto the shared box. Accepted deliberately (#57 D4) rather than proxied, and
@@ -144,6 +148,11 @@ specific to notifier.
 > see their tags — it was confirmed in the admin console. Worth the check: a
 > wrong name admits nobody while reading correctly, and surfaces on their side
 > as a DNS failure rather than a permission denial.
+>
+> **The three sources [index D17](https://github.com/CannObserv/index/blob/main/docs/plans/2026-09-11-shared-qdrant-vm-design.md#acl) added** —
+> `tag:status`, `tag:observo-primary`, `tag:power-map` — are confirmed by
+> co-index's inbound packet filter (CannObserv/index#7). The first two also
+> show in `tailscale status` here; `power-map` does not.
 
 In steady state the ACL opens port 22 on no tagged node. Administering this
 host goes over the public `ssh notifier.exe.xyz`, not the tailnet, and `index`
@@ -313,5 +322,5 @@ and Let's Encrypt means 90 days. Left alone, the cohort's search would stop on a
 date three months out **with no failed unit anywhere** — Qdrant would keep
 serving while every client failed verification. `qdrant-cert-renew.timer` on
 that host renews weekly and restarts Qdrant only when the file actually
-changed, and the check-in reports a cert inside 21 days of expiry so a stopped
-timer alerts rather than surprises.
+changed, and its check-in to co-status (index D16) reports a cert inside 21
+days of expiry so a stopped timer alerts rather than surprises.
