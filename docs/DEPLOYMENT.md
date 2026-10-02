@@ -384,8 +384,8 @@ how to check the *effective* value rather than the configured one:
 This VM's creation-time `--setup-script` lives at `/exe.dev/setup`, and
 `exe-setup.service` runs it as `exedev`. It holds an inline Tailscale key
 (expired) and still provisions packages. It fails at line 3, so the unit's
-cleanup never runs. **The platform delivers it again at every boot**, so #93's
-shred didn't last. The fix (CannObserv/provisioner#4), applied 2026-10-01:
+cleanup never runs. **The platform delivers it again at any boot that finds it
+missing**, so #93's shred didn't last. The fix (CannObserv/provisioner#4), applied 2026-10-01:
 
 ```bash
 sudo systemctl disable exe-setup.service     # a delivered file no longer means a run

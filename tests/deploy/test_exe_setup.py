@@ -57,8 +57,8 @@ def unit_properties(*names: str) -> dict[str, str]:
 def test_setup_unit_is_disabled() -> None:
     props = unit_properties("LoadState", "UnitFileState")
     assert props["UnitFileState"] == "disabled", (
-        f"{UNIT} is {props['UnitFileState']!r}: the platform delivers "
-        f"{SCRIPT} again at every boot, so the unit runs it again. Its preset is "
+        f"{UNIT} is {props['UnitFileState']!r}: {SCRIPT} stays on disk, so the "
+        f"unit runs it again at every boot. Its preset is "
         f"`enabled`, so a `systemctl preset` or `preset-all` is the likely cause. "
         f"`sudo systemctl disable {UNIT}` (#99)"
     )
