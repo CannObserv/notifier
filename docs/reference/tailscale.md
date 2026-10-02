@@ -29,7 +29,7 @@ specific to notifier.
   `co-broker` VM. It checked in to a dead-man's timer here every ten minutes
   (#56, CannObserv/broker#3) until that moved to co-status (#83, broker#66).
   It no longer calls notifier, and its `tag:broker → tag:notifier:9000` rule
-  is due for removal from the policy (#83 teardown).
+  was removed from the policy on 2026-10-02 (#83 teardown).
 - **Consumer node:** `replicator`, tag `tag:replicator`, `100.114.136.20` — the
   `co-replicator` VM. Its `OnFailure=` handler dispatches an incident when the
   worker's unit fails (#70). Uses `/dispatch`: notifier originates
@@ -59,9 +59,6 @@ specific to notifier.
     // lists tag:notifier as a *source*: notifier initiates nothing across the
     // tailnet. Its Apprise egress goes straight to the internet.
     { "action": "accept", "src": ["tag:watcher"], "dst": ["tag:notifier:9000,9001"] },
-    // Retired with #83: the broker checks in to co-status now. Delete this
-    // rule from the live policy; kept here until it is gone.
-    { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000"] },
     // #57, index D17: every cohort VM is a CLIENT of the shared index store.
     // Qdrant is TLS + API-key gated; Ollama has no auth and is gated by this
     // rule alone. This is the one rule listing tag:notifier as a source.
@@ -79,6 +76,9 @@ specific to notifier.
 }
 ```
 
+> **History: the broker's rule, removed 2026-10-02 (#83).** The two notes
+> below record why it had the shape it did, while it existed.
+>
 > **The broker gets `:9000` only; watcher gets both.** Not an inconsistency.
 > `:9001` exists because #24 made it the endpoint consumers point their
 > *non-production* processes at, and watcher has some. `co-broker`'s probe is
@@ -158,12 +158,13 @@ In steady state the ACL opens port 22 on no tagged node. Administering this
 host goes over the public `ssh notifier.exe.xyz`, not the tailnet, and `index`
 is the same — `ssh co-index.exe.xyz`.
 
-> **One build-phase exception is live:** `tag:notifier → tag:status:22`, with
-> a matching `ssh` block, not in the policy excerpt above. exe.dev VMs are
-> isolated from one another, so without a tailnet edge no agent session could
-> have built `co-status` (#83). It goes in #83's teardown, step 5.
+> **No build-phase exceptions remain (2026-10-02).** `tag:notifier →
+> tag:status:22`, with its `ssh` block, let an agent session here build
+> `co-status` (#83): exe.dev VMs are isolated from one another, so there was
+> no other path. It was removed in #83's teardown; `ssh status` from here now
+> times out.
 >
-> **The index edge is gone (2026-09-29).** `tag:notifier → tag:index:22` was
+> **The index edge went first (2026-09-29).** `tag:notifier → tag:index:22` was
 > removed once `co-index` got its own session for CannObserv/index (#90); from
 > here `ssh index` now times out. It had been retired once before, on
 > 2026-09-13 after #57 D13, and restored for #90.
