@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import event, func, select
+from sqlalchemy.exc import IntegrityError
 
 from src.core.api_keys import (
     RAW_KEY_PREFIX,
@@ -525,6 +526,28 @@ class TestAuditFollowsTheCommit:
 
         await mint(db_session, tenant.id, "new", "production")
         await revoke(db_session, tenant.id, old_id)
+        await db_session.rollback()
+
+        assert _audit(caplog) == []
+
+    async def test_a_commit_that_raises_records_nothing(self, db_session, tenant, caplog):
+        """The case #100 named beside the dry run: a commit that fails after
+        the mint flushed. The record must wait on the commit succeeding, not
+        on the commit being attempted."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        await mint(db_session, tenant.id, "doomed by its neighbour", "production")
+        db_session.add(
+            ApiKey(
+                tenant_id=tenant.id,
+                label="breaks the commit",
+                key_prefix="nk_xxxxx",
+                key_hash=hash_key("unused"),
+                environment="staging",  # outside the CheckConstraint
+            )
+        )
+
+        with pytest.raises(IntegrityError):
+            await db_session.commit()
         await db_session.rollback()
 
         assert _audit(caplog) == []
