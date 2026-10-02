@@ -381,35 +381,10 @@ how to check the *effective* value rather than the configured one:
 
 ## exe.dev's setup unit (#93, #99)
 
-This VM's creation-time `--setup-script` lives at `/exe.dev/setup`, and
-`exe-setup.service` runs it as `exedev`. It holds an inline Tailscale key
-(expired) and still provisions packages. It fails at line 3, so the unit's
-cleanup never runs. **The platform delivers it again at any boot that finds it
-missing**, so #93's shred didn't last. The fix (CannObserv/provisioner#4), applied 2026-10-01:
-
-```bash
-sudo systemctl disable exe-setup.service     # a delivered file no longer means a run
-sudo systemctl reset-failed exe-setup.service
-sudo chmod 600 /exe.dev/setup                # never print it
-```
-
-**Don't shred it**: the platform leaves a present copy alone, mode included,
-but delivers a missing one at 0755, and nothing would then remove it.
-**Don't run `systemctl preset`/`preset-all`**: the unit's preset is
-`enabled`. A present file doesn't mean a run, so read the journal. exe.dev
-calls the re-delivery a bug (2026-10-01). When their fix ships, re-check
-this, because it may touch a disabled unit (CannObserv/provisioner#17).
-`tests/deploy/test_exe_setup.py` checks the unit and the mode. After an
-in-guest reboot (`ssh exe.dev restart` is a hard reset):
-
-```bash
-systemctl show exe-setup.service -p UnitFileState --value   # disabled
-sudo journalctl -b -u exe-setup.service | grep -c Starting  # 0
-sudo stat -c '%a %U:%G' /exe.dev/setup                      # 600 root:root
-```
-
-Long term: a VM on the cohort base image, which runs a setup script exactly
-once (CannObserv/provisioner#16).
+`exe-setup.service` is **disabled**, and `/exe.dev/setup` stays on disk at
+**0600**. Don't shred it, and don't run `systemctl preset`: the platform
+re-delivers a missing script at 0755, and the unit's preset is `enabled`. Why,
+and how to check it: [reference/exe-setup.md](reference/exe-setup.md).
 
 ## SocratiCode indexing (agent tooling)
 

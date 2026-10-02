@@ -258,7 +258,7 @@ sudo shred -u /run/ts.key
 delivers it again at any boot that finds it missing, so the key outlives the
 join, both on the platform and on disk, and only revoking or expiring it covers every copy. This
 VM's creation-time script holds an expired key:
-[DEPLOYMENT.md § exe.dev's setup unit](../DEPLOYMENT.md#exedevs-setup-unit-93-99).
+[exe-setup.md](exe-setup.md).
 
 **Tags bind at device registration.** Re-authenticating an existing node with a
 differently-tagged key does *not* retag it — `tailscale up --reset` leaves the
