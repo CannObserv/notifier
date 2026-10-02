@@ -20,7 +20,7 @@ fix that holds comes from CannObserv/provisioner#4:
   A missing one it delivers again at 0755 (measured in provisioner#4), and
   with the unit disabled nothing removes that copy.
 
-All three tests read live systemd and file state, so they skip anywhere but
+All four tests read live systemd and file state, so they skip anywhere but
 this host, CI included. They never read the file's contents: it holds a key.
 """
 
@@ -70,6 +70,22 @@ def test_setup_unit_is_not_failed() -> None:
     assert props["ActiveState"] != "failed", (
         f"{UNIT} failed ({props['Result']}): it ran this boot. Check "
         f"`sudo journalctl -b -u {UNIT}`, then `sudo systemctl reset-failed {UNIT}`"
+    )
+
+
+def test_setup_unit_was_not_started_this_boot() -> None:
+    """A disabled unit never reaches its condition check, so systemd never stamps it.
+
+    ``ConditionTimestamp`` is set by any start attempt, condition met or not,
+    and resets at boot. That makes it stronger than ``ConditionResult=no``, which
+    an unstarted unit also reads (provisioner#1), and it catches a run that
+    succeeded, which the failed-state test above cannot. It is #99's
+    "0 ``Starting`` this boot" without the privileges the journal needs.
+    """
+    props = unit_properties("LoadState", "ConditionTimestampMonotonic")
+    assert props["ConditionTimestampMonotonic"] == "0", (
+        f"systemd tried to start {UNIT} this boot. Check "
+        f"`sudo journalctl -b -u {UNIT}` and `systemctl is-enabled {UNIT}` (#99)"
     )
 
 
