@@ -5,8 +5,8 @@ exe.dev ships ``exe-setup.service`` to run a VM's creation-time
 holds an inline Tailscale auth key (expired, per the operator) and still
 provisions things: the Tailscale installer, ``apt-get install`` PostgreSQL 16,
 ``systemctl enable --now postgresql``. Line 3 fails as ``exedev``, so the
-unit's ``ExecStartPost=`` ``rm`` never runs. It failed at all four boots
-journald keeps, and the file stayed ``root:root`` 0755.
+unit's ``ExecStartPost=`` ``rm`` never runs. It failed at every boot before
+the fix (all four journald kept), and the file stayed ``root:root`` 0755.
 
 #93 shredded the file. The platform delivered it again at the next boot: its
 mtime matched boot 0's start, 2026-09-29T12:27:10Z. Shredding doesn't last. The
