@@ -9,8 +9,8 @@ unit's ``ExecStartPost=`` ``rm`` never runs. It failed at every boot before
 the fix (all four journald kept), and the file stayed ``root:root`` 0755.
 
 #93 shredded the file. The platform delivered it again at the next boot: its
-mtime matched that boot's start, 2026-09-29T12:27:10Z. Shredding doesn't last. The
-fix that holds comes from CannObserv/provisioner#4:
+mtime matched that boot's start, 2026-09-29T12:27:10Z. Shredding doesn't last.
+The fix that holds comes from CannObserv/provisioner#4:
 
 * the unit is **disabled**, so a re-delivered file no longer means a run. Its
   preset is ``enabled``, so ``systemctl preset`` or ``preset-all`` turns it back

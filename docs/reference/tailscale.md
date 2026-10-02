@@ -256,8 +256,8 @@ sudo shred -u /run/ts.key
 **A key in a VM's `--setup-script` must be single-use and short-lived**
 (the cohort rule, CannObserv/provisioner#1). exe.dev keeps the script and
 delivers it again at any boot that finds it missing, so the key outlives the
-join, both on the platform and on disk, and only revoking or expiring it covers every copy. This
-VM's creation-time script holds an expired key:
+join, both on the platform and on disk, and only revoking or expiring it
+covers every copy. This VM's creation-time script holds an expired key:
 [exe-setup.md](exe-setup.md).
 
 **Tags bind at device registration.** Re-authenticating an existing node with a
