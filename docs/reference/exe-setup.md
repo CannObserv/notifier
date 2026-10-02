@@ -33,7 +33,9 @@ sudo chmod 600 /exe.dev/setup                # never print it
 - **Don't run `systemctl preset` or `preset-all`.** The unit's preset is
   `enabled`.
 - **A present file doesn't mean a run.** Read the journal, or
-  `ConditionTimestamp`.
+  `systemctl show exe-setup.service -p ConditionTimestamp`: empty means no
+  start at boot. It also empties when systemd unloads the idle unit, so it
+  can't rule out a start by hand.
 - **When exe.dev ships a fix, re-check this.** It may touch a disabled unit
   (CannObserv/provisioner#17).
 

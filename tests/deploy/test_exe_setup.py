@@ -77,10 +77,13 @@ def test_setup_unit_was_not_started_this_boot() -> None:
     """A disabled unit never reaches its condition check, so systemd never stamps it.
 
     ``ConditionTimestamp`` is set by any start attempt, condition met or not,
-    and resets at boot. That makes it stronger than ``ConditionResult=no``, which
-    an unstarted unit also reads (provisioner#1), and it catches a run that
-    succeeded, which the failed-state test above cannot. It is #99's
-    "0 ``Starting`` this boot" without the privileges the journal needs.
+    and resets at boot. It also clears when systemd unloads an inactive unit
+    nothing references, as this one is once disabled, so the check proves no
+    boot-time start, not that nobody started it by hand. Even so, it is
+    stronger than ``ConditionResult=no``, which an unstarted unit also reads
+    (provisioner#1), and it catches a run that succeeded, which the
+    failed-state test above cannot. It is #99's "0 ``Starting`` this boot"
+    without the privileges the journal needs.
     """
     props = unit_properties("LoadState", "ConditionTimestampMonotonic")
     assert props["ConditionTimestampMonotonic"] == "0", (
