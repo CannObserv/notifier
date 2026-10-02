@@ -37,7 +37,8 @@ an audit trail, but it would also require every present and future key lookup
 to filter on it — and forgetting that filter anywhere means a revoked
 credential that still authenticates. DELETE fails closed; a column that must
 be remembered fails open. The audit value is taken here instead, as a log line
-on every mint and revoke that names the key without ever naming its secret.
+on every committed mint and revoke that names the key without ever naming its
+secret.
 
 That line goes to the ``notifier.audit`` logger, which the credential scripts
 point at journald — ``journalctl -t notifier-keys``. It went to this module's

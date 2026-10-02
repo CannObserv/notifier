@@ -330,7 +330,8 @@ Production carries the same opt-in as every other script here — on the command
 line, for the single invocation, never in an env file.
 
 Both halves land on the credential audit channel — `journalctl -t
-notifier-keys` — naming the key and never its secret. The revoke half is the
+notifier-keys` — naming the key and never its secret, once the run commits: a
+dry run or a refusal records nothing (#100). The revoke half is the
 one that matters: it is a DELETE, so once the run ends that record is the only
 thing that will ever say which key went, or when (#62, #67).
 
