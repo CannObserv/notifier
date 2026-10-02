@@ -44,7 +44,9 @@ Five things this does that the ad-hoc program could not:
   prefix, label and ``last_used_at`` are printed before it goes — the last of
   those being the field that says whether something is actively using it.
 * **``--dry-run``.** Rehearses the whole operation, refusals included, and
-  rolls back.
+  rolls back. Records nothing: the audit records follow the commit, so a
+  rehearsal — or a rotation whose revoke half is refused after the mint —
+  leaves no record of a change that did not happen (#100).
 * **``--verify``.** Proves the new key authenticates against the real
   endpoint. A rotation nobody verified is a rotation that might have revoked
   the wrong row.

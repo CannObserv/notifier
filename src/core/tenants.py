@@ -22,12 +22,14 @@ it finds that out in production with the statement already typed.
 
 **Unlike ``mint`` and ``revoke``, this owns its transaction.** Those two flush
 and leave the commit to the caller, which is what puts both halves of a
-rotation in one. Here the audit records must follow the commit: a rehearsal
+rotation in one. The audit records follow the commit in both: a rehearsal
 that leaves "api key destroyed with tenant" in the journal is a live
 credential recorded dead, which is worse than no record at all because someone
-will trust it. So ``dry_run`` rolls back and stays silent, and a real run
-commits and then records — inseparably, in one function, so there is no way to
-perform the deletion through this module and skip the record.
+will trust it. Those two get there by queueing on the session's
+``after_commit`` (#100); this gets there by owning the commit. So ``dry_run``
+rolls back and stays silent, and a real run commits and then records —
+inseparably, in one function, so there is no way to perform the deletion
+through this module and skip the record.
 
 **The tenant row is locked ``FOR UPDATE`` before anything is read.** The
 inventory and the delete are separate statements, and a key minted in the gap

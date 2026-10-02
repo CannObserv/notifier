@@ -21,6 +21,17 @@ caller owns the transaction. That is what lets a rotation put the mint and the
 revoke in one, so an interrupted rotation cannot leave a tenant with no
 working key.
 
+**Nor does either record anything until that commit lands.** Each queues its
+audit record on the session, and the record goes out from the session's
+``after_commit`` — so a rollback, a dry run, or a commit that raises leaves
+nothing behind. Until #100 they emitted as they flushed, before the caller
+had chosen: every ``rotate_key.py --dry-run`` recorded a live key revoked,
+and a rotation whose revoke half was refused recorded a mint that never
+happened. Hooking the commit, rather than handing the records back for the
+caller to emit, keeps the property ``src/core/tenants.py`` has by owning its
+transaction: no path through this module changes a key and skips the record,
+or records a change that did not stick.
+
 **Revocation is a DELETE, deliberately.** A ``revoked_at`` column would leave
 an audit trail, but it would also require every present and future key lookup
 to filter on it — and forgetting that filter anywhere means a revoked
@@ -42,8 +53,9 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, SessionTransaction
 
 from src.core.logging import get_audit_logger, get_logger
 from src.core.models import ApiKey, Tenant
@@ -55,6 +67,9 @@ logger = get_logger(__name__)
 #: module's DELETE leaves behind, and they have to reach somewhere durable
 #: even when the module's other output goes to an operator's terminal (#67).
 audit = get_audit_logger()
+
+#: The ``Session.info`` key holding records that wait on the open transaction.
+_PENDING_AUDIT = "notifier.audit.pending"
 
 #: Marks a notifier credential on sight, in a config file or a leak report.
 RAW_KEY_PREFIX = "nk_"
@@ -83,6 +98,14 @@ class KeyOwnershipError(LookupError):
 
 class LastKeyError(RuntimeError):
     """Raised when revoking would leave a tenant with no keys at all."""
+
+
+class SavepointError(RuntimeError):
+    """Raised when a mint or revoke is attempted inside a savepoint.
+
+    A savepoint can roll back while the transaction around it commits, and
+    that commit would then record a change the database never kept (#100).
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +138,56 @@ class KeyRecord:
             created_at=key.created_at,
             last_used_at=key.last_used_at,
         )
+
+
+def _refuse_savepoint(session: AsyncSession) -> None:
+    """Raise :class:`SavepointError` if *session* is inside a savepoint.
+
+    Refused rather than modelled. A savepoint can roll back while the
+    transaction around it commits, so a record queued inside one would have
+    to be dropped with it — bookkeeping no caller needs, and getting it wrong
+    brings back the record of a change that never stuck (#100).
+    """
+    if session.in_nested_transaction():
+        raise SavepointError(
+            "mint and revoke must run in the session's own transaction, not a savepoint: "
+            "the audit record follows the commit, and a savepoint can roll back beneath one"
+        )
+
+
+def _record_on_commit(session: AsyncSession, message: str, fields: dict[str, str]) -> None:
+    """Queue an audit record for *session*'s next commit.
+
+    The listeners go on this one session, not on :class:`Session` itself:
+    the API process imports this module too, and none of its sessions has
+    anything to record.
+    """
+    sync = session.sync_session
+    pending = sync.info.get(_PENDING_AUDIT)
+    if pending is None:
+        pending = sync.info[_PENDING_AUDIT] = []
+        event.listen(sync, "after_commit", _emit_pending)
+        event.listen(sync, "after_transaction_end", _discard_pending)
+    pending.append((message, fields))
+
+
+def _emit_pending(session: Session) -> None:
+    """Emit what the transaction that just committed queued, in order."""
+    pending = session.info[_PENDING_AUDIT]
+    for message, fields in pending:
+        audit.info(message, extra=fields)
+    pending.clear()
+
+
+def _discard_pending(session: Session, transaction: SessionTransaction) -> None:
+    """Drop whatever is still queued when the outermost transaction ends.
+
+    After a commit :func:`_emit_pending` has already emptied the queue; what
+    is left here is a rollback, a commit that raised, or a ``close()``. A
+    savepoint ending is not the transaction ending, and keeps the queue.
+    """
+    if transaction.parent is None:
+        session.info[_PENDING_AUDIT].clear()
 
 
 def ulid_str(value: object) -> str:
@@ -181,13 +254,16 @@ async def mint(
 
     The raw key is returned once and never persisted — only its digest is.
     Flushes so a caller can count keys or revoke in the same transaction;
-    does not commit.
+    does not commit. The audit record is emitted by the caller's commit, and
+    not at all if the transaction rolls back.
 
     Raises :class:`ValueError` for an unknown *environment* and
     :class:`TenantNotFoundError` for an unknown *tenant_id*. Both would
     otherwise surface at flush as a constraint or foreign-key error naming a
-    database object rather than the argument the operator typed.
+    database object rather than the argument the operator typed. Raises
+    :class:`SavepointError` inside a savepoint.
     """
+    _refuse_savepoint(session)
     if environment not in ENVIRONMENTS:
         raise ValueError(f"environment must be one of {ENVIRONMENTS}, got {environment!r}")
     tenant = await session.get(Tenant, tenant_id)
@@ -204,9 +280,10 @@ async def mint(
     )
     session.add(key)
     await session.flush()
-    audit.info(
+    _record_on_commit(
+        session,
         "api key minted",
-        extra={
+        {
             "tenant_id": ulid_str(tenant_id),
             "key_id": ulid_str(key.id),
             "key_prefix": key.key_prefix,
@@ -241,8 +318,11 @@ async def revoke(
     the tenant at exactly the zero the guard exists to prevent. Unlikely for a
     hand-run script, and two operators during an incident is what this is for.
 
-    Flushes; does not commit.
+    Flushes; does not commit. The audit record is emitted by the caller's
+    commit, and not at all if the transaction rolls back. Raises
+    :class:`SavepointError` inside a savepoint.
     """
+    _refuse_savepoint(session)
     key = await session.get(ApiKey, key_id)
     if key is None:
         raise KeyNotFoundError(f"no api key with id {ulid_str(key_id)}")
@@ -267,9 +347,10 @@ async def revoke(
     record = KeyRecord.of(key)
     await session.delete(key)
     await session.flush()
-    audit.info(
+    _record_on_commit(
+        session,
         "api key revoked",
-        extra={
+        {
             "tenant_id": ulid_str(tenant_id),
             "key_id": record.id,
             "key_prefix": record.key_prefix,

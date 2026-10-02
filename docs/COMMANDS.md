@@ -341,7 +341,7 @@ thing that will ever say which key went, or when (#62, #67).
 | `--environment` | `production` (default) or `development`, for the key being minted. Rejected without `--new-label` — it does not retag an existing key |
 | `--revoke <key-id>` | Delete this key, named explicitly. Never "the other one" |
 | `--force` | Permit revoking a tenant's **last** key. Requires `--revoke`; unreachable on a rotation, since the replacement is flushed before the count is read |
-| `--dry-run` | Rehearse everything, refusals included, and roll back |
+| `--dry-run` | Rehearse everything, refusals included, and roll back. Records nothing |
 | `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal |
 | `--verify <base-url>` | After committing, prove the new key gets a 200 |
 | `--verify-old <raw>` | Also prove the old key now gets a 401. On a run that mints nothing the check is labelled `(uncontrolled)`: with no new key to get a 200, nothing establishes the endpoint would accept a good one |
@@ -436,6 +436,7 @@ tenant worth deleting. `src/core/tenants.py` clears those rows first.
 
 The deletion and its records are one function there, and it owns its
 transaction — unlike `mint` and `revoke`, which flush and leave the commit to
-the caller. The records follow the commit: a rehearsal that left "api key
+the caller. The records follow the commit either way (`mint` and `revoke`
+since #100, by hooking the session's): a rehearsal that left "api key
 destroyed with tenant" in the journal would be a live credential recorded dead,
 which is worse than no record, because someone will trust it.

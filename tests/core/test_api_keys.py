@@ -20,6 +20,7 @@ from src.core.api_keys import (
     KeyNotFoundError,
     KeyOwnershipError,
     LastKeyError,
+    SavepointError,
     TenantNotFoundError,
     generate_raw_key,
     hash_key,
@@ -259,17 +260,21 @@ class TestRotationAtomicity:
     async def test_an_abandoned_rotation_leaves_the_original_key_intact(self, db_session, tenant):
         """Neither mint nor revoke commits, so a rotation that dies partway
         through cannot leave a tenant holding a key nobody has. This is the
-        whole reason the two halves share a transaction."""
+        whole reason the two halves share a transaction.
+
+        The rotation is the session's own transaction, not a savepoint: a
+        mint or revoke inside one is refused (#100)."""
         original, original_raw = await mint(db_session, tenant.id, "original", "production")
         original_id = str(original.id)
+        tenant_id = str(tenant.id)
+        await db_session.commit()
 
-        rotation = await db_session.begin_nested()
-        await mint(db_session, tenant.id, "replacement", "production")
-        await revoke(db_session, tenant.id, original_id)
-        await rotation.rollback()
+        await mint(db_session, tenant_id, "replacement", "production")
+        await revoke(db_session, tenant_id, original_id)
+        await db_session.rollback()
 
         surviving = (
-            (await db_session.execute(select(ApiKey).where(ApiKey.tenant_id == tenant.id)))
+            (await db_session.execute(select(ApiKey).where(ApiKey.tenant_id == tenant_id)))
             .scalars()
             .all()
         )
@@ -385,6 +390,7 @@ class TestAuditRecords:
         caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
 
         key, _ = await mint(db_session, tenant.id, "nightly backup", "development")
+        await db_session.commit()
 
         (record,) = _audit(caplog)
         assert record.message == "api key minted"
@@ -400,6 +406,7 @@ class TestAuditRecords:
         caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
 
         _, raw = await mint(db_session, tenant.id, "smoke", "production")
+        await db_session.commit()
 
         (record,) = _audit(caplog)
         assert raw not in json.dumps(record.__dict__, default=str)
@@ -409,9 +416,11 @@ class TestAuditRecords:
         caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
         key, _ = await mint(db_session, tenant.id, "doomed", "production")
         await mint(db_session, tenant.id, "survivor", "production")
+        await db_session.commit()
         caplog.clear()  # the setup's own mints are not what this asserts on
 
         await revoke(db_session, tenant.id, key.id)
+        await db_session.commit()
 
         (record,) = _audit(caplog)
         assert record.message == "api key revoked"
@@ -425,9 +434,166 @@ class TestAuditRecords:
         """The last-key guard writes nothing, so it must claim nothing."""
         caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
         key, _ = await mint(db_session, tenant.id, "only", "production")
+        await db_session.commit()
         caplog.clear()
 
         with pytest.raises(LastKeyError):
             await revoke(db_session, tenant.id, key.id)
+        await db_session.commit()
 
         assert _audit(caplog) == []
+
+
+class TestAuditFollowsTheCommit:
+    """A record names a change the database kept, or it is not written (#100).
+
+    Both functions used to emit as they flushed, before the caller chose
+    between commit and rollback. A `rotate_key.py --dry-run` then left an
+    "api key revoked" record for a key still live, and the real run left a
+    second — two of those sit in the production journal, listed on #100.
+    Revocation is a DELETE (#62), so this channel is the only account of
+    which key died and when; a record of a change that was rolled back is a
+    credential reported dead while it still authenticates.
+    """
+
+    async def test_a_mint_records_nothing_until_it_commits(self, db_session, tenant, caplog):
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+
+        await mint(db_session, tenant.id, "pending", "production")
+        assert _audit(caplog) == []
+
+        await db_session.commit()
+        assert [r.message for r in _audit(caplog)] == ["api key minted"]
+
+    async def test_a_rolled_back_mint_records_nothing(self, db_session, tenant, caplog):
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+
+        await mint(db_session, tenant.id, "rehearsal", "production")
+        await db_session.rollback()
+
+        assert _audit(caplog) == []
+
+    async def test_a_revoke_records_nothing_until_it_commits(self, db_session, tenant, caplog):
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        key, _ = await mint(db_session, tenant.id, "doomed", "production")
+        await mint(db_session, tenant.id, "survivor", "production")
+        await db_session.commit()
+        caplog.clear()
+
+        await revoke(db_session, tenant.id, key.id)
+        assert _audit(caplog) == []
+
+        await db_session.commit()
+        assert [r.message for r in _audit(caplog)] == ["api key revoked"]
+
+    async def test_a_rolled_back_revoke_records_nothing(self, db_session, tenant, caplog):
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        key, _ = await mint(db_session, tenant.id, "spared", "production")
+        await mint(db_session, tenant.id, "survivor", "production")
+        await db_session.commit()
+        caplog.clear()
+
+        await revoke(db_session, tenant.id, key.id)
+        await db_session.rollback()
+
+        assert _audit(caplog) == []
+
+    async def test_a_rotation_records_both_halves_in_order(self, db_session, tenant, caplog):
+        """Mint first, then revoke — the order the transaction did them in,
+        and the order an operator reads a rotation back in."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        old, _ = await mint(db_session, tenant.id, "old", "production")
+        old_id = str(old.id)
+        await db_session.commit()
+        caplog.clear()
+
+        await mint(db_session, tenant.id, "new", "production")
+        await revoke(db_session, tenant.id, old_id)
+        await db_session.commit()
+
+        assert [(r.message, r.label) for r in _audit(caplog)] == [
+            ("api key minted", "new"),
+            ("api key revoked", "old"),
+        ]
+
+    async def test_a_rolled_back_rotation_records_nothing(self, db_session, tenant, caplog):
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        old, _ = await mint(db_session, tenant.id, "old", "production")
+        old_id = str(old.id)
+        await db_session.commit()
+        caplog.clear()
+
+        await mint(db_session, tenant.id, "new", "production")
+        await revoke(db_session, tenant.id, old_id)
+        await db_session.rollback()
+
+        assert _audit(caplog) == []
+
+    async def test_a_record_does_not_outlive_its_transaction(self, db_session, tenant, caplog):
+        """A record queued in a transaction that rolled back must not ride
+        along into the next one and be emitted by *its* commit."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        tenant_id = str(tenant.id)
+        await db_session.commit()
+
+        await mint(db_session, tenant_id, "abandoned", "production")
+        await db_session.rollback()
+        await mint(db_session, tenant_id, "kept", "production")
+        await db_session.commit()
+
+        assert [r.label for r in _audit(caplog)] == ["kept"]
+
+    async def test_a_record_does_not_outlive_a_closed_session(self, db_session, tenant, caplog):
+        """Closing ends the transaction without a rollback call, and a closed
+        AsyncSession can be used again — the queue must end with it."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        tenant_id = str(tenant.id)
+        await db_session.commit()
+
+        await mint(db_session, tenant_id, "abandoned", "production")
+        await db_session.close()
+        await mint(db_session, tenant_id, "kept", "production")
+        await db_session.commit()
+
+        assert [r.label for r in _audit(caplog)] == ["kept"]
+
+    async def test_a_savepoint_rolled_back_later_keeps_the_records(
+        self, db_session, tenant, caplog
+    ):
+        """Only the end of the whole transaction settles a record. A
+        savepoint opened after the mint, and abandoned, leaves the mint
+        standing — dropping its record there would be #67 again."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+
+        await mint(db_session, tenant.id, "kept", "production")
+        savepoint = await db_session.begin_nested()
+        await savepoint.rollback()
+        await db_session.commit()
+
+        assert [r.label for r in _audit(caplog)] == ["kept"]
+
+    async def test_refuses_to_mint_inside_a_savepoint(self, db_session, tenant, caplog):
+        """A savepoint can roll back while its transaction commits, and the
+        commit would then record a key that never existed. Refused rather
+        than modelled: no caller needs one."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        tenant_id = str(tenant.id)
+
+        async with db_session.begin_nested():
+            with pytest.raises(SavepointError):
+                await mint(db_session, tenant_id, "nested", "production")
+
+        assert await _count(db_session, tenant_id) == 0
+
+    async def test_refuses_to_revoke_inside_a_savepoint(self, db_session, tenant):
+        key, _ = await mint(db_session, tenant.id, "spared", "production")
+        await mint(db_session, tenant.id, "survivor", "production")
+        key_id = str(key.id)
+        tenant_id = str(tenant.id)
+        await db_session.commit()
+
+        async with db_session.begin_nested():
+            with pytest.raises(SavepointError):
+                await revoke(db_session, tenant_id, key_id)
+
+        assert await _count(db_session, tenant_id) == 2

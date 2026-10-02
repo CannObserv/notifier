@@ -934,3 +934,41 @@ class TestAuditChannel:
         assert done.returncode == REFUSED, done.stdout
 
         audit_socket.assert_silent()
+
+    def test_a_dry_run_records_nothing(self, run_script, audit_socket, seeded):
+        """A rehearsal that leaves "api key revoked" behind is a live
+        credential recorded dead, and the real run then records it dead a
+        second time (#100). It rolls back, so it records nothing — the rule
+        `delete_tenant.py --dry-run` already keeps."""
+        done = run_script(
+            "rotate_key.py",
+            "--tenant-id",
+            seeded["tenant_id"],
+            "--new-label",
+            "replacement",
+            "--revoke",
+            seeded["key_id"],
+            "--dry-run",
+        )
+        assert done.returncode == OK, done.stderr
+
+        audit_socket.assert_silent()
+
+    def test_a_rotation_refused_halfway_records_nothing(self, run_script, audit_socket, seeded):
+        """The mint goes first and the revoke then refuses, so the run rolls
+        back and says "Nothing was written." The mint's record had already
+        been emitted, naming a key that never existed — on a real run, not
+        a rehearsal (#100)."""
+        done = run_script(
+            "rotate_key.py",
+            "--tenant-id",
+            seeded["tenant_id"],
+            "--new-label",
+            "replacement",
+            "--revoke",
+            KEY,
+            "--yes",
+        )
+        assert done.returncode == REFUSED, done.stdout
+
+        audit_socket.assert_silent()

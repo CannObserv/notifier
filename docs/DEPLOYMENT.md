@@ -243,6 +243,20 @@ prefix, label `smoke` among others). A `tenant_id` absent from the production
 `tenants` table is the only tell. journald cannot delete single entries, so
 they age out with rotation; both test suites now send the channel elsewhere.
 
+**Two `api key revoked` records name keys that were still live** (#100). Until
+then `mint` and `revoke` emitted as they flushed, before the caller chose
+between commit and rollback, so each `rotate_key.py --dry-run` that preceded
+a real revoke recorded it first. The real record follows its phantom by
+seconds to minutes:
+
+| Phantom (rolled back) | Real | Key |
+|---|---|---|
+| 2026-10-01T14:30:54.884Z | 2026-10-01T14:51:46.664Z | `01M29D3MSWMEFR8F6HE8TZW8PJ` |
+| 2026-10-02T18:48:01.519Z | 2026-10-02T18:48:02.081Z | `01M2GNMPF37BPA8K3EW3HE9F13` |
+
+A full scan of the channel turns up no other duplicate, and records now follow
+the commit: a dry run, a refusal or a failed commit leaves nothing.
+
 **Three production credential changes predate this channel** and exist only in
 an agent transcript. They are recorded here because nothing else records them:
 
