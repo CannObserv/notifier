@@ -44,9 +44,7 @@ Five things this does that the ad-hoc program could not:
   prefix, label and ``last_used_at`` are printed before it goes — the last of
   those being the field that says whether something is actively using it.
 * **``--dry-run``.** Rehearses the whole operation, refusals included, and
-  rolls back. Records nothing: the audit records follow the commit, so a
-  rehearsal — or a rotation whose revoke half is refused after the mint —
-  leaves no record of a change that did not happen (#100).
+  rolls back. Records nothing.
 * **``--verify``.** Proves the new key authenticates against the real
   endpoint. A rotation nobody verified is a rotation that might have revoked
   the wrong row.
@@ -54,7 +52,9 @@ Five things this does that the ad-hoc program could not:
   ``journalctl -t notifier-keys`` — naming the key and never its secret. #62
   declined a ``revoked_at`` column on the strength of that line, and until #67
   the line was being dropped before it reached any stream: a revoke left the
-  row deleted and nothing at all to say which one, or when.
+  row deleted and nothing at all to say which one, or when. Only a commit
+  records: until #100 a rehearsal, or a rotation whose revoke half was
+  refused after the mint, recorded a change that did not happen.
 
 Verification is deliberately asymmetric. The script always holds the raw key
 it just minted, so it can always prove that one works. It only ever held the
