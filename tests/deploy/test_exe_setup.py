@@ -69,7 +69,7 @@ def test_setup_unit_is_not_failed() -> None:
     """The health baseline expects ``systemctl --failed`` to be empty again (#91)."""
     props = unit_properties("LoadState", "ActiveState", "Result")
     assert props["ActiveState"] != "failed", (
-        f"{UNIT} failed ({props['Result']}): it ran this boot. Check "
+        f"{UNIT} failed ({props['Result']}): it started this boot. Check "
         f"`sudo journalctl -b -u {UNIT}`, then `sudo systemctl reset-failed {UNIT}`"
     )
 
