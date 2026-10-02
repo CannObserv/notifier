@@ -72,6 +72,9 @@ audit = get_audit_logger()
 #: The ``Session.info`` key holding records that wait on the open transaction.
 _PENDING_AUDIT = "notifier.audit.pending"
 
+#: One queued audit record: its message, and the fields it carries as ``extra``.
+_PendingRecord = tuple[str, dict[str, str]]
+
 #: Marks a notifier credential on sight, in a config file or a leak report.
 RAW_KEY_PREFIX = "nk_"
 
@@ -164,7 +167,7 @@ def _record_on_commit(session: AsyncSession, message: str, fields: dict[str, str
     anything to record.
     """
     sync = session.sync_session
-    pending = sync.info.get(_PENDING_AUDIT)
+    pending: list[_PendingRecord] | None = sync.info.get(_PENDING_AUDIT)
     if pending is None:
         pending = sync.info[_PENDING_AUDIT] = []
         event.listen(sync, "after_commit", _emit_pending)
@@ -174,7 +177,7 @@ def _record_on_commit(session: AsyncSession, message: str, fields: dict[str, str
 
 def _emit_pending(session: Session) -> None:
     """Emit what the transaction that just committed queued, in order."""
-    pending = session.info[_PENDING_AUDIT]
+    pending: list[_PendingRecord] = session.info[_PENDING_AUDIT]
     for message, fields in pending:
         audit.info(message, extra=fields)
     pending.clear()
