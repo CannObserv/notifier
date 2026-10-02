@@ -970,5 +970,8 @@ class TestAuditChannel:
             "--yes",
         )
         assert done.returncode == REFUSED, done.stdout
+        # The revoke refused, so the mint before it ran: without this, a
+        # check that rejected KEY before minting would pass here vacuously.
+        assert "no api key with id" in done.stderr, done.stderr
 
         audit_socket.assert_silent()
