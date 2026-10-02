@@ -8,8 +8,8 @@ program against production — the precise failure #62 was filed out of, and
 (#79).
 
 Larger in two ways. A revoke retires one credential; this retires every
-credential the consumer holds, plus its channels, templates, monitors and
-dispatch history. And it left nothing behind: the keys go by ``ON DELETE
+credential the consumer holds, plus its channels, templates and dispatch
+history. And it left nothing behind: the keys go by ``ON DELETE
 CASCADE``, never through ``revoke()``, so none of #67's audit records were
 emitted and the rows were gone.
 
@@ -41,8 +41,8 @@ Four things this does that a hand-written ``DELETE FROM tenants`` could not:
   the bare statement raises a foreign-key violation for any tenant that has
   ever dispatched. ``src/core/tenants.py`` clears those rows first.
 * **Names the victim before it goes.** Every key id, label, prefix and
-  ``last_used_at``, and the count of channels, templates, monitors and
-  dispatches that go with them.
+  ``last_used_at``, and the count of channels, templates and dispatches that
+  go with them.
 * **``--dry-run``.** Rehearses the whole operation, refusals included, and
   rolls back.
 * **Leaves a record.** One ``notifier.audit`` record per cascaded key plus a
@@ -86,8 +86,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="delete_tenant.py",
         description=(
-            "Delete a tenant and everything it owns — keys, channels, templates, "
-            "monitors and dispatch history — recording every key that goes."
+            "Delete a tenant and everything it owns — keys, channels, templates "
+            "and dispatch history — recording every key that goes."
         ),
     )
     parser.add_argument(
@@ -174,7 +174,6 @@ def render(inventory: TenantInventory, dry_run: bool = False) -> list[str]:
 
     lines.append(f"channels={inventory.channels}")
     lines.append(f"templates={inventory.templates}")
-    lines.append(f"monitors={inventory.monitors}")
     lines.append(f"dispatches={inventory.dispatches}")
     lines.append(f"dispatch_attempts={inventory.attempts}")
     return lines
@@ -185,8 +184,8 @@ def _describe(inventory: TenantInventory) -> str:
     return (
         f"About to permanently delete tenant {inventory.tenant_id} "
         f"({inventory.tenant_name}): {len(inventory.keys)} key(s), "
-        f"{inventory.channels} channel(s), {inventory.templates} template(s), "
-        f"{inventory.monitors} monitor(s) and {inventory.dispatches} dispatch(es). "
+        f"{inventory.channels} channel(s), {inventory.templates} template(s) "
+        f"and {inventory.dispatches} dispatch(es). "
         "This cannot be undone."
     )
 

@@ -231,9 +231,9 @@ async def revoke(
     would discover from that consumer's outage rather than from this call.
 
     Refuses to remove a tenant's only key unless *allow_last*: a tenant with
-    zero keys is a consumer that is down, and the sweep will mark its monitor
-    missing without saying why. The guard does not fire on a rotation, because
-    :func:`mint` has already flushed the replacement by then.
+    zero keys is a consumer that is down, and nothing here says why. The guard
+    does not fire on a rotation, because :func:`mint` has already flushed the
+    replacement by then.
 
     The tenant row is locked ``FOR UPDATE`` before the count is read. Without
     it the check is a read and the delete a later write, so two revokes racing

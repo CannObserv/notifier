@@ -85,8 +85,8 @@ class DispatchOut(BaseModel):
     def from_models(cls, d: Dispatch, attempts: list[DispatchAttempt]) -> "DispatchOut":
         """Build from the ORM rows.
 
-        Lives here rather than in the dispatch route because a monitor
-        check-in returns the same shape, and one spelling is the point (#56).
+        Lives here rather than in the dispatch route so every response that
+        carries a dispatch spells it one way.
         """
         return cls(
             id=str(d.id),

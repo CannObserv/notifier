@@ -1,7 +1,7 @@
 """Tests for src/core/tenants.py.
 
 Deleting a tenant destroys more than a revoke does — every credential the
-consumer holds, plus its channels, templates, monitors and dispatch history —
+consumer holds, plus its channels, templates and dispatch history —
 and until #79 it left nothing at all on the audit channel: the keys go by
 ``ON DELETE CASCADE``, never through ``revoke()``. So most of what is asserted
 here is the record, and that a rehearsal leaves neither rows nor records.
@@ -21,7 +21,7 @@ from sqlalchemy import event, func, select
 
 from src.core.api_keys import TenantNotFoundError, mint
 from src.core.logging import AUDIT_LOGGER_NAME
-from src.core.models import ApiKey, Channel, Dispatch, DispatchAttempt, Monitor, Template, Tenant
+from src.core.models import ApiKey, Channel, Dispatch, DispatchAttempt, Template, Tenant
 from src.core.tenants import TenantInventory, delete_tenant, inventory_of
 
 
@@ -73,7 +73,6 @@ async def _furnish(session, tenant_id: str) -> str:
     )
     session.add(channel)
     session.add(Template(tenant_id=tenant_id, name="t", title_template="hi", body_template="there"))
-    session.add(Monitor(tenant_id=tenant_id, name="m", interval_seconds=60))
     await session.flush()
     dispatch = Dispatch(
         tenant_id=tenant_id, rendered_title="hi", rendered_body="there", status="succeeded"
@@ -96,7 +95,6 @@ class TestInventory:
         assert [key.label for key in inventory.keys] == ["first", "second"]
         assert inventory.channels == 1
         assert inventory.templates == 1
-        assert inventory.monitors == 1
         assert inventory.dispatches == 1
         assert inventory.attempts == 1
 
@@ -105,7 +103,7 @@ class TestInventory:
         inventory = await inventory_of(db_session, committed)
 
         assert inventory.keys == []
-        assert (inventory.channels, inventory.templates, inventory.monitors) == (0, 0, 0)
+        assert (inventory.channels, inventory.templates) == (0, 0)
 
     async def test_refuses_a_tenant_that_does_not_exist(self, db_session):
         """A typo'd ULID must not read as "a tenant with nothing in it"."""
@@ -137,7 +135,6 @@ class TestDeleteTenant:
 
         assert await _rows(db_session, Channel, tenant_id=committed) == 0
         assert await _rows(db_session, Template, tenant_id=committed) == 0
-        assert await _rows(db_session, Monitor, tenant_id=committed) == 0
         assert await _rows(db_session, Dispatch, tenant_id=committed) == 0
 
     async def test_survives_the_restrict_on_dispatch_attempts(self, db_session, committed):
@@ -310,7 +307,6 @@ class TestAuditRecords:
         assert summary.keys_destroyed == 2
         assert summary.channels == 1
         assert summary.templates == 1
-        assert summary.monitors == 1
         assert summary.dispatches == 1
         # The one count this module had to delete by hand, and so the one an
         # operator is likeliest to want back from the record (CR 7).

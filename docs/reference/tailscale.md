@@ -25,15 +25,15 @@ specific to notifier.
   it, silently.
 - **Consumer node:** `watcher`, tag `tag:watcher`, `100.66.24.24` — the
   `watcher` VM, which now runs watcher alone.
-- **Reporting node:** `broker`, tag `tag:broker`, `100.97.91.19` — the
-  `co-broker` VM. It reaches notifier and nothing else, to check in against a
-  dead-man's timer every ten minutes (#56, CannObserv/broker#3). The rule is
-  one-way: notifier still lists no rule with itself as a `src`, so this host
-  cannot open a connection back to `broker` — verified, not assumed.
+- **Former reporting node:** `broker`, tag `tag:broker`, `100.97.91.19` — the
+  `co-broker` VM. It checked in to a dead-man's timer here every ten minutes
+  (#56, CannObserv/broker#3) until that moved to co-status (#83, broker#66).
+  It no longer calls notifier, and its `tag:broker → tag:notifier:9000` rule
+  is due for removal from the policy (#83 teardown).
 - **Consumer node:** `replicator`, tag `tag:replicator`, `100.114.136.20` — the
   `co-replicator` VM. Its `OnFailure=` handler dispatches an incident when the
-  worker's unit fails (#70). Uses `/dispatch` rather than a monitor, per the
-  #83 freeze.
+  worker's unit fails (#70). Uses `/dispatch`: notifier originates
+  nothing (#83).
 - **Consumer node:** `address-validator`, tag `tag:address-validator`,
   `100.75.8.39`. Its `OnFailure=` handler dispatches when one of its four
   timer-driven oneshots fails (#95, CannObserv/address-validator#232). It has
@@ -59,8 +59,8 @@ specific to notifier.
     // lists tag:notifier as a *source*: notifier initiates nothing across the
     // tailnet. Its Apprise egress goes straight to the internet.
     { "action": "accept", "src": ["tag:watcher"], "dst": ["tag:notifier:9000,9001"] },
-    // The broker reports bus health here every ten minutes (#56). Port 9000
-    // only, unlike watcher above — see the note below.
+    // Retired with #83: the broker checks in to co-status now. Delete this
+    // rule from the live policy; kept here until it is gone.
     { "action": "accept", "src": ["tag:broker"], "dst": ["tag:notifier:9000"] },
     // #57, index D17: every cohort VM is a CLIENT of the shared index store.
     // Qdrant is TLS + API-key gated; Ollama has no auth and is gated by this

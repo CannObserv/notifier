@@ -56,16 +56,10 @@ uv sync
 uv run alembic upgrade head
 DATABASE_URL="$DEV_DATABASE_URL" uv run alembic upgrade head
 
-# Install systemd units — production on :9000, dev endpoint on :9001, plus
-# the two dead-man's-timer sweeps (#56). The sweep *timers* are enabled; their
-# .service units are started by the timers and must not be enabled themselves.
-sudo cp deploy/notifier.service deploy/notifier-dev.service \
-        deploy/notifier-sweep.service deploy/notifier-sweep.timer \
-        deploy/notifier-sweep-dev.service deploy/notifier-sweep-dev.timer \
-        /etc/systemd/system/
+# Install systemd units — production on :9000, dev endpoint on :9001.
+sudo cp deploy/notifier.service deploy/notifier-dev.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now notifier notifier-dev
-sudo systemctl enable --now notifier-sweep.timer notifier-sweep-dev.timer
 
 # Memory reservation for the production units (#74). This host is 3.8 GiB with
 # no swap and shares a kernel with agent sessions; see the section below.
@@ -171,7 +165,6 @@ Currently defined:
 - `BUILD_ID` — (optional) git SHA reported by `/health`; blank or unset both fall back to `"dev"`. Each systemd unit stamps its own file (`/run/notifier/build-id`, `/run/notifier/build-id-dev`) from `git rev-parse` at start
 - `NOTIFIER_APP_URL` — (optional) branding URL embedded in delivered notifications. Unset means **no link**, which is the default: six Apprise plugins render it as a clickable link, and Apprise's own fallback is the Apprise GitHub repo. Set it only to an address that actually resolves. **Read once at import**, so a change needs a service restart before it takes effect
 - `NOTIFIER_SECRET_KEY` — Fernet key for encrypting Apprise URLs at rest (in `/etc/notifier/.env`); `scripts/dev_server.sh` refuses to start without it, because a server that lacks it still answers `/ready` and fails only at the first dispatch; generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
-- `NOTIFIER_SWEEP_DEV` — `1` tells `scripts/sweep.sh` to load the env files itself and swap `DATABASE_URL` for `DEV_DATABASE_URL`, the same swap `dev_server.sh` performs. Set in `deploy/notifier-sweep-dev.service` only; the production sweep leaves it unset and takes `DATABASE_URL` from its own `EnvironmentFile`
 - `NOTIFIER_BIND_HOST` — **tests and diagnosis only.** Overrides the tailnet
   probe in `scripts/tailnet_bind.sh` with a literal bind address. Never put it
   in an env file or a unit, for the same reason as `NOTIFIER_ALLOW_PROD_DB`: it
@@ -205,20 +198,12 @@ sudo systemctl restart notifier notifier-dev
 sudo journalctl -u notifier -f
 sudo journalctl -u notifier-dev -f
 
-# The sweeps are timers, not services — `systemctl status notifier-sweep`
-# shows the last one-shot pass, which is normally `inactive (dead)`. What
-# matters is that the timer is still scheduled.
-systemctl list-timers 'notifier-sweep*'
-sudo journalctl -u notifier-sweep -f
-
 # Every API key mint, revoke and cascade, whichever database it was run against
 journalctl -t notifier-keys
 ```
 
-Restarting `notifier notifier-dev` picks up merged code for the API. The sweep
-units read the same working tree at each firing, so they need no restart —
-but `systemctl daemon-reload` is still required after editing anything in
-`deploy/`.
+Restarting `notifier notifier-dev` picks up merged code for the API;
+`systemctl daemon-reload` comes first after editing anything in `deploy/`.
 
 ### The credential audit channel (#67)
 
@@ -245,9 +230,9 @@ the row, so this record is the only thing that will ever say which key died,
 or when.
 
 Durability is journald's: `/var/log/journal` exists here, so records survive
-reboots, bounded by the default cap of 10% of `/` (about 2 GiB against the
-~3.7 MiB/day the minute-by-minute sweep lines dominate — order of a year and a
-half, not an archive guarantee). If the journal socket is ever unreachable the
+reboots, bounded by the default cap of 10% of `/` (about 2 GiB; at the
+~3.7 MiB/day measured while a minute-by-minute sweep still ran here, order of
+a year and a half, and longer since it went in #83 — not an archive guarantee). If the journal socket is ever unreachable the
 scripts print the records on stderr and say loudly that they are not durable;
 they are never dropped silently, which is what happened for the whole life of
 the feature before #67.
@@ -290,18 +275,17 @@ rest of the reasoning.
 `worktree-create.sh` symlinking this checkout's `.venv` into a new worktree.
 Provision the worktree's own with `uv sync` — sub-second against a warm cache.
 
-The reason is the line directly above: the sweep units read *this* working
-tree, and `scripts/sweep.sh` reaches uvicorn's environment through `uv run`.
-`notifier-sweep.timer` fires **every 60 seconds**, so a shared `.venv` hands a
-worktree's test run an environment the live service is concurrently
-reinstalling into. Two symptoms, neither of which looks like its cause:
-`uv run` restamps `importlib.metadata.version(...)` to *main's* version
-mid-run, and an `ExecStartPre=uv sync` prunes dependency groups it was not
+The reason is the line directly above: the units run *this* working tree
+through `uv run`, so a shared `.venv` hands a worktree's test run an
+environment the live service may be concurrently reinstalling into. Until #83
+a sweep timer did that every 60 seconds; a restart still does. Two symptoms,
+neither of which looks like its cause: `uv run` restamps
+`importlib.metadata.version(...)` to *main's* version mid-run, and an `ExecStartPre=uv sync` prunes dependency groups it was not
 asked for — turning modules that `pytest.importorskip` at import time into
 **skips that still report green**.
 
 It is committed rather than left untracked because the cost is asymmetric. On
-a clone with no sweep timer — a laptop, CI — `none` costs one `uv sync` per
+a clone no unit runs from — a laptop, CI — `none` costs one `uv sync` per
 worktree. On this VM rebuilt or re-cloned without it, the protection is
 silently absent and the failure reports success. The `using-git-worktrees`
 skill frames this as a property of one machine rather than of the repo, which
@@ -342,25 +326,14 @@ tailnet-only regardless.
 `https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops
 there: nothing listens on the interface the proxy forwards to. Deliberate.
 
-## The dead-man's-timer sweep
+## Dead-man's timers moved to co-status (#83)
 
-`notifier-sweep.timer` and `notifier-sweep-dev.timer` fire every 60 seconds
-and are the only thing watching for consumer silence (#56). If a timer stops,
-every dead-man's timer in the service stops with it and nothing says so.
-
-```bash
-systemctl list-timers 'notifier-sweep*'        # is it firing? when next?
-systemctl --failed | grep notifier-sweep       # did a pass fail?
-sudo systemctl start notifier-sweep.service    # force one pass now
-```
-
-The production sweep carries `NOTIFIER_ALLOW_PROD_DB=1` in its unit for the
-same reason `notifier.service` does, and the dev sweep must never carry it:
-inheriting it would have the dev endpoint's timer alerting on production
-monitors and dispatching to production channels to do it.
-`tests/deploy/test_sweep_units.py` asserts both.
-
-Full reference: [reference/monitors.md](reference/monitors.md).
+Notifier ran the cohort's dead-man's timers from 2026-09-09 (#56) until
+2026-10-02, with a 60-second sweep timer per database. They moved to
+**co-status** (CannObserv/status), which sends its alerts through `/dispatch`
+from its own `co-status` tenant. The `monitors` table was dropped in
+`54d956e7453c`; the rows it held at the time were archived root-only to
+`/var/backups/notifier/monitors-2026-10-02.sql` on this VM.
 
 ## The VM split (#43, done)
 

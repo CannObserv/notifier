@@ -90,7 +90,6 @@ def _inventory(**overrides) -> TenantInventory:
         "keys": [],
         "channels": 0,
         "templates": 0,
-        "monitors": 0,
         "dispatches": 0,
         "attempts": 0,
     }
@@ -174,12 +173,11 @@ class TestRender:
         assert lines[0] == "DRY RUN — nothing was written"
 
     def test_counts_what_goes_with_the_tenant(self):
-        lines = render(_inventory(channels=2, templates=3, monitors=1, dispatches=9), dry_run=False)
+        lines = render(_inventory(channels=2, templates=3, dispatches=9), dry_run=False)
         text = "\n".join(lines)
 
         assert "channels=2" in text
         assert "templates=3" in text
-        assert "monitors=1" in text
         assert "dispatches=9" in text
 
     def test_never_prints_a_key_hash(self):

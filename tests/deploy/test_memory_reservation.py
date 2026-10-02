@@ -43,9 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = REPO_ROOT / "deploy"
 
 PROD_UNIT = DEPLOY / "notifier.service"
-PROD_SWEEP = DEPLOY / "notifier-sweep.service"
 DEV_UNIT = DEPLOY / "notifier-dev.service"
-DEV_SWEEP = DEPLOY / "notifier-sweep-dev.service"
 
 POSTGRES_UNIT = DEPLOY / "postgresql@16-main.service.d" / "10-memory.conf"
 
@@ -214,20 +212,17 @@ def test_production_unit_is_not_capped():
     )
 
 
-@pytest.mark.parametrize("unit", [PROD_UNIT, PROD_SWEEP], ids=["api", "sweep"])
-def test_production_units_are_deprioritised_for_the_killer(unit):
+def test_production_unit_is_deprioritised_for_the_killer():
     """Negative, but never -1000.
 
     -1000 makes a unit unkillable, so a leak in it wedges the host with no
-    kill and no report — trading this failure mode for a worse one. The sweep
-    is included because it is the only thing watching for consumer silence:
-    losing it is a silent outage of the outage detector.
+    kill and no report — trading this failure mode for a worse one.
     """
-    value = setting(unit, "OOMScoreAdjust")
-    assert value is not None, f"{unit.name} declares no OOMScoreAdjust="
+    value = setting(PROD_UNIT, "OOMScoreAdjust")
+    assert value is not None, f"{PROD_UNIT.name} declares no OOMScoreAdjust="
     score = int(value)
     assert -1000 < score < 0, (
-        f"{unit.name} sets OOMScoreAdjust={score}; it must be negative to sit "
+        f"{PROD_UNIT.name} sets OOMScoreAdjust={score}; it must be negative to sit "
         f"below the agent sessions at adj 0, and above -1000 to stay killable"
     )
 
@@ -404,17 +399,16 @@ def test_the_live_floor_takes_effect(unit):
 # ── the dev units deliberately take none of it ───────────────────────────────
 
 
-@pytest.mark.parametrize("unit", [DEV_UNIT, DEV_SWEEP], ids=["api", "sweep"])
 @pytest.mark.parametrize("key", ["MemoryLow", "OOMScoreAdjust"])
-def test_dev_units_never_take_the_reservation(unit, key):
+def test_dev_unit_never_takes_the_reservation(key):
     """The mirror of the production floor and score, and the same rule as the prod opt-in.
 
     Under pressure something has to lose. This picks dev on purpose; a
     reservation on every unit would reserve nothing.
     """
-    assert setting(unit, key) is None, (
-        f"{unit.name} sets {key}=; the reservation belongs to the production "
-        f"units alone, or it stops being a reservation"
+    assert setting(DEV_UNIT, key) is None, (
+        f"{DEV_UNIT.name} sets {key}=; the reservation belongs to the production "
+        f"unit alone, or it stops being a reservation"
     )
 
 

@@ -21,7 +21,7 @@ Four settings, none of which substitutes for another:
 | Setting | Where | What it does |
 |---|---|---|
 | `MemoryLow=192M`, granted on every slice above | `notifier.service`; `postgresql@16-main.service.d/`; `system.slice.d/`, `system-postgresql.slice.d/` | Soft floor the kernel will not reclaim below. Protects the working set, which is what a stall eats — the API's and its database's |
-| `OOMScoreAdjust=-500` | `notifier.service`, `notifier-sweep.service` | Puts production last in line for the killer. PostgreSQL's own unit already sets -900 |
+| `OOMScoreAdjust=-500` | `notifier.service` | Puts production last in line for the killer. PostgreSQL's own unit already sets -900 |
 | `vm.min_free_kbytes=65536` | `deploy/99-notifier-memory.conf` | The reserve *atomic* allocations draw on. The two above are per-cgroup and cannot help `ksoftirqd` |
 | `-m 12,6` + `--prefer`/`--avoid` | `deploy/earlyoom.default` | Acts while the host is still responsive; the kernel's own killer is too late on a no-swap host |
 

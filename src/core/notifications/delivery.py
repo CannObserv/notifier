@@ -1,11 +1,9 @@
 """Fan a rendered notification out to channels and log every attempt.
 
-Extracted from ``src/api/routes/dispatch.py`` when monitors arrived (#56):
-three callers now need the same loop — the dispatch endpoint, a monitor
-check-in carrying findings, and the sweep that fires on a *missing* check-in.
-The sweep has no HTTP request behind it, so this deliberately raises nothing
-HTTP-shaped and commits nothing; rendering, validation, and ownership stay
-with the caller.
+Extracted from ``src/api/routes/dispatch.py`` when monitors arrived (#56),
+whose sweep had no HTTP request behind it. Monitors have since left for
+co-status (#83), and the shape stays: this raises nothing HTTP-shaped and
+commits nothing; rendering, validation, and ownership stay with the caller.
 
 ``redeliver`` retries a stored dispatch's failed channels as the next attempt
 (#96), under the same rules: no HTTP, no commit.

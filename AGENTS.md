@@ -6,9 +6,7 @@ Be terse. Prefer fragments over full sentences. Skip filler and preamble. Sacrif
 
 Multi-tenant notifications service. Apprise-backed dispatcher with Jinja2 templates + JSON-Schema variable bags. Consumers send `{template_id | inline templates, variables, channel_ids}`; the service renders, validates, dispatches, and logs every attempt.
 
-It also runs **dead-man's timers** (#56): a consumer checks in on a cadence, and the *absence* of a check-in is itself an alert — [docs/reference/monitors.md](docs/reference/monitors.md).
-
-**Scope: publication only.** Notifier publishes what consumers send; it does not originate alerts. Monitors are the one exception, **frozen** until they are extracted into a separate service (#83): existing monitors keep running and get fixes, and none are added.
+**Scope: publication only.** Notifier publishes what consumers send; it does not originate alerts. Dead-man's timers (#56) were the one exception, and moved to **co-status** (CannObserv/status) in #83: silence detection lives there, and co-status sends its alerts through `/dispatch` like any other tenant.
 
 First consumer is the `watcher` project (Cannabis Observer); the API stays consumer-agnostic, with no domain concepts leaking into the service.
 
@@ -83,19 +81,12 @@ committed to main is the deployed code.
 |---|---|---|---|
 | API (live) | FastAPI | 9000 | `systemctl` (`notifier.service`), production DB |
 | API (dev) | FastAPI | 9001 | `systemctl` (`notifier-dev.service`), `notifier_dev` |
-| Sweep (live) | systemd timer, 60s | — | `notifier-sweep.timer` → `.service`, production DB |
-| Sweep (dev) | systemd timer, 60s | — | `notifier-sweep-dev.timer` → `.service`, `notifier_dev` |
 
 **3.8 GiB, no swap**, shared with your session: past the ceiling nothing is
 OOM-killed, the kernel fails atomic allocations and the service drops. Hence
 **never cap the service** and **never install at launch** — SocratiCode is
 pinned under `~/.socraticode/pin` (#74,
 [reservation](docs/reference/memory-reservation.md)).
-
-The two sweeps are the only thing watching for consumer silence, so a timer
-that stops is a silent outage of the outage detector: `systemctl list-timers
-'notifier-sweep*'` is the check. Why a timer and not a task in the API
-process: [docs/reference/monitors.md](docs/reference/monitors.md).
 
 Both always-on. **9001 is the development endpoint consumers point at** — it
 accepts `development`-marked API keys, which 9000 refuses (#24).
@@ -122,9 +113,7 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 | Debugging live / dev | `sudo journalctl -u notifier -f` · `-u notifier-dev -f` |
 | After editing a unit in `deploy/` | `sudo systemctl daemon-reload`, then restart both |
 | After DB model changes | `uv run alembic upgrade head`, the same against `DEV_DATABASE_URL`, then restart both |
-| Checking the dead-man's sweep | `systemctl list-timers 'notifier-sweep*'`, `sudo journalctl -u notifier-sweep -f` |
 | Which key was minted, revoked, or destroyed with its tenant | `journalctl -t notifier-keys` |
-| Forcing a sweep now | `sudo systemctl start notifier-sweep.service` |
 
 Fuller spellings, with the reasoning beside each: [docs/DEPLOYMENT.md § Routine ops](docs/DEPLOYMENT.md#routine-ops).
 
@@ -242,13 +231,12 @@ The service is consumer-agnostic. Resist these temptations:
 
 - **Do not** introduce a top-level `event_type` field on dispatch — that's consumer taxonomy. Consumers put it in `metadata` if they want it indexed.
 - **Do not** infer routing/subscriptions in v0 — consumers pass `channel_ids` explicitly. Subscription model is v1.
-- **Do not** add a monitor or monitor consumer (#83 freeze). A consumer that wants to raise alerts uses `/dispatch`; silence detection waits for the extracted service.
+- **Do not** bring back monitors, check-ins or any alert notifier originates itself (#83). A consumer that wants to raise alerts uses `/dispatch`; one that wants silence detection goes to co-status.
 - **Do not** fetch consumer data — no diff loading, no snapshot reads. Consumers ship rendered values via `variables`.
 - **Do not** branch on tenant identity inside business logic. Tenancy is enforced at the auth layer; the rest of the code treats `tenant_id` as a partition key.
 - **Do** validate `variables` against the template's `variables_schema` on dispatch; a miss is a 422 naming the field path. The *schema itself* is checked twice — on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which catches rows stored before that guard (#28).
 - **Do** render with `StrictUndefined` so unbound references fail loudly rather than silently producing empty output.
 - **Do** require `idempotency_key` to be tenant-scoped and unique-where-not-null; replay must be safe.
-- **Do** treat a monitor check-in's `variables` as opaque and its `status` as the consumer's own judgement: whether a report warrants notifying is consumer taxonomy, and a broker maps its own `finding_count > 0` onto `alert`. Whether one *arrived* is the part notifier cannot infer (#56).
 - **Do** mark every API key with an `environment` (`production` | `development`); a production deployment refuses `development` keys with 403. It is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).
 
 ## Detail Docs
@@ -257,7 +245,6 @@ The service is consumer-agnostic. Resist these temptations:
 - [docs/COMMANDS.md](docs/COMMANDS.md) — every runnable command with its flags
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — VM setup, unit install, routine ops, and the environment-variable reference
 - [docs/RELEASING.md](docs/RELEASING.md) — cutting a release: the one version, every site mirroring it, the CI gates, and how a consumer adopts the SDK
-- [docs/reference/monitors.md](docs/reference/monitors.md) — the dead-man's timer: why absence is the alert, the check-in contract, and what nothing watches
 - [docs/reference/tailscale.md](docs/reference/tailscale.md) — the tailnet: node identity, ACL, the bind decision and the boot race it buys
 - [docs/SOCRATICODE.md](docs/SOCRATICODE.md) — tool table, graph-health guidance, the shared store's traps ([shared-store.md](docs/reference/shared-store.md)), and this repo's measured yield
 - [docs/SKILLS.md](docs/SKILLS.md) — skill layout, vendored submodules and refresh procedure, full inventory

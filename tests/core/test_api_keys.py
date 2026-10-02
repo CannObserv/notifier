@@ -201,8 +201,8 @@ class TestRevoke:
         assert await _count(db_session, victim.id) == 2
 
     async def test_refuses_the_tenants_last_key(self, db_session, tenant):
-        """A tenant with zero keys is a consumer that is down, and the sweep
-        reports the monitor missing without saying why."""
+        """A tenant with zero keys is a consumer that is down, and nothing
+        says why."""
         only, _ = await mint(db_session, tenant.id, "only", "production")
 
         with pytest.raises(LastKeyError, match="last"):

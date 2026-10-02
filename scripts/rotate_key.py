@@ -283,7 +283,7 @@ def _timestamp(value: datetime | None) -> str:
     """Render a key's timestamp the way the rest of the service renders one.
 
     AGENTS.md fixes ISO 8601 with a ``Z`` suffix, and ``format_utc_iso`` is
-    what ``src/core/monitors.py`` already uses; these lines were printing a
+    what the API's responses already use; these lines were printing a
     raw ``datetime``, a shape nothing else here emits (CR 11). ``None`` reads
     as ``never`` rather than as Python leaking into a terminal — for a key
     about to be revoked, "never used" is the fact the operator wants.

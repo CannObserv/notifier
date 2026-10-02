@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+- The generated `notifier_client.generated.api.monitors` endpoints and their models (`MonitorCreate`, `MonitorOut`, `MonitorUpdate`, `CheckinRequest`, `CheckinResponse` and their nested types). The server no longer serves `/api/v1/monitors`: dead-man's timers moved to co-status (CannObserv/status), whose check-in contract is unchanged, so consumers switch base URL and key, not code. The public surface never exported these (CannObserv/notifier#83).
+
 ## 0.3.2 — 2026-09-30
 
 ### Added

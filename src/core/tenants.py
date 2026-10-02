@@ -6,8 +6,8 @@ destroyed, and #67 put both halves on a durable channel —
 by ``ON DELETE CASCADE``, never through :func:`~src.core.api_keys.revoke`, so
 no record was emitted and the rows were gone: the same hole #67 closed, in the
 operation that destroys the most. A revoke retires one credential; this
-retires every credential a consumer holds, plus its channels, templates,
-monitors and dispatch history (#79).
+retires every credential a consumer holds, plus its channels, templates
+and dispatch history (#79).
 
 **The cascade is not a plain DELETE, and cannot be.**
 ``dispatch_attempts.channel_id`` is ``ON DELETE RESTRICT``. Postgres enforces
@@ -44,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.api_keys import KeyRecord, TenantNotFoundError, keys_for, ulid_str
 from src.core.logging import get_audit_logger
-from src.core.models import Channel, Dispatch, DispatchAttempt, Monitor, Template, Tenant
+from src.core.models import Channel, Dispatch, DispatchAttempt, Template, Tenant
 
 #: The same channel every mint and revoke lands on. A cascaded key is a key
 #: destroyed, and an operator asking "which credential died, and when" must
@@ -72,7 +72,6 @@ class TenantInventory:
     keys: list[KeyRecord]
     channels: int
     templates: int
-    monitors: int
     dispatches: int
     attempts: int
 
@@ -110,7 +109,6 @@ async def inventory_of(session: AsyncSession, tenant_id: str) -> TenantInventory
         keys=await keys_for(session, tenant_id),
         channels=await _count(session, Channel, tenant_id),
         templates=await _count(session, Template, tenant_id),
-        monitors=await _count(session, Monitor, tenant_id),
         dispatches=await _count(session, Dispatch, tenant_id),
         attempts=int(attempts.scalar_one()),
     )
@@ -128,7 +126,7 @@ async def delete_tenant(
     it is both what the caller prints and what the audit records are built
     from. Then the tenant's dispatch attempts go (see this module's docstring
     for why they cannot wait for the cascade), then the tenant itself, and the
-    cascade takes its keys, channels, templates, monitors and dispatches.
+    cascade takes its keys, channels, templates and dispatches.
 
     ``dry_run`` rolls the whole thing back and emits nothing, and is the
     default so a caller that forgets the flag writes nothing — the same
@@ -196,7 +194,6 @@ async def delete_tenant(
             "keys_destroyed": len(inventory.keys),
             "channels": inventory.channels,
             "templates": inventory.templates,
-            "monitors": inventory.monitors,
             "dispatches": inventory.dispatches,
             "dispatch_attempts": inventory.attempts,
         },
