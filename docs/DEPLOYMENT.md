@@ -254,8 +254,12 @@ seconds to minutes:
 | 2026-10-01T14:30:54.884Z | 2026-10-01T14:51:46.664Z | `01M29D3MSWMEFR8F6HE8TZW8PJ` |
 | 2026-10-02T18:48:01.519Z | 2026-10-02T18:48:02.081Z | `01M2GNMPF37BPA8K3EW3HE9F13` |
 
-A full scan of the channel turns up no other duplicate, and records now follow
-the commit: a dry run, a refusal or a failed commit leaves nothing.
+No other revoke is duplicated. A rolled-back *mint* never duplicates — its key
+id recurs nowhere — so the tell is a mint record matching no key and no later
+record: every one since #84 matches a live key in production or `notifier_dev`
+or a later revoke, and earlier ones cannot be told from #84's test leakage.
+Records now follow the commit: a dry run, a refusal or a failed commit leaves
+nothing.
 
 **Three production credential changes predate this channel** and exist only in
 an agent transcript. They are recorded here because nothing else records them:
