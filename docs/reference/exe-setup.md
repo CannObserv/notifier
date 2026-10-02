@@ -15,7 +15,8 @@ Tailscale installer, `apt-get install` PostgreSQL 16, and
 
 **The platform delivers the script again at any boot that finds it missing.**
 #93 shredded it on 2026-09-28, and it was back at the next boot, with an mtime
-equal to that boot's start. exe.dev calls the re-delivery a bug (2026-10-01).
+equal to that boot's start. exe.dev calls the re-delivery a bug and hasn't settled a fix (2026-10-01,
+relayed in CannObserv/provisioner#1).
 
 ## The fix
 
