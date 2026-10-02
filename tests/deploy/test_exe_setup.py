@@ -58,8 +58,9 @@ def test_setup_unit_is_disabled() -> None:
     props = unit_properties("LoadState", "UnitFileState")
     assert props["UnitFileState"] == "disabled", (
         f"{UNIT} is {props['UnitFileState']!r}: {SCRIPT} stays on disk, so the "
-        f"unit runs it again at every boot. Its preset is "
-        f"`enabled`, so a `systemctl preset` or `preset-all` is the likely cause. "
+        f"unit starts again at every boot, and only the 0600 mode stops the script "
+        f"running. Its preset is `enabled`, so a `systemctl preset` or "
+        f"`preset-all` is the likely cause. "
         f"`sudo systemctl disable {UNIT}` (#99)"
     )
 
