@@ -198,7 +198,7 @@ sudo systemctl restart notifier notifier-dev
 sudo journalctl -u notifier -f
 sudo journalctl -u notifier-dev -f
 
-# Every API key mint, revoke and cascade, whichever database it was run against
+# Every API key mint, revoke and cascade; each record names its `database`
 journalctl -t notifier-keys
 ```
 
@@ -207,19 +207,30 @@ Restarting `notifier notifier-dev` picks up merged code for the API;
 
 ### The credential audit channel (#67)
 
-`scripts/seed_tenant.py`, `scripts/rotate_key.py` and
-`scripts/delete_tenant.py` record every mint, every revoke and every key a
-tenant deletion cascades, to journald under the syslog identifier
-`notifier-keys`:
+`scripts/seed_tenant.py`, `scripts/rotate_key.py`,
+`scripts/delete_tenant.py` and `scripts/copy_channels.py` record every mint,
+every revoke, every key a tenant deletion cascades and every channel copy, to
+journald under the syslog identifier `notifier-keys`:
 
 ```bash
 journalctl -t notifier-keys                       # everything
 journalctl -t notifier-keys --since "7 days ago" -o cat | jq .
 ```
 
-Each record names the tenant, the key id, its 8-character prefix, its label
-and its environment — and never the raw key, which reaches stdout once and
-nothing else. All three leave stdout to the operator: the `key=value` lines
+Each key record names the tenant, the key id, its 8-character prefix, its
+label and its environment — and never the raw key, which reaches stdout once
+and nothing else. Every record also carries `database`: the name the script's
+session was bound to, `notifier` or `notifier_dev`, never the URL (#101).
+`environment` cannot stand in for it — it is how the *key* is marked, and a
+`production` key can be minted into `notifier_dev`:
+
+```bash
+journalctl -t notifier-keys -o cat | jq 'select(.database == "notifier")'
+```
+
+Records before #101 (through 2026-10-03) have no `database`. A dev-database
+change among them reads exactly like a production one; the only tell is
+looking the key id up in both databases, which a revoke's DELETE forecloses. All three leave stdout to the operator: the `key=value` lines
 they print themselves, nothing interleaved. Logs go to stderr, audit records
 go to the journal.
 

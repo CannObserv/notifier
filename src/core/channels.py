@@ -19,7 +19,8 @@ configuration, so it lives beside ``seed_tenant.py`` and ``delete_tenant.py``.
 
 **A copy is a grant.** The target tenant can then deliver to that Slack
 workspace or those mail recipients, which is why every copy is recorded on
-the credential audit channel. The records name both ends and never the URL.
+the credential audit channel. The records name both ends and never the URL,
+and, like every record there, the database the copy was made in (#101).
 """
 
 from dataclasses import dataclass
@@ -27,11 +28,8 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.api_keys import TenantNotFoundError, ulid_str
-from src.core.logging import get_audit_logger
+from src.core.api_keys import TenantNotFoundError, record_audit, ulid_str
 from src.core.models import Channel, Tenant
-
-audit = get_audit_logger()
 
 
 class ChannelNotFoundError(LookupError):
@@ -137,9 +135,10 @@ async def copy_channels(
 
     await session.commit()
     for copy in made:
-        audit.info(
+        record_audit(
+            session,
             "channel copied",
-            extra={
+            {
                 "source_tenant_id": copy.source_tenant_id,
                 "source_channel_id": copy.source_channel_id,
                 "tenant_id": copy.tenant_id,

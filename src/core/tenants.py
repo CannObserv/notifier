@@ -31,6 +31,12 @@ rolls back and stays silent, and a real run commits and then records —
 inseparably, in one function, so there is no way to perform the deletion
 through this module and skip the record.
 
+Its records go through :func:`~src.core.api_keys.record_audit`, the same
+channel and the same emission point every mint and revoke uses. A cascaded
+key is a key destroyed, and an operator asking "which credential died, and
+when" must get one answer, not two places to look (#67, #79) — nor one that
+leaves out which database it died in (#101).
+
 **The tenant row is locked ``FOR UPDATE`` before anything is read.** The
 inventory and the delete are separate statements, and a key minted in the gap
 between them would be destroyed by the cascade while being absent from the
@@ -44,14 +50,8 @@ from dataclasses import dataclass
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.api_keys import KeyRecord, TenantNotFoundError, keys_for, ulid_str
-from src.core.logging import get_audit_logger
+from src.core.api_keys import KeyRecord, TenantNotFoundError, keys_for, record_audit, ulid_str
 from src.core.models import Channel, Dispatch, DispatchAttempt, Template, Tenant
-
-#: The same channel every mint and revoke lands on. A cascaded key is a key
-#: destroyed, and an operator asking "which credential died, and when" must
-#: get one answer, not two places to look (#67, #79).
-audit = get_audit_logger()
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,9 +174,10 @@ async def delete_tenant(
     await session.commit()
 
     for key in inventory.keys:
-        audit.info(
+        record_audit(
+            session,
             "api key destroyed with tenant",
-            extra={
+            {
                 "tenant_id": inventory.tenant_id,
                 "key_id": key.id,
                 "key_prefix": key.key_prefix,
@@ -188,9 +189,10 @@ async def delete_tenant(
     # the run finished: per-key records with no summary after them are a
     # process that died part-way through recording, and that difference is
     # only legible if the summary is always the closing line.
-    audit.info(
+    record_audit(
+        session,
         "tenant deleted",
-        extra={
+        {
             "tenant_id": inventory.tenant_id,
             "tenant_name": inventory.tenant_name,
             "keys_destroyed": len(inventory.keys),

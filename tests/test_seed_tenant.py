@@ -8,6 +8,7 @@ that shape drifted — the SDK's integration fixture just stopped being able to
 seed, one layer away from the change that broke it.
 """
 
+import os
 import re
 
 import pytest
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 import scripts.seed_tenant as seed_tenant_module
 from scripts.seed_tenant import main
 from src.core.api_keys import hash_key
+from src.core.db_safety import database_name
 from src.core.models import ApiKey, Tenant
 
 #: Transcribed from clients/python/tests/conftest.py. A copy, deliberately:
@@ -110,6 +112,8 @@ class TestAuditChannel:
         assert record["tenant_id"] == SDK_TENANT_PATTERN.search(done.stdout).group(1)
         assert record["label"] == "nightly"
         assert record["environment"] == "development"
+        # Through the journal's JSON too, not just the LogRecord (#101).
+        assert record["database"] == database_name(os.environ["TEST_DATABASE_URL"])
 
     def test_the_record_never_carries_the_raw_key(self, run_script, audit_socket):
         """The same rule `test_shows_the_raw_key_exactly_once` holds for stdout,

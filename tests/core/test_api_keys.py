@@ -10,11 +10,13 @@ revoke path that can be tested without a subprocess.
 import hashlib
 import json
 import logging
+import os
 from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import event, func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from src.core.api_keys import (
     RAW_KEY_PREFIX,
@@ -28,11 +30,16 @@ from src.core.api_keys import (
     key_count,
     keys_for,
     mint,
+    record_audit,
     revoke,
     ulid_str,
 )
+from src.core.db_safety import database_name
 from src.core.logging import AUDIT_LOGGER_NAME
 from src.core.models import ApiKey, Tenant
+
+#: What every record from the suite's own sessions must name (#101).
+TEST_DATABASE = database_name(os.environ["TEST_DATABASE_URL"])
 
 
 def _audit(caplog) -> list[logging.LogRecord]:
@@ -400,6 +407,7 @@ class TestAuditRecords:
         assert record.key_prefix == key.key_prefix
         assert record.label == "nightly backup"
         assert record.environment == "development"
+        assert record.database == TEST_DATABASE
 
     async def test_mint_never_records_the_raw_key(self, db_session, tenant, caplog):
         """The prefix identifies the key to a human; the secret is the one
@@ -430,6 +438,7 @@ class TestAuditRecords:
         assert record.key_prefix == key.key_prefix
         assert record.label == "doomed"
         assert record.environment == "production"
+        assert record.database == TEST_DATABASE
 
     async def test_a_refused_revoke_records_nothing(self, db_session, tenant, caplog):
         """The last-key guard writes nothing, so it must claim nothing."""
@@ -443,6 +452,48 @@ class TestAuditRecords:
         await db_session.commit()
 
         assert _audit(caplog) == []
+
+
+class TestRecordAudit:
+    """Every record names the database it came from (#101).
+
+    `environment` cannot: it is how the *key* is marked, and a `production`
+    key can be minted into `notifier_dev`. Without this a dev rotation reads
+    as a production credential change, and the only way to tell them apart is
+    looking the key up in both databases — which a revoke's DELETE forecloses.
+
+    An engine that never connects: the name comes from the session's bind,
+    so these need no dev database and touch none.
+    """
+
+    DEV_URL = "postgresql+asyncpg://notifier:hunter2@db.invalid/notifier_dev"
+
+    async def _recorded(self, caplog, **fields: str) -> logging.LogRecord:
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        engine = create_async_engine(self.DEV_URL)
+        try:
+            async with AsyncSession(engine) as session:
+                record_audit(session, "api key minted", {"key_id": "01J0KEY", **fields})
+        finally:
+            await engine.dispose()
+        (record,) = _audit(caplog)
+        return record
+
+    async def test_a_dev_database_record_says_so(self, caplog):
+        record = await self._recorded(caplog)
+        assert (record.message, record.key_id) == ("api key minted", "01J0KEY")
+        assert record.database == "notifier_dev"
+
+    async def test_names_the_database_and_never_the_url(self, caplog):
+        """The URL carries the password; the name is all the record needs."""
+        payload = json.dumps((await self._recorded(caplog)).__dict__, default=str)
+        assert "hunter2" not in payload
+        assert "db.invalid" not in payload
+
+    async def test_a_field_cannot_mislabel_the_database(self, caplog):
+        """The bind is the fact; a caller's field of the same name is not."""
+        record = await self._recorded(caplog, database="notifier")
+        assert record.database == "notifier_dev"
 
 
 class TestAuditFollowsTheCommit:

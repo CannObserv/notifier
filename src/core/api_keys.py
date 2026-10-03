@@ -40,6 +40,12 @@ be remembered fails open. The audit value is taken here instead, as a log line
 on every committed mint and revoke that names the key without ever naming its
 secret.
 
+Every record names the database it was committed to (#101), through
+:func:`record_audit` — the one emission point, which ``src/core/tenants.py``
+and ``src/core/channels.py`` share. A key's ``environment`` is how the *key*
+is marked, not where it lives: a ``production`` key minted into
+``notifier_dev`` recorded identically to one minted into production.
+
 That line goes to the ``notifier.audit`` logger, which the credential scripts
 point at journald — ``journalctl -t notifier-keys``. It went to this module's
 own logger until #67, where it turned out never to have been emitted at all:
@@ -51,6 +57,7 @@ run once.
 
 import hashlib
 import secrets
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -175,11 +182,28 @@ def _record_on_commit(session: AsyncSession, message: str, fields: dict[str, str
     pending.append((message, fields))
 
 
+def record_audit(
+    session: AsyncSession | Session, message: str, fields: Mapping[str, object]
+) -> None:
+    """Emit one audit record now, naming the database *session* is bound to.
+
+    Every record on the channel goes out through here, so none can leave the
+    ``database`` field off (#101). The name comes from the bind's URL rather
+    than ``current_database()``: an ``after_commit`` hook cannot await a query.
+    The name and never the URL, which carries the password. Last in the
+    payload, so a field of the same name cannot mislabel the record.
+
+    Callers emit after their commit; see this module's docstring for why.
+    """
+    database = session.get_bind().engine.url.database
+    audit.info(message, extra={**fields, "database": database})
+
+
 def _emit_pending(session: Session) -> None:
     """Emit what the transaction that just committed queued, in order."""
     pending: list[_PendingRecord] = session.info[_PENDING_AUDIT]
     for message, fields in pending:
-        audit.info(message, extra=fields)
+        record_audit(session, message, fields)
     pending.clear()
 
 

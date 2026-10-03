@@ -15,11 +15,13 @@ already been typed.
 
 import json
 import logging
+import os
 
 import pytest
 from sqlalchemy import event, func, select
 
 from src.core.api_keys import TenantNotFoundError, mint
+from src.core.db_safety import database_name
 from src.core.logging import AUDIT_LOGGER_NAME
 from src.core.models import ApiKey, Channel, Dispatch, DispatchAttempt, Template, Tenant
 from src.core.tenants import TenantInventory, delete_tenant, inventory_of
@@ -261,6 +263,21 @@ class TestAuditRecords:
 
         (destroyed,) = [r for r in _audit(caplog) if r.message == "api key destroyed with tenant"]
         assert destroyed.key_id == key_id
+
+    async def test_every_record_names_the_database(self, db_session, committed, caplog):
+        """Per-key records and the summary alike (#101): a dev-database
+        delete must not read as a production one."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
+        await _furnish(db_session, committed)
+        caplog.clear()
+
+        await delete_tenant(db_session, committed, dry_run=False)
+
+        records = _audit(caplog)
+        assert [r.message for r in records] == ["api key destroyed with tenant"] * 2 + [
+            "tenant deleted"
+        ]
+        assert {r.database for r in records} == {database_name(os.environ["TEST_DATABASE_URL"])}
 
     async def test_a_revoke_and_a_cascade_are_told_apart(self, db_session, committed, caplog):
         """ "api key revoked" is one credential retired on purpose; this is

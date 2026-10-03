@@ -14,6 +14,7 @@ fires before anything is written.
 """
 
 import logging
+import os
 
 import pytest
 from sqlalchemy import func, select
@@ -27,6 +28,7 @@ from src.core.channels import (
     copy_channels,
 )
 from src.core.crypto import decrypt_apprise_url, encrypt_apprise_url
+from src.core.db_safety import database_name
 from src.core.logging import AUDIT_LOGGER_NAME
 from src.core.models import Channel, Tenant
 
@@ -150,6 +152,7 @@ class TestRecord:
         assert (record.source_tenant_id, record.source_channel_id) == (source, source_channel)
         assert (record.tenant_id, record.channel_id) == (target, copy.channel_id)
         assert (record.channel_name, record.channel_hint) == ("target-slack", "slack")
+        assert record.database == database_name(os.environ["TEST_DATABASE_URL"])  # #101
 
     async def test_the_record_never_carries_the_url(self, db_session, pair, caplog):
         caplog.set_level(logging.INFO, logger=AUDIT_LOGGER_NAME)
