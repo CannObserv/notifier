@@ -40,12 +40,6 @@ be remembered fails open. The audit value is taken here instead, as a log line
 on every committed mint and revoke that names the key without ever naming its
 secret.
 
-Every record names the database it was committed to (#101), through
-:func:`record_audit` — the one emission point, which ``src/core/tenants.py``
-and ``src/core/channels.py`` share. A key's ``environment`` is how the *key*
-is marked, not where it lives: a ``production`` key minted into
-``notifier_dev`` recorded identically to one minted into production.
-
 That line goes to the ``notifier.audit`` logger, which the credential scripts
 point at journald — ``journalctl -t notifier-keys``. It went to this module's
 own logger until #67, where it turned out never to have been emitted at all:
@@ -53,6 +47,12 @@ neither script called ``configure_logging()``, so the root logger had no
 handler and Python's last-resort handler dropped every INFO record. The half
 of the trade above that was supposed to pay for the missing column had not
 run once.
+
+Every record names the database it was committed to (#101), through
+:func:`record_audit` — the one emission point, which ``src/core/tenants.py``
+and ``src/core/channels.py`` share. A key's ``environment`` is how the *key*
+is marked, not where it lives: a ``production`` key minted into
+``notifier_dev`` recorded identically to one minted into production.
 """
 
 import hashlib
