@@ -11,7 +11,9 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from sqlalchemy import event, func, select
@@ -494,6 +496,22 @@ class TestRecordAudit:
         """The bind is the fact; a caller's field of the same name is not."""
         record = await self._recorded(caplog, database="notifier")
         assert record.database == "notifier_dev"
+
+    def test_is_the_only_way_onto_the_channel(self):
+        """A module that reaches the audit logger directly emits records with
+        no ``database``, and every test above still passes (CR 2). Equality,
+        not a subset: a scan that reads nothing must fail too, not pass."""
+        root = Path(__file__).parent.parent.parent
+        reach = re.compile(r"get_audit_logger|AUDIT_LOGGER_NAME|[\"']notifier\.audit[\"']")
+        reaching = {
+            str(path.relative_to(root))
+            for tree in ("src", "scripts")
+            for path in (root / tree).rglob("*.py")
+            if reach.search(path.read_text())
+        }
+        # logging.py defines and configures the channel; api_keys.py owns
+        # record_audit, which everything else imports.
+        assert reaching == {"src/core/logging.py", "src/core/api_keys.py"}
 
 
 class TestAuditFollowsTheCommit:
