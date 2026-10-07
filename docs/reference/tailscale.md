@@ -38,11 +38,13 @@ specific to notifier.
   `100.75.8.39`. Its `OnFailure=` handler dispatches when one of its four
   timer-driven oneshots fails (#95, CannObserv/address-validator#232). It has
   the same shape as replicator's: `/dispatch` only, no monitor.
-- **Also on the tailnet:** `observo-primary`, tag `tag:observo-primary`,
-  `100.105.63.31`. This file used to call it a *user-owned*, untagged node
-  reached by a `hosts` entry; it carries the tag as of 2026-10-01 (`tailscale
-  status` here), and is one of the index store's clients. When the Observo →
-  Notifier path is provisioned, that rule's source is `tag:observo-primary`.
+- **Consumer node:** `observo-primary`, tag `tag:observo-primary`,
+  `100.105.63.31`. The `OnFailure=` handler on its nightly backup dispatches a
+  failed run (#102, CannObserv/observo#640), from tenant `co-observo`. Same
+  shape as replicator's: `/dispatch` only, `:9000` only. This file used to
+  call it a *user-owned*, untagged node reached by a `hosts` entry, which is
+  the form #44 scoped; it carries the tag as of 2026-10-01, so the rule's
+  source is the tag. It is also one of the index store's clients.
 
 ### ACL
 
@@ -71,6 +73,8 @@ specific to notifier.
     { "action": "accept", "src": ["tag:replicator"], "dst": ["tag:notifier:9000"] },
     // Address Validator's OnFailure= handler, the same shape (#95). :9000 only.
     { "action": "accept", "src": ["tag:address-validator"], "dst": ["tag:notifier:9000"] },
+    // Observo's backup OnFailure= handler (#102). :9000 only — no dev grant wanted.
+    { "action": "accept", "src": ["tag:observo-primary"], "dst": ["tag:notifier:9000"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
@@ -132,6 +136,12 @@ specific to notifier.
 > tagged device. From its own end, per address-validator's measurement,
 > `:9000/health` reported `"environment":"production"` (build `6d8b613`) and
 > `:9001` timed out.
+>
+> **The observo-primary rule was verified the same way, 2026-10-07.** From its
+> own end, per observo's measurement (#102), `:9000/health` reported
+> `"environment":"production"` and `:9001` did not answer. The two `GET
+> /health` requests from `100.105.63.31` that day (12:50:20Z, 13:42:59Z) are
+> in `notifier.service`'s access log.
 
 > **Peer visibility follows `acls`, not `ssh`.** A node absent from the peer's
 > netmap does not resolve over MagicDNS at all, so this rule has to exist in
