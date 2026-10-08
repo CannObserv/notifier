@@ -23,7 +23,7 @@ dependencies = [
     "httpx>=0.28.0,<0.29",
     "jinja2>=3.1.6,<4",
     "jsonschema>=4.21.0,<5",
-    "apprise>=1.9.9,<2",
+    "apprise>=1.13.1,<2",
     "cryptography>=50.0.2,<51",
     "mistune>=3.3.4,<4",
     "referencing>=0.37.0,<0.38",
@@ -56,6 +56,11 @@ markers = [
 ]
 filterwarnings = [
     "error::DeprecationWarning",
+    # apprise >= 1.11 probes `import imghdr` in apprise/utils/pgp.py whenever
+    # plugins load, catching only ImportError; on 3.12 the module still exists
+    # and warns. Upstream, unfixed as of 2.0.1. Narrow on purpose: every other
+    # DeprecationWarning still fails the suite (#112).
+    "ignore:'imghdr' is deprecated:DeprecationWarning",
 ]
 
 [tool.ruff]
