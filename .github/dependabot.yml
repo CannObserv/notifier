@@ -19,6 +19,11 @@ updates:
     # the default `auto` resolves to `widen` for libraries — the SDK is one —
     # and `widen` is unsupported for uv (dependabot-core#15290).
     versioning-strategy: increase-if-necessary
+    # The default is 5, and past it dependabot opens nothing and says so
+    # nowhere. #51–#55 filled it and the dev-tools group and the SDK table
+    # went silent for five weeks (#103). Above every runtime PR plus every
+    # group PR at once; tests/ci/test_dependabot.py derives that bound.
+    open-pull-requests-limit: 25
     groups:
       # Dev tooling carries most of the churn (ruff alone ships minors
       # roughly monthly); one grouped PR per directory keeps the bot

@@ -18,9 +18,15 @@ The conditions asserted here are the ones a reader cannot check by eye:
   ``auto`` resolves to ``widen`` for libraries — the SDK classifies as one —
   and ``widen`` is unsupported for uv (dependabot-core#15290), so the default
   is not merely wrong but broken for ``/clients/python``.
+* **The open-PR limit must exceed what one backlog can fill.** Dependabot
+  defaults ``open-pull-requests-limit`` to 5 per block and then opens nothing
+  — no error, no notice. #51–#55 filled it, and the dev-tools group and the
+  SDK table went silent for five weeks (#103).
 * **The workflows' actions are covered too.** They drift the same way and are
   gated the same way (by themselves, on the bump PR).
 """
+
+import tomllib
 
 import pytest
 import yaml
@@ -113,3 +119,33 @@ def test_every_block_runs_on_a_schedule(ecosystem):
         assert block.get("schedule", {}).get("interval"), (
             f"{ecosystem} block declares no schedule.interval"
         )
+
+
+def table_for(directory: str):
+    """The pyproject.toml a dependabot directory names."""
+    return next(
+        path
+        for path in TABLES.values()
+        if directory
+        == (
+            "/" if path.parent == REPO_ROOT else f"/{path.parent.relative_to(REPO_ROOT).as_posix()}"
+        )
+    )
+
+
+@pytest.mark.parametrize("block", blocks("uv"), ids=lambda b: ",".join(sorted(directories(b))))
+def test_uv_open_pr_limit_outlasts_a_full_backlog(block):
+    """Every runtime dependency is its own PR and every group one more per
+    directory. If that many can be open at once and the limit is lower, the
+    bot stops proposing anything — the cap policy's one escape hatch, shut
+    without a sign (#103)."""
+    runtime = sum(
+        len(tomllib.loads(table_for(d).read_text())["project"]["dependencies"])
+        for d in directories(block)
+    )
+    grouped = len(block.get("groups", {})) * len(directories(block))
+    limit = block.get("open-pull-requests-limit", 5)
+    assert limit > runtime + grouped, (
+        f"limit {limit} can be filled by {runtime} runtime PRs and {grouped} group PRs; "
+        f"raise open-pull-requests-limit"
+    )
