@@ -8,6 +8,11 @@
 # push-only audit reports a new one on whichever unrelated commit lands next.
 # GitHub mails a failed scheduled run to whoever last edited the cron line.
 #
+# Its blind spot: an advisory OSV maps to no PyPI package. apprise <= 1.10.0's
+# GHSA-856c-92hv-3vxx was one, invisible here and to Dependabot alerts alike,
+# found only by reading upstream's advisories during a major-version review
+# (#112). A green run means no *mapped* advisory, not none.
+#
 # `uv audit` is a preview feature; the flag opts in explicitly rather than
 # leaving the warning in every log. The exit status is the contract relied on.
 name: Dependency audit

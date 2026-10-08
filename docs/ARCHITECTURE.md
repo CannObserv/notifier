@@ -120,5 +120,5 @@ fixes are marked unsafe for real reasons:
 - Every third-party module `src/` imports is declared — a package that arrives transitively takes its floor from whoever pulls it in (#32)
 - All of these are asserted there, so a dependency added without them fails the suite
 - The caps make new minors invisible to `uv lock`, so `.github/dependabot.yml` proposes each bump as a CI-gated PR (#33) — `tests/ci/test_dependabot.py` guards that config, since a broken one stops producing PRs silently
-- Dependabot proposes direct dependencies only; `audit.yml` holds the transitive ones, fixed by a lock-only bump (#103)
+- Dependabot proposes direct dependencies only; `audit.yml` holds the transitive ones, fixed by a lock-only bump (#103). Neither sees an advisory OSV maps to no package — apprise's GHSA-856c-92hv-3vxx was one, found only by reading upstream's advisories (#112), so a major-version review reads them
 - A cap tighter than house style says why beside it — `sqlalchemy<2.1` until 2.1 is reviewed on its own (#103; lifting it is #110)
