@@ -50,3 +50,23 @@ jobs:
       - name: uv audit
         working-directory: ${{ matrix.directory }}
         run: uv audit --locked --preview-features audit-command
+
+  # The gate's control. `uv audit` is a preview feature on an unpinned uv: a
+  # release that changed its exit status, or an OSV lookup failing quietly,
+  # would leave every run above green with nothing in the log to say so. This
+  # audits a pin with known advisories and passes only on exit 1 — findings —
+  # never 2, which is a service or resolution error (CR 1, #103).
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: uv audit still reports a known advisory
+        run: |
+          set +e
+          uv audit --script .github/audit-canary.py --preview-features audit-command
+          rc=$?
+          test "$rc" -eq 1 || { echo "::error::uv audit exited $rc on a known-vulnerable pin; expected 1"; exit 1; }

@@ -30,7 +30,9 @@ filed about. The rest are conditions a reader cannot see in the YAML:
   silently stopped being one (#50).
 """
 
+import re
 import shlex
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -382,3 +384,55 @@ def test_audit_does_not_exclude_the_dev_group(audit):
 
 def test_audit_takes_read_only_permissions(audit):
     assert audit["permissions"] == {"contents": "read"}
+
+
+CANARY_STEP_PATTERN = "uv audit --script"
+
+
+def canary_steps(doc: dict) -> list[dict]:
+    """The canary job's `uv audit --script` steps."""
+    return [
+        step
+        for step in steps(doc["jobs"].get("canary", {}))
+        if CANARY_STEP_PATTERN in step.get("run", "")
+    ]
+
+
+def canary_script(doc: dict) -> Path:
+    """The PEP 723 script the canary audits, as the workflow names it."""
+    for step in canary_steps(doc):
+        for line in step["run"].splitlines():
+            words = shlex.split(line)
+            if words[:3] == ["uv", "audit", "--script"]:
+                return REPO_ROOT / words[3]
+    raise AssertionError(f"no `{CANARY_STEP_PATTERN} <path>` line in the canary job")
+
+
+def test_audit_has_a_canary_proving_it_can_still_fail(audit):
+    """`uv audit` is a preview feature on an unpinned uv. A release that
+    changed its exit status, or an OSV lookup failing quietly, would leave
+    every run green — a gate that has stopped being one with nothing in the
+    log to say so (#27, #50). The canary audits a pin with known advisories
+    and must see them (CR 1, #103)."""
+    assert canary_steps(audit), "no canary job running `uv audit --script`"
+
+
+def test_canary_passes_only_on_exit_status_one(audit):
+    """uv audit exits 1 on findings and 2 on a service or resolution error.
+    A canary satisfied by any non-zero status would read an OSV outage as
+    the gate working."""
+    runs = "\n".join(step["run"] for step in canary_steps(audit))
+    assert '"$rc" -eq 1' in runs
+
+
+def test_canary_script_pins_a_version_with_known_advisories(audit):
+    """An unpinned canary resolves to the latest release, which is exactly
+    the version expected to be clean."""
+    script = canary_script(audit)
+    assert script.is_file(), f"{script} is missing"
+    block = re.search(r"^# /// script\n(.*?)^# ///$", script.read_text(), re.S | re.M)
+    assert block, f"{script.name} carries no PEP 723 metadata block"
+    metadata = tomllib.loads(
+        "\n".join(line.removeprefix("#").removeprefix(" ") for line in block[1].splitlines())
+    )
+    assert metadata["dependencies"] and all("==" in dep for dep in metadata["dependencies"])
