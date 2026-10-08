@@ -14,8 +14,8 @@ dependencies = [
     "uvicorn>=0.52.4,<0.53",
     # Capped at the minor, not the house-style next major (#103): 2.1 moves
     # every async dialect onto a new adapter and was still shipping asyncpg
-    # regression fixes at 2.1.4. Lift it in its own change, with the full
-    # integration suite run against it.
+    # regression fixes at 2.1.4. Lift it in its own change (#110), with the
+    # full integration suite run against it.
     "sqlalchemy[asyncio]>=2.0.54,<2.1",
     "asyncpg>=0.30.0,<0.32",
     "alembic>=1.20.0,<2",
