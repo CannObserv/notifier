@@ -12,7 +12,11 @@ dependencies = [
     "pydantic>=2.13.4,<3",
     "python-json-logger>=4.0.0,<5",
     "uvicorn>=0.52.4,<0.53",
-    "sqlalchemy[asyncio]>=2.0,<3",
+    # Capped at the minor, not the house-style next major (#103): 2.1 moves
+    # every async dialect onto a new adapter and was still shipping asyncpg
+    # regression fixes at 2.1.4. Lift it in its own change, with the full
+    # integration suite run against it.
+    "sqlalchemy[asyncio]>=2.0.54,<2.1",
     "asyncpg>=0.30.0,<0.32",
     "alembic>=1.15.0,<2",
     "python-ulid>=4.0.1,<5",
