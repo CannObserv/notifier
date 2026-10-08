@@ -56,6 +56,12 @@ jobs:
   # would leave every run above green with nothing in the log to say so. This
   # audits a pin with known advisories and passes only on exit 1 — findings —
   # never 2, which is a service or resolution error (CR 1, #103).
+  #
+  # Its limit: `--script` resolves the pin; the gate reads committed locks
+  # with `--locked`. A uv change confined to lock reading would pass this.
+  # A lock-file canary would close that, but a committed canary uv.lock is
+  # what the dependency graph and Dependabot security updates scan, so it
+  # would raise a standing alert on a pin kept vulnerable on purpose (CR 10).
   canary:
     runs-on: ubuntu-latest
     timeout-minutes: 15
