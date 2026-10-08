@@ -16,7 +16,7 @@ per-script inventory of `scripts/` in
 [reference/scripts.md](reference/scripts.md).
 
 ```
-src/api/                     — FastAPI app (ASGI, routes, schemas); /api/v1/ versioned + auth-guarded; /health, /ready root-level
+src/api/                     — FastAPI app (ASGI, routes, schemas); /api/v1/ versioned + auth-guarded; /health, /ready root-level. OpenTelemetry auto-configuration is off (`telemetry={"auto_configure": False}`), so no stray `OTEL_*` variable can export the alert path's spans, metrics or exception text off-host (#112)
 src/api/routes/templates.py  — CRUD + preview for templates; `POST /templates/{id}/preview` renders with `sample_variables` or supplied variables. Write paths reject a malformed `variables_schema` with a 422 naming `body.variables_schema` (via `JSONSchemaDict`), and a `sample_variables` bag the *merged* `variables_schema` refuses — PATCH judges a lone field against the stored sibling — with a 422 `{section: "sample_variables"}` (#31); preview reports a bad *stored* schema in-band as `error_section: "variables_schema"` rather than raising
 src/api/routes/channels.py   — CRUD + test for channels; Apprise URL encrypted at rest; never returned in plaintext
 src/api/routes/dispatch.py   — `POST /dispatch` (renders, validates, dispatches, logs); `GET /dispatch/{id}`; `POST /dispatch/{id}/redeliver` retries the failed channels as the next attempt, row locked `FOR UPDATE`, 409 at the cap (#96)
