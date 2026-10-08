@@ -442,3 +442,13 @@ def test_canary_script_pins_a_version_with_known_advisories(audit):
         "\n".join(line.removeprefix("#").removeprefix(" ") for line in block[1].splitlines())
     )
     assert metadata["dependencies"] and all("==" in dep for dep in metadata["dependencies"])
+
+
+def test_no_audit_job_or_step_is_advisory(audit):
+    """`continue-on-error` is the one-line edit that turns the audit and its
+    canary into reports nobody has to read: every other assertion here still
+    passes, and the run goes green over findings (CR 9, #103)."""
+    for name, job in audit["jobs"].items():
+        assert "continue-on-error" not in job, f"audit.yml:{name} is advisory"
+        for step in steps(job):
+            assert "continue-on-error" not in step, f"audit.yml:{name} has an advisory step"
