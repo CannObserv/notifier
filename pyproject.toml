@@ -58,9 +58,9 @@ filterwarnings = [
     "error::DeprecationWarning",
     # apprise >= 1.11 probes `import imghdr` in apprise/utils/pgp.py whenever
     # plugins load, catching only ImportError; on 3.12 the module still exists
-    # and warns. Upstream, unfixed as of 2.0.1. Narrow on purpose: every other
-    # DeprecationWarning still fails the suite (#112).
-    "ignore:'imghdr' is deprecated:DeprecationWarning",
+    # and warns. Upstream, unfixed as of 2.0.1. Scoped to that module, so an
+    # `imghdr` import anywhere else, ours included, still fails (#112, CR 13).
+    "ignore:'imghdr' is deprecated:DeprecationWarning:apprise.utils.pgp",
 ]
 
 [tool.ruff]
