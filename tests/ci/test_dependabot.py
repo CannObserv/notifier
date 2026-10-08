@@ -27,6 +27,7 @@ The conditions asserted here are the ones a reader cannot check by eye:
 """
 
 import tomllib
+from pathlib import Path
 
 import pytest
 import yaml
@@ -36,12 +37,16 @@ from tests.ci.test_dependencies import REPO_ROOT, TABLES
 CONFIG = REPO_ROOT / ".github" / "dependabot.yml"
 
 
+def dependabot_directory(table: Path) -> str:
+    """A dependency table's directory, in dependabot's shape (`/`, `/clients/python`)."""
+    return (
+        "/" if table.parent == REPO_ROOT else f"/{table.parent.relative_to(REPO_ROOT).as_posix()}"
+    )
+
+
 def expected_directories() -> set[str]:
-    """One dependabot directory per dependency table, in dependabot's shape."""
-    return {
-        "/" if path.parent == REPO_ROOT else f"/{path.parent.relative_to(REPO_ROOT).as_posix()}"
-        for path in TABLES.values()
-    }
+    """One dependabot directory per dependency table."""
+    return {dependabot_directory(path) for path in TABLES.values()}
 
 
 def load() -> dict:
@@ -121,16 +126,9 @@ def test_every_block_runs_on_a_schedule(ecosystem):
         )
 
 
-def table_for(directory: str):
+def table_for(directory: str) -> Path:
     """The pyproject.toml a dependabot directory names."""
-    return next(
-        path
-        for path in TABLES.values()
-        if directory
-        == (
-            "/" if path.parent == REPO_ROOT else f"/{path.parent.relative_to(REPO_ROOT).as_posix()}"
-        )
-    )
+    return next(path for path in TABLES.values() if dependabot_directory(path) == directory)
 
 
 @pytest.mark.parametrize("block", blocks("uv"), ids=lambda b: ",".join(sorted(directories(b))))
