@@ -45,6 +45,7 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 CI = WORKFLOWS / "ci.yml"
 STALENESS = WORKFLOWS / "sdk-staleness.yml"
 AUDIT = WORKFLOWS / "audit.yml"
+CANARY_STEP_PATTERN = "uv audit --script"
 
 # PyYAML resolves a bare `on:` key to the boolean True (the YAML 1.1 "Norway
 # problem"). GitHub Actions means the string. Look up both rather than
@@ -390,9 +391,6 @@ def test_audit_does_not_exclude_the_dev_group(audit):
 
 def test_audit_takes_read_only_permissions(audit):
     assert audit["permissions"] == {"contents": "read"}
-
-
-CANARY_STEP_PATTERN = "uv audit --script"
 
 
 def canary_steps(doc: dict) -> list[dict]:
