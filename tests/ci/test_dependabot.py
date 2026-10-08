@@ -13,11 +13,11 @@ The conditions asserted here are the ones a reader cannot check by eye:
   there without a matching dependabot directory fails here rather than
   drifting.
 * **The versioning strategy must be pinned to ``increase-if-necessary``.**
-  Floors in these tables mean "oldest supported" and must not ratchet on every
-  bump; only a release outside the cap should touch the specifier. The default
-  ``auto`` resolves to ``widen`` for libraries — the SDK classifies as one —
-  and ``widen`` is unsupported for uv (dependabot-core#15290), so the default
-  is not merely wrong but broken for ``/clients/python``.
+  The default ``auto`` resolves to ``widen`` for libraries — the SDK
+  classifies as one — and ``widen`` is unsupported for uv
+  (dependabot-core#15290), so the default is broken for ``/clients/python``.
+  The pin does not keep floors still under uv: #52–#54 raised them on
+  in-range bumps anyway (#103), so an SDK PR's floor is checked by hand.
 * **The open-PR limit must exceed what one backlog can fill.** Dependabot
   defaults ``open-pull-requests-limit`` to 5 per block and then opens nothing
   — no error, no notice. #51–#55 filled it, and the dev-tools group and the
@@ -86,10 +86,10 @@ def test_uv_blocks_cover_every_dependency_table():
 
 
 @pytest.mark.parametrize("block", blocks("uv"), ids=lambda b: ",".join(sorted(directories(b))))
-def test_uv_strategy_only_moves_a_cap_when_forced(block):
-    """Floors mean "oldest supported"; only a release outside the cap should
-    touch the specifier. The default `auto` tries `widen` for the SDK, which
-    uv does not support (dependabot-core#15290)."""
+def test_uv_strategy_is_not_the_unsupported_widen(block):
+    """The default `auto` tries `widen` for the SDK, which uv does not support
+    (dependabot-core#15290). It is not a floor guard: under uv, in-range bumps
+    still raised floors (#52–#54)."""
     assert block.get("versioning-strategy") == "increase-if-necessary"
 
 
