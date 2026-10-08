@@ -11,7 +11,7 @@ dependencies = [
     # else's packaging.
     "pydantic>=2.13.4,<3",
     "python-json-logger>=4.2.0,<5",
-    "uvicorn>=0.52.4,<0.53",
+    "uvicorn>=0.54.0,<0.55",
     # Capped at the minor, not the house-style next major (#103): 2.1 moves
     # every async dialect onto a new adapter and was still shipping asyncpg
     # regression fixes at 2.1.4. Lift it in its own change (#110), with the
