@@ -31,7 +31,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "anyio>=4.14.2,<5",
+    "anyio>=4.15.1,<5",
     "pre-commit>=4.6.2,<5",
     "pytest>=9.1.1,<10",
     "pytest-asyncio>=1.4.0,<2",
@@ -42,7 +42,7 @@ dev = [
     # tests/ci/ parses .github/workflows/*.yml. Available transitively via
     # pre-commit, but declared here because the tests import it directly.
     "pyyaml>=6.0,<7",
-    "ruff>=0.16.5,<0.17",
+    "ruff>=0.16.10,<0.17",
 ]
 
 [tool.pytest.ini_options]
