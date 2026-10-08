@@ -252,6 +252,14 @@ def test_staleness_check_covers_hand_written_sdk_code(staleness):
     assert any(p.startswith("clients/python/") and "scripts" not in p for p in paths)
 
 
+def test_staleness_check_fires_on_a_service_dependency_bump(staleness):
+    """fastapi and pydantic shape /openapi.json as surely as src/api/ does.
+    Filtered out, a bump that changes the schema passes its own PR and fails
+    the next unrelated src/api push instead (#103)."""
+    paths = triggers(staleness)["push"]["paths"]
+    assert {"pyproject.toml", "uv.lock"} <= set(paths)
+
+
 def test_staleness_check_filters_push_and_pull_request_identically(staleness):
     """The two lists are duplicated because the Actions parser does not expand
     YAML aliases. Nothing but this test keeps them in step, and a drifted

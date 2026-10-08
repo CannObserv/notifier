@@ -19,12 +19,19 @@ on:
       # unit tests. Under the original filter an SDK-only change matched
       # nothing and got no CI at all.
       - "clients/python/**"
+      # fastapi and pydantic shape /openapi.json too. Without these a bump
+      # that changes the schema passes its own PR and fails the next
+      # unrelated src/api push instead (#103).
+      - "pyproject.toml"
+      - "uv.lock"
   pull_request:
     branches: [main]
     paths:
       - "src/api/**"
       - "scripts/dump_openapi.py"
       - "clients/python/**"
+      - "pyproject.toml"
+      - "uv.lock"
   workflow_dispatch:
 
 concurrency:

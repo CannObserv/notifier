@@ -22,8 +22,8 @@ Python ≥3.12, uv, pytest, ruff.
 
 `.github/workflows/ci.yml` runs `lint`, `test`, and `migrations` on every push
 to main, on PRs, and on manual dispatch. `sdk-staleness.yml` runs on the same
-triggers when `src/api/**`, `scripts/dump_openapi.py`, or `clients/python/**`
-changes.
+triggers when `src/api/**`, `scripts/dump_openapi.py`, `clients/python/**`,
+or the root `pyproject.toml`/`uv.lock` changes.
 
 Never re-derive these from the YAML:
 
