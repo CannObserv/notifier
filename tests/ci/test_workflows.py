@@ -317,13 +317,18 @@ def audit_directories(doc: dict) -> set[str]:
     return set(doc["jobs"]["audit"]["strategy"]["matrix"]["directory"])
 
 
+def audit_run_steps(doc: dict) -> list[dict]:
+    """Every `uv audit` step in the audit job. The one selector both the
+    directory and the flag checks use, so neither can see a step the other
+    skips."""
+    return [
+        step for step in steps(doc["jobs"]["audit"]) if step.get("run", "").startswith("uv audit")
+    ]
+
+
 def audit_steps(doc: dict) -> list[list[str]]:
     """Every `uv audit` step in the audit job, split into shell words."""
-    return [
-        shlex.split(step["run"])
-        for step in steps(doc["jobs"]["audit"])
-        if step.get("run", "").startswith("uv audit")
-    ]
+    return [shlex.split(step["run"]) for step in audit_run_steps(doc)]
 
 
 def test_audit_workflow_exists():
@@ -356,7 +361,7 @@ def test_audit_covers_every_dependency_table(audit):
 
 def test_audit_runs_in_each_matrix_directory(audit):
     """A matrix whose step ignores `matrix.directory` audits the root twice."""
-    runs = [step for step in steps(audit["jobs"]["audit"]) if "uv audit" in step.get("run", "")]
+    runs = audit_run_steps(audit)
     assert runs and all(step.get("working-directory") == "${{ matrix.directory }}" for step in runs)
 
 
