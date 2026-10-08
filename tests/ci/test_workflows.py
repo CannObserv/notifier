@@ -376,7 +376,8 @@ def test_audit_reads_the_committed_lock(audit):
 
 def test_audit_does_not_exclude_the_dev_group(audit):
     """Dev tools run on this VM and in CI. virtualenv (via pre-commit) carried
-    eight advisories in the first audit (#103); excluding the group hides them."""
+    four advisories in the first audit — eight OSV entries, each GHSA also
+    filed as PYSEC (#103); excluding the group hides them."""
     excluding = {"--no-dev", "--no-default-groups", "--only-dev", "--only-group", "--no-group"}
     for tokens in audit_steps(audit):
         assert not excluding & set(tokens), " ".join(tokens)
