@@ -1,0 +1,52 @@
+# Audits every committed lock against the OSV advisory database.
+#
+# Dependabot's version updates cover direct dependencies only. starlette 1.0.0
+# (via fastapi) sat in uv.lock with five open advisories, and urllib3, oauthlib,
+# idna and mako beside it, with no gate anywhere able to see them (#103).
+#
+# The schedule is the point: advisories publish independently of commits, so a
+# push-only audit reports a new one on whichever unrelated commit lands next.
+# GitHub mails a failed scheduled run to whoever last edited the cron line.
+#
+# `uv audit` is a preview feature; the flag opts in explicitly rather than
+# leaving the warning in every log. The exit status is the contract relied on.
+name: Dependency audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 13 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # Each table reports its own advisories; one going red must not cancel
+      # the other's signal.
+      fail-fast: false
+      matrix:
+        # One entry per dependency table (TABLES in tests/ci/test_dependencies.py).
+        directory: [".", "clients/python"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      # --locked audits the committed lock — what is deployed — and fails if
+      # it no longer matches pyproject.toml. The dev group stays in: those
+      # tools run here and on the VM.
+      - name: uv audit
+        working-directory: ${{ matrix.directory }}
+        run: uv audit --locked --preview-features audit-command

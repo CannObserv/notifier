@@ -36,10 +36,13 @@ from pathlib import Path
 import pytest
 import yaml
 
+from tests.ci.test_dependencies import TABLES
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 CI = WORKFLOWS / "ci.yml"
 STALENESS = WORKFLOWS / "sdk-staleness.yml"
+AUDIT = WORKFLOWS / "audit.yml"
 
 # PyYAML resolves a bare `on:` key to the boolean True (the YAML 1.1 "Norway
 # problem"). GitHub Actions means the string. Look up both rather than
@@ -89,6 +92,11 @@ def ci() -> dict:
 @pytest.fixture(scope="module")
 def staleness() -> dict:
     return load(STALENESS)
+
+
+@pytest.fixture(scope="module")
+def audit() -> dict:
+    return load(AUDIT) if AUDIT.is_file() else {}
 
 
 def test_ci_workflow_exists():
@@ -197,7 +205,7 @@ def test_no_job_carries_the_production_opt_in(ci):
             assert flag not in step.get("run", ""), name
 
 
-@pytest.mark.parametrize("workflow", [CI, STALENESS], ids=["ci", "staleness"])
+@pytest.mark.parametrize("workflow", [CI, STALENESS, AUDIT], ids=["ci", "staleness", "audit"])
 def test_every_workflow_pins_the_interpreter(workflow):
     """sysmon falls back silently below 3.12 and reports ~6 points low."""
     doc = load(workflow)
@@ -256,7 +264,7 @@ def test_staleness_check_takes_read_only_permissions(staleness):
     assert staleness["permissions"] == {"contents": "read"}
 
 
-@pytest.mark.parametrize("workflow", [CI, STALENESS], ids=["ci", "staleness"])
+@pytest.mark.parametrize("workflow", [CI, STALENESS, AUDIT], ids=["ci", "staleness", "audit"])
 def test_every_job_bounds_its_own_runtime(workflow):
     """GitHub's default is 360 minutes. A wedged `uv sync` or a postgres that
     never comes up would burn six hours before anyone noticed; these runs
@@ -292,3 +300,77 @@ def test_test_job_checks_out_full_history_and_tags(ci):
         "the test job must check out with fetch-depth: 0 — tests/ci/test_release_tags.py "
         "needs full history and tags to distinguish an untagged release from a shallow clone"
     )
+
+
+def audit_directories(doc: dict) -> set[str]:
+    """The tables the audit matrix covers, in `working-directory` form."""
+    return set(doc["jobs"]["audit"]["strategy"]["matrix"]["directory"])
+
+
+def audit_steps(doc: dict) -> list[list[str]]:
+    """Every `uv audit` step in the audit job, split into shell words."""
+    return [
+        shlex.split(step["run"])
+        for step in steps(doc["jobs"]["audit"])
+        if step.get("run", "").startswith("uv audit")
+    ]
+
+
+def test_audit_workflow_exists():
+    """Nothing else checks the lock against advisories. Dependabot's version
+    updates cover direct dependencies only; starlette 1.0.0 sat in the lock
+    with five open advisories, invisible to every gate (#103)."""
+    assert AUDIT.is_file(), "no .github/workflows/audit.yml — the lock is never audited"
+
+
+def test_audit_fires_on_a_schedule_as_well_as_on_change(audit):
+    """Advisories publish independently of commits. A gate that only runs on
+    push reports a new one on whichever unrelated commit lands next — or, on
+    a quiet repo, never."""
+    on = triggers(audit)
+    assert "main" in on["push"]["branches"]
+    assert "main" in on["pull_request"]["branches"]
+    assert on["schedule"] and all(entry.get("cron") for entry in on["schedule"])
+    assert "workflow_dispatch" in on
+
+
+def test_audit_covers_every_dependency_table(audit):
+    """Derived from TABLES, so a table added there without an audit fails
+    here. The SDK's lock is what its own CI and tests install."""
+    expected = {
+        "." if path.parent == REPO_ROOT else path.parent.relative_to(REPO_ROOT).as_posix()
+        for path in TABLES.values()
+    }
+    assert audit_directories(audit) == expected
+
+
+def test_audit_runs_in_each_matrix_directory(audit):
+    """A matrix whose step ignores `matrix.directory` audits the root twice."""
+    runs = [step for step in steps(audit["jobs"]["audit"]) if "uv audit" in step.get("run", "")]
+    assert runs and all(step.get("working-directory") == "${{ matrix.directory }}" for step in runs)
+
+
+def test_one_table_failing_does_not_cancel_the_other(audit):
+    """fail-fast would cancel the SDK's audit the moment the service's goes
+    red, and the run would report one table's advisories instead of both."""
+    assert audit["jobs"]["audit"]["strategy"]["fail-fast"] is False
+
+
+def test_audit_reads_the_committed_lock(audit):
+    """`--locked` audits what is deployed. Without it uv re-resolves first and
+    can audit a lock nobody committed — a green run about the wrong versions."""
+    commands = audit_steps(audit)
+    assert commands, "the audit job never runs `uv audit`"
+    assert all("--locked" in tokens for tokens in commands)
+
+
+def test_audit_does_not_exclude_the_dev_group(audit):
+    """Dev tools run on this VM and in CI. virtualenv (via pre-commit) carried
+    eight advisories in the first audit (#103); excluding the group hides them."""
+    excluding = {"--no-dev", "--no-default-groups", "--only-dev", "--only-group", "--no-group"}
+    for tokens in audit_steps(audit):
+        assert not excluding & set(tokens), " ".join(tokens)
+
+
+def test_audit_takes_read_only_permissions(audit):
+    assert audit["permissions"] == {"contents": "read"}
