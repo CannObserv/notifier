@@ -211,6 +211,12 @@ journalctl -t notifier-keys
 Restarting `notifier notifier-dev` picks up merged code for the API;
 `systemctl daemon-reload` comes first after editing anything in `deploy/`.
 
+### OS patching (#113)
+
+Monthly and owner-approved, under the vendored `patching-hosts` skill and this
+host's knob, `.skills/patching-hosts`: windows, callers, recovery point and
+the Tailscale step in [reference/os-patching.md](reference/os-patching.md).
+
 ### The credential audit channel (#67)
 
 `scripts/seed_tenant.py`, `scripts/rotate_key.py`,
