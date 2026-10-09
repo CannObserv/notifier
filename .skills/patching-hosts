@@ -1,0 +1,46 @@
+# The patching-hosts knob (#113). Grammar: skills/patching-hosts/references/knob.md.
+# Times are UTC. This host is the cohort's alert path: callers' failure
+# handlers dispatch here and none retries past a few seconds (#91), so a
+# notice raised while the API is down is lost.
+class production
+posture scheduled
+
+# Near-silent hours: 60 days of dispatches landed almost all 14:00-00:00 UTC.
+window Tue 08:00-11:30
+window Wed 08:00-11:30
+
+# Callers' scheduled jobs whose OnFailure= handler dispatches here.
+quiet 02:55-03:30                  # address-validator audit-archive, 03:00
+quiet 03:55-04:30                  # address-validator cache-sweep, 04:00
+quiet 03:25-04:00 Sun              # address-validator docker-prune, Sun 03:30
+quiet 04:55-05:45 Sun              # address-validator disk-hygiene, Sun 05:00
+quiet 11:40-12:55                  # observo-backup, 11:43 + 10 min jitter, 1 h timeout (#102)
+
+# A dispatch sends and commits inside its request, and redelivery (#96) is a
+# request too, so open connections are the in-flight count. Uvicorn closes
+# an idle one after 5 s.
+inflight ss -Htn state established '( sport = :9000 or sport = :9001 )' | wc -l
+
+service notifier.service
+service notifier-dev.service
+
+# Through the tailnet address: neither 127.0.0.1 nor the short name reaches
+# either port here. Assert environment and database, never build (#58).
+health curl -sf -m5 "http://$(tailscale ip -4):9000/health" | jq -e '.environment == "production" and .database == "notifier"'
+health curl -sf -m5 "http://$(tailscale ip -4):9000/ready" | jq -e '.environment == "production" and .database == "notifier"'
+health curl -sf -m5 "http://$(tailscale ip -4):9001/health" | jq -e '.environment == "development" and .database == "notifier_dev"'
+health curl -sf -m5 "http://$(tailscale ip -4):9001/ready" | jq -e '.environment == "development" and .database == "notifier_dev"'
+
+# notifier_test is captured too: 8 MB, and an exception would need renewing.
+datastore postgres postgresql@16-main notifier notifier_dev notifier_test
+
+# Both units bind tailscaled's address but order only After= it, so its
+# restart is its own step. Scoped by deploy/apt-preferences.d/tailscale.pref.
+origin Tailscale follow
+hold tailscale tailscale-archive-keyring tailscale
+
+caller CannObserv/watcher
+caller CannObserv/replicator
+caller CannObserv/address-validator
+caller CannObserv/observo
+caller CannObserv/status
