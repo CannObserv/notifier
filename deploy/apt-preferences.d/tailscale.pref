@@ -1,0 +1,16 @@
+# Tailscale's origin, scoped to what it was added for (#113). The site's
+# catch-all sits below Ubuntu's 500, so it can never replace an Ubuntu
+# package; the daemon and its repo's signing key sit above it, so the
+# maintenance lane still takes their updates. The tracked copy is
+# deploy/apt-preferences.d/tailscale.pref; tests/deploy/test_apt_preferences.py.
+Package: *
+Pin: origin pkgs.tailscale.com
+Pin-Priority: 100
+
+Package: tailscale
+Pin: origin pkgs.tailscale.com
+Pin-Priority: 600
+
+Package: tailscale-archive-keyring
+Pin: origin pkgs.tailscale.com
+Pin-Priority: 600

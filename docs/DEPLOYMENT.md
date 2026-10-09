@@ -88,6 +88,12 @@ sudo systemctl daemon-reload
 # once it is read, and restarts nothing.
 sudo install -D -m 644 deploy/needrestart.conf.d/notifier.conf \
      /etc/needrestart/conf.d/notifier.conf
+
+# Tailscale's apt origin, scoped to tailscale and its keyring (#113): the
+# site's catch-all at 100 so it can never replace an Ubuntu package. Takes
+# effect at once; `apt-cache policy tailscale` shows the candidate at 600.
+sudo install -D -m 644 deploy/apt-preferences.d/tailscale.pref \
+     /etc/apt/preferences.d/tailscale.pref
 ```
 
 ## Production database opt-in
