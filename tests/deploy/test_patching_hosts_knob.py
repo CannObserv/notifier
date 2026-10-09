@@ -7,19 +7,27 @@ the owner planned is refused at the gate rather than at commit time. The
 vendored reader is the only honest parse, so this runs it.
 
 Every database the cluster holds must be named, or the recovery point would
-not cover it; and the health checks must assert each port's own environment
-and database, never ``build`` (#58).
+not cover it; the live check reads the cluster itself, with the probe's rule,
+so a new database fails here rather than as a report-only host on the day of
+a run. And the health checks must assert each port's own environment and
+database, never ``build`` (#58).
 
 The reader lives in the submodule, which CI checks out uninitialized, so
-these skip there.
+these skip there; the cluster check runs on this host alone.
 """
 
+import asyncio
 import json
+import os
 import shutil
+import socket
 import subprocess
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import create_async_engine
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 KNOB = REPO_ROOT / ".skills" / "patching-hosts"
@@ -56,6 +64,35 @@ def _resolve(config: Path) -> dict:
     return json.loads(out)
 
 
+async def _cluster_databases(url: str) -> set[str]:
+    """The databases the cluster holds, by the probe's rule: no templates, and
+    ``postgres`` only while it holds a table of its own."""
+    engine = create_async_engine(url)
+    try:
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text("SELECT datname FROM pg_database WHERE NOT datistemplate")
+            )
+            names = {r[0] for r in rows}
+    finally:
+        await engine.dispose()
+    if "postgres" in names:
+        engine = create_async_engine(make_url(url).set(database="postgres"))
+        try:
+            async with engine.connect() as conn:
+                own = await conn.scalar(
+                    text(
+                        "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN "
+                        "('pg_catalog', 'information_schema')"
+                    )
+                )
+        finally:
+            await engine.dispose()
+        if not own:
+            names.discard("postgres")
+    return names
+
+
 @pytest.fixture(scope="module")
 def knob() -> dict:
     return _resolve(KNOB)
@@ -84,6 +121,15 @@ def test_knob_is_a_scheduled_production_host(knob: dict) -> None:
 def test_every_database_is_captured(knob: dict) -> None:
     named = {db for d in knob["datastore"] for db in d["databases"]}
     assert named == DATABASES
+
+
+@pytest.mark.skipif(socket.gethostname() != HOST, reason=f"reads {HOST}'s live cluster")
+def test_knob_names_every_database_the_cluster_holds(knob: dict) -> None:
+    """The live cluster, not the constant above: CI's service database has
+    other names, so this runs on this host alone."""
+    named = {db for d in knob["datastore"] for db in d["databases"]}
+    live = asyncio.run(_cluster_databases(os.environ["TEST_DATABASE_URL"]))
+    assert live == named
 
 
 def test_both_units_are_runbook_services(knob: dict) -> None:
