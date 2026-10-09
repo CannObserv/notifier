@@ -145,6 +145,7 @@ To add a new external skill repo: follow the `managing-skills` skill.
 | `init-socraticode` | gregoryfoster-skills symlink | Installs/audits SocratiCode: preflight, policy, the prefetch + once-per-day health hooks, context-artifact manifest, index. Vendors the health hook this repo wires (#21) |
 | `managing-skills` | gregoryfoster-skills symlink | |
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
+| `patching-hosts` | gregoryfoster-skills symlink | Triggers: `patch the host`, `OS updates`, `apply updates`, `needrestart`. Reads the committed knob `.skills/patching-hosts` (#113); never edit the vendored copy, and file what it gets wrong upstream with the owner's approval |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
 | `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.5 (`2e90414`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`; the path list flags `skills-vendor/`, so the pointer move that stales this file trips the gate. See [Override drift](#override-drift) — `synced-from:` is now read by the doctor, so bump it **and** `version:` whenever you re-sync |
