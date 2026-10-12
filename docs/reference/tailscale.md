@@ -45,6 +45,13 @@ specific to notifier.
   call it a *user-owned*, untagged node reached by a `hosts` entry, which is
   the form #44 scoped; it carries the tag as of 2026-10-01, so the rule's
   source is the tag. It is also one of the index store's clients.
+- **Consumer node:** `power-map`, tag `tag:power-map`, `100.94.201.110`. An
+  `OnFailure=` handler on `power-map.service`, its production API, dispatches
+  when the unit fails (#114, CannObserv/power-map#566). Same shape as
+  replicator's: `/dispatch` only, `:9000` only. Its scheduled timers check in
+  to co-status instead (CannObserv/status#36), over its own
+  `tag:power-map → tag:status:9000` rule, which is co-status's to record. It
+  is also one of the index store's clients.
 
 ### ACL
 
@@ -75,6 +82,8 @@ specific to notifier.
     { "action": "accept", "src": ["tag:address-validator"], "dst": ["tag:notifier:9000"] },
     // Observo's backup OnFailure= handler (#102). :9000 only — no dev grant wanted.
     { "action": "accept", "src": ["tag:observo-primary"], "dst": ["tag:notifier:9000"] },
+    // Power Map's API OnFailure= handler (#114). :9000 only — production alone.
+    { "action": "accept", "src": ["tag:power-map"], "dst": ["tag:notifier:9000"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
@@ -142,6 +151,12 @@ specific to notifier.
 > `"environment":"production"` and `:9001` did not answer. The two `GET
 > /health` requests from `100.105.63.31` that day (12:50:20Z, 13:42:59Z) are
 > in `notifier.service`'s access log.
+>
+> **The power-map rule was verified the same way, 2026-10-12.** From its own
+> end, per power-map's measurement (#114), `:9000/health` reported
+> `"environment":"production"` (build `194f7fb`) and `:9001` timed out. The
+> `GET /health` from `100.94.201.110` at 14:51:01Z is in `notifier.service`'s
+> access log.
 
 > **Peer visibility follows `acls`, not `ssh`.** A node absent from the peer's
 > netmap does not resolve over MagicDNS at all, so this rule has to exist in
@@ -161,8 +176,9 @@ specific to notifier.
 >
 > **The three sources [index D17](https://github.com/CannObserv/index/blob/main/docs/plans/2026-09-11-shared-qdrant-vm-design.md#acl) added** —
 > `tag:status`, `tag:observo-primary`, `tag:power-map` — are confirmed by
-> co-index's inbound packet filter (CannObserv/index#7). The first two also
-> show in `tailscale status` here; `power-map` does not.
+> co-index's inbound packet filter (CannObserv/index#7). All three show in
+> `tailscale status` here; `power-map` joined that list once its `:9000` rule
+> made this host a peer (#114).
 
 In steady state the ACL opens port 22 on no tagged node. Administering this
 host goes over the public `ssh notifier.exe.xyz`, not the tailnet, and `index`
