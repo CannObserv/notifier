@@ -613,7 +613,7 @@ async def live_client(test_engine) -> AsyncGenerator[AsyncClient]:
 
 
 async def _until_a_backend_waits_on_a_lock(test_engine) -> None:
-    """Return once some session in this database is blocked on a lock.
+    """Return once a Dispatch INSERT in this database is blocked on a lock.
 
     Proof that the second request has reached its INSERT and is queued behind
     the first's uncommitted row — without it, releasing the first early lets
@@ -622,7 +622,8 @@ async def _until_a_backend_waits_on_a_lock(test_engine) -> None:
     """
     query = text(
         "SELECT count(*) FROM pg_stat_activity "
-        "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+        "WHERE datname = current_database() AND wait_event_type = 'Lock' "
+        "AND query LIKE 'INSERT INTO dispatches%'"
     )
     async with asyncio.timeout(10), test_engine.connect() as conn:
         while (await conn.execute(query)).scalar_one() == 0:
