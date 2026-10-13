@@ -625,10 +625,13 @@ async def _until_a_backend_waits_on_a_lock(test_engine) -> None:
         "WHERE datname = current_database() AND wait_event_type = 'Lock' "
         "AND query LIKE 'INSERT INTO dispatches%'"
     )
-    async with asyncio.timeout(10), test_engine.connect() as conn:
-        while (await conn.execute(query)).scalar_one() == 0:
-            await conn.rollback()
-            await asyncio.sleep(0.05)
+    try:
+        async with asyncio.timeout(10), test_engine.connect() as conn:
+            while (await conn.execute(query)).scalar_one() == 0:
+                await conn.rollback()
+                await asyncio.sleep(0.05)
+    except TimeoutError:
+        raise AssertionError("the second request never blocked on the first") from None
 
 
 async def _rows_with_key(test_engine, tenant_id: str, key: str) -> int:
