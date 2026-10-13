@@ -11,15 +11,28 @@ port where the connection is refused, so success and failure are both real
 outcomes of the real dispatcher.
 """
 
+import asyncio
+import http.server
 import secrets
+import threading
+from collections.abc import AsyncGenerator, Iterator
+from dataclasses import dataclass, field
 
 import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
+from src.api.deps import get_db_session
 from src.api.main import app
+from src.core.api_keys import mint
+from src.core.crypto import encrypt_apprise_url
+from src.core.models import Channel, Dispatch, Tenant
 from src.core.models.template import Template
-from src.core.notifications.constants import MAX_ATTEMPTS_PER_CHANNEL
+from src.core.notifications.constants import MAX_ATTEMPTS_PER_CHANNEL, DispatchStatus
 from src.core.notifications.validate import VariablesValidationError, validate_variables
+from src.core.tenants import delete_tenant
 
 HEADER = "X-API-Key"
 
@@ -498,3 +511,197 @@ class TestRedelivery:
         spec = app.openapi()
         attempts = spec["components"]["schemas"]["DispatchOut"]["properties"]["attempts"]
         assert "highest `attempt`" in attempts["description"]
+
+
+@dataclass
+class HeldSink:
+    """A delivery target that answers only once `release` is set.
+
+    Holding the first send open is what holds its dispatch's transaction
+    open, with the Dispatch row flushed and uncommitted — the window a
+    retrying client lands in. Records each request's path, so a test can
+    count sends per channel.
+    """
+
+    port: int
+    release: threading.Event
+    arrived: threading.Event
+    paths: list[str] = field(default_factory=list)
+
+
+@pytest.fixture
+def held_sink() -> Iterator[HeldSink]:
+    release, arrived = threading.Event(), threading.Event()
+    paths: list[str] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 — BaseHTTPRequestHandler's spelling
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            paths.append(self.path)
+            arrived.set()
+            release.wait(timeout=30)
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args) -> None:
+            """Silence the default stderr access log."""
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield HeldSink(port=server.server_address[1], release=release, arrived=arrived, paths=paths)
+    release.set()
+    server.shutdown()
+    server.server_close()
+
+
+@dataclass(frozen=True)
+class LiveTenant:
+    """A committed tenant, its raw key, and channels on the held sink."""
+
+    id: str
+    headers: dict[str, str]
+    channel_ids: list[str]
+
+
+@pytest.fixture
+async def live_tenant(test_engine, held_sink) -> AsyncGenerator[LiveTenant]:
+    """Committed rows, because each concurrent request gets its own session.
+
+    The savepointed `db_session` serialises every request through one
+    connection, so two dispatches never overlap — the very thing #115 needs.
+    """
+    async with AsyncSession(test_engine, expire_on_commit=False) as session:
+        tenant = Tenant(name=f"race-{secrets.token_hex(4)}")
+        session.add(tenant)
+        await session.flush()
+        _, raw = await mint(session, tenant.id, "race", "production")
+        channels = [
+            Channel(
+                tenant_id=tenant.id,
+                name=f"held-{n}",
+                # rto: Apprise's 4 s read timeout would otherwise fail the held send.
+                apprise_url_encrypted=encrypt_apprise_url(
+                    f"json://127.0.0.1:{held_sink.port}/c{n}?rto=30"
+                ),
+            )
+            for n in range(2)
+        ]
+        session.add_all(channels)
+        await session.commit()
+        tenant_id = str(tenant.id)
+        yield LiveTenant(
+            id=tenant_id,
+            headers={HEADER: raw},
+            channel_ids=[str(c.id) for c in channels],
+        )
+        await delete_tenant(session, tenant_id, dry_run=False)
+
+
+@pytest.fixture
+async def live_client(test_engine) -> AsyncGenerator[AsyncClient]:
+    """An AsyncClient whose every request opens its own committing session."""
+
+    async def own_session() -> AsyncGenerator[AsyncSession]:
+        async with AsyncSession(test_engine, expire_on_commit=False) as session:
+            yield session
+
+    app.dependency_overrides[get_db_session] = own_session
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+async def _until_a_backend_waits_on_a_lock(test_engine) -> None:
+    """Return once some session in this database is blocked on a lock.
+
+    Proof that the second request has reached its INSERT and is queued behind
+    the first's uncommitted row — without it, releasing the first early lets
+    the second take the plain sequential replay, and the test passes having
+    exercised nothing.
+    """
+    query = text(
+        "SELECT count(*) FROM pg_stat_activity "
+        "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+    )
+    async with asyncio.timeout(10), test_engine.connect() as conn:
+        while (await conn.execute(query)).scalar_one() == 0:
+            await conn.rollback()
+            await asyncio.sleep(0.05)
+
+
+async def _rows_with_key(test_engine, tenant_id: str, key: str) -> int:
+    async with AsyncSession(test_engine) as session:
+        return await session.scalar(
+            select(func.count())
+            .select_from(Dispatch)
+            .where(Dispatch.tenant_id == tenant_id, Dispatch.idempotency_key == key)
+        )
+
+
+class TestConcurrentIdempotency:
+    """#115: a retry that lands while the first call is still sending.
+
+    Sequential replay was always safe; concurrent replay gave the second
+    caller a 500 once the first committed.
+    """
+
+    @staticmethod
+    def _post(client: AsyncClient, tenant: LiveTenant, key: str):
+        return client.post(
+            "/api/v1/dispatch",
+            headers=tenant.headers,
+            json={
+                "title_template": "Race",
+                "body_template": "Body",
+                "channel_ids": tenant.channel_ids,
+                "idempotency_key": key,
+            },
+        )
+
+    async def test_the_second_request_gets_the_first_ones_dispatch(
+        self, live_client, live_tenant, held_sink, test_engine
+    ):
+        first = asyncio.create_task(self._post(live_client, live_tenant, "evt-115"))
+        assert await asyncio.to_thread(held_sink.arrived.wait, 10), "first send never arrived"
+        second = asyncio.create_task(self._post(live_client, live_tenant, "evt-115"))
+        await _until_a_backend_waits_on_a_lock(test_engine)
+        held_sink.release.set()
+
+        a, b = await asyncio.gather(first, second)
+
+        assert a.status_code == 202, a.text
+        assert b.status_code == 202, b.text
+        assert b.json()["id"] == a.json()["id"]
+        assert b.json()["status"] == DispatchStatus.SUCCEEDED
+        assert len(b.json()["attempts"]) == 2
+        assert sorted(held_sink.paths) == ["/c0", "/c1"]
+        assert await _rows_with_key(test_engine, live_tenant.id, "evt-115") == 1
+
+    async def test_a_rolled_back_first_request_leaves_the_key_to_the_second(
+        self, live_client, live_tenant, held_sink, test_engine
+    ):
+        """The first holder never commits, so the key was never taken: the
+        second request must deliver, not replay a row that does not exist."""
+        held_sink.release.set()
+        async with AsyncSession(test_engine) as holder:
+            holder.add(
+                Dispatch(
+                    tenant_id=live_tenant.id,
+                    idempotency_key="evt-115",
+                    rendered_title="t",
+                    rendered_body="b",
+                    status=DispatchStatus.FAILED,
+                )
+            )
+            await holder.flush()
+            second = asyncio.create_task(self._post(live_client, live_tenant, "evt-115"))
+            await _until_a_backend_waits_on_a_lock(test_engine)
+            await holder.rollback()
+
+        b = await second
+
+        assert b.status_code == 202, b.text
+        assert b.json()["status"] == DispatchStatus.SUCCEEDED
+        assert sorted(held_sink.paths) == ["/c0", "/c1"]
+        assert await _rows_with_key(test_engine, live_tenant.id, "evt-115") == 1
