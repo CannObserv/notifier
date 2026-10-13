@@ -20,7 +20,7 @@ new key resends to every channel, including those that already succeeded.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -75,7 +75,7 @@ async def _load_owned_template(session: AsyncSession, template_id: str, tenant_i
     return template
 
 
-def _by_key(tenant_id: str, idempotency_key: str):
+def _by_key(tenant_id: str, idempotency_key: str) -> Select[tuple[Dispatch]]:
     return select(Dispatch).where(
         Dispatch.tenant_id == tenant_id, Dispatch.idempotency_key == idempotency_key
     )
