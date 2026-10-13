@@ -202,6 +202,25 @@ async def api_key(db_session, tenant) -> tuple[str, ApiKey]:
 
 
 @pytest.fixture
+async def other_api_key(db_session) -> str:
+    """A raw API key for a second, unrelated tenant — valid, just not `tenant`'s."""
+    other = Tenant(name=f"other-{secrets.token_hex(4)}")
+    db_session.add(other)
+    await db_session.flush()
+    raw = "nk_" + secrets.token_urlsafe(16)
+    db_session.add(
+        ApiKey(
+            tenant_id=other.id,
+            label="other",
+            key_prefix=raw[:8],
+            key_hash=hashlib.sha256(raw.encode()).hexdigest(),
+        )
+    )
+    await db_session.flush()
+    return raw
+
+
+@pytest.fixture
 async def client(test_engine, db_session) -> AsyncGenerator[AsyncClient]:
     """An AsyncClient wired to the FastAPI app with the savepointed db_session."""
     from src.api.main import app

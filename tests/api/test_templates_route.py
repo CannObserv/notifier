@@ -7,12 +7,10 @@ get a 201, and discover it only at dispatch time — on the request that
 mattered, once per dispatch.
 """
 
-import hashlib
 import secrets
 
 import pytest
 
-from src.core.models import ApiKey, Tenant
 from src.core.models.template import Template
 
 HEADER = "X-API-Key"
@@ -452,22 +450,8 @@ class TestNameUniqueness:
         return response.json()
 
     @pytest.fixture
-    async def other_headers(self, db_session) -> dict[str, str]:
-        """A second tenant's API key."""
-        other = Tenant(name=f"other-{secrets.token_hex(4)}")
-        db_session.add(other)
-        await db_session.flush()
-        raw = "nk_" + secrets.token_urlsafe(16)
-        db_session.add(
-            ApiKey(
-                tenant_id=other.id,
-                label="other",
-                key_prefix=raw[:8],
-                key_hash=hashlib.sha256(raw.encode()).hexdigest(),
-            )
-        )
-        await db_session.flush()
-        return {HEADER: raw}
+    def other_headers(self, other_api_key) -> dict[str, str]:
+        return {HEADER: other_api_key}
 
     async def test_post_with_a_taken_name_is_409(self, client, headers, taken):
         response = await _create(client, headers, name=taken["name"])

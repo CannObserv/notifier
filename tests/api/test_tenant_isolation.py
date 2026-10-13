@@ -11,33 +11,17 @@ identity, because tenancy is enforced at the boundary. These tests are what
 makes that rule checkable.
 """
 
-import hashlib
 import secrets
 
 import pytest
-
-from src.core.models import ApiKey, Tenant
 
 HEADER = "X-API-Key"
 
 
 @pytest.fixture
-async def intruder(db_session) -> str:
+def intruder(other_api_key) -> str:
     """A second tenant's API key. Valid — just not the owner's."""
-    other = Tenant(name=f"intruder-{secrets.token_hex(4)}")
-    db_session.add(other)
-    await db_session.flush()
-    raw = "nk_" + secrets.token_urlsafe(16)
-    db_session.add(
-        ApiKey(
-            tenant_id=other.id,
-            label="intruder",
-            key_prefix=raw[:8],
-            key_hash=hashlib.sha256(raw.encode()).hexdigest(),
-        )
-    )
-    await db_session.flush()
-    return raw
+    return other_api_key
 
 
 @pytest.fixture
