@@ -8,6 +8,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.models.base import Base, ULIDType, generate_ulid
 
+# Named for `ON CONFLICT ON CONSTRAINT` in delivery.py, which makes this
+# constraint the idempotency check (#115).
+IDEMPOTENCY_CONSTRAINT = "uq_dispatches_tenant_idempotency"
+
 
 class Dispatch(Base):
     """One ``POST /dispatch`` call. Renders a template (or inline pair) and fans
@@ -16,7 +20,7 @@ class Dispatch(Base):
 
     __tablename__ = "dispatches"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "idempotency_key", name="uq_dispatches_tenant_idempotency"),
+        UniqueConstraint("tenant_id", "idempotency_key", name=IDEMPOTENCY_CONSTRAINT),
         Index("ix_dispatches_tenant_created", "tenant_id", "created_at"),
     )
 

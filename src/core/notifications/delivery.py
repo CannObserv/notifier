@@ -25,7 +25,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.models.channel import Channel
-from src.core.models.dispatch import Dispatch, DispatchAttempt
+from src.core.models.dispatch import IDEMPOTENCY_CONSTRAINT, Dispatch, DispatchAttempt
 from src.core.notifications.constants import (
     MAX_ATTEMPTS_PER_CHANNEL,
     DispatchAttemptStatus,
@@ -110,7 +110,7 @@ async def deliver(
             request_metadata=metadata or {},
             status=DispatchStatus.FAILED,  # provisional; updated after attempts
         )
-        .on_conflict_do_nothing(constraint="uq_dispatches_tenant_idempotency")
+        .on_conflict_do_nothing(constraint=IDEMPOTENCY_CONSTRAINT)
         .returning(Dispatch)
     )
     dispatch = inserted.scalar_one_or_none()
