@@ -5,6 +5,9 @@
 ### Removed
 - The generated `notifier_client.generated.api.monitors` endpoints and their models (`MonitorCreate`, `MonitorOut`, `MonitorUpdate`, `CheckinRequest`, `CheckinResponse` and their nested types). The server no longer serves `/api/v1/monitors`: dead-man's timers moved to co-status (CannObserv/status), whose check-in contract is unchanged, so consumers switch base URL and key, not code. The public surface never exported these (CannObserv/notifier#83).
 
+### Fixed
+- `POST /dispatch` retried with the same `idempotency_key` while the first call is still sending now waits for it and returns 202 with the same dispatch record. Before this fix the retry got a 500 once the first call committed: sequential replay was safe, concurrent replay was not, and a client retries concurrently exactly when the first call timed out. No notification was ever sent twice. If the first call fails and rolls back, the retry delivers as a fresh dispatch (CannObserv/notifier#115).
+
 ## 0.3.2 — 2026-09-30
 
 ### Added
