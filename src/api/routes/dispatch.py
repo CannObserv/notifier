@@ -7,7 +7,9 @@ per-channel results.
 
 Idempotency: if ``idempotency_key`` is supplied and a Dispatch already exists
 for the same (tenant_id, idempotency_key), the existing record is returned
-without re-rendering or re-dispatching. This makes consumer retries safe.
+without re-rendering or re-dispatching. This makes consumer retries safe —
+concurrent ones included: a retry that lands while the first call is still
+sending waits for it, then gets the same replay (#115).
 
 Redelivery: ``POST /dispatch/{id}/redeliver`` retries the channels whose latest
 attempt failed, as the next attempt under the same dispatch (#96). A caller
@@ -30,6 +32,7 @@ from src.core.models.dispatch import Dispatch
 from src.core.models.template import Template
 from src.core.notifications.constants import MAX_ATTEMPTS_PER_CHANNEL
 from src.core.notifications.delivery import (
+    IdempotencyKeyTaken,
     RedeliveryExhausted,
     attempts_of,
     deliver,
@@ -72,6 +75,16 @@ async def _load_owned_template(session: AsyncSession, template_id: str, tenant_i
     return template
 
 
+def _by_key(tenant_id: str, idempotency_key: str):
+    return select(Dispatch).where(
+        Dispatch.tenant_id == tenant_id, Dispatch.idempotency_key == idempotency_key
+    )
+
+
+async def _replay(session: AsyncSession, dispatch: Dispatch) -> DispatchOut:
+    return DispatchOut.from_models(dispatch, await attempts_of(session, dispatch.id))
+
+
 @router.post("", status_code=202)
 async def create_dispatch(
     body: DispatchRequest,
@@ -81,15 +94,13 @@ async def create_dispatch(
     """Render, validate, dispatch, and log. Returns 202 with the dispatch record."""
 
     if body.idempotency_key is not None:
-        existing = await session.execute(
-            select(Dispatch).where(
-                Dispatch.tenant_id == tenant_id,
-                Dispatch.idempotency_key == body.idempotency_key,
-            )
-        )
-        prior = existing.scalar_one_or_none()
+        # The fast path only: a concurrent request's row is invisible here
+        # until it commits, so `deliver` catches that case at the INSERT.
+        prior = (
+            await session.execute(_by_key(tenant_id, body.idempotency_key))
+        ).scalar_one_or_none()
         if prior is not None:
-            return DispatchOut.from_models(prior, await attempts_of(session, prior.id))
+            return await _replay(session, prior)
 
     title_src = body.title_template
     body_src = body.body_template
@@ -131,17 +142,23 @@ async def create_dispatch(
     channels = await _load_owned_channels(session, body.channel_ids, tenant_id)
     by_id = {str(c.id): c for c in channels}
 
-    delivery = await deliver(
-        session,
-        tenant_id=tenant_id,
-        channels=[by_id[cid] for cid in body.channel_ids],
-        rendered_title=rendered_title,
-        rendered_body=rendered_body,
-        variables=body.variables,
-        metadata=body.metadata,
-        template_id=template.id if template else None,
-        idempotency_key=body.idempotency_key,
-    )
+    try:
+        delivery = await deliver(
+            session,
+            tenant_id=tenant_id,
+            channels=[by_id[cid] for cid in body.channel_ids],
+            rendered_title=rendered_title,
+            rendered_body=rendered_body,
+            variables=body.variables,
+            metadata=body.metadata,
+            template_id=template.id if template else None,
+            idempotency_key=body.idempotency_key,
+        )
+    except IdempotencyKeyTaken:
+        # The winner has committed, and READ COMMITTED gives this statement a
+        # fresh snapshot, so its row is visible now.
+        prior = (await session.execute(_by_key(tenant_id, body.idempotency_key))).scalar_one()
+        return await _replay(session, prior)
 
     await session.commit()
     await session.refresh(delivery.dispatch)

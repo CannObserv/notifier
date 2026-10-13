@@ -7,6 +7,13 @@ commits nothing; rendering, validation, and ownership stay with the caller.
 
 ``redeliver`` retries a stored dispatch's failed channels as the next attempt
 (#96), under the same rules: no HTTP, no commit.
+
+The Dispatch INSERT is the idempotency check (#115). A caller's SELECT on the
+key cannot see a concurrent request's uncommitted row, so two retries both
+pass it; ``ON CONFLICT DO NOTHING`` makes Postgres queue the second INSERT
+behind the first's transaction and then either insert (it rolled back) or
+return nothing (it committed). Nothing has been sent when that answer comes,
+so ``IdempotencyKeyTaken`` leaves the caller free to replay.
 """
 
 from dataclasses import dataclass
@@ -14,6 +21,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.models.channel import Channel
@@ -32,6 +40,14 @@ class Delivery:
 
     dispatch: Dispatch
     attempts: list[DispatchAttempt]
+
+
+class IdempotencyKeyTaken(Exception):
+    """Another dispatch committed this tenant's key first; nothing was sent."""
+
+    def __init__(self, idempotency_key: str | None) -> None:
+        super().__init__(f"idempotency key {idempotency_key!r} already dispatched")
+        self.idempotency_key = idempotency_key
 
 
 class RedeliveryExhausted(Exception):
@@ -74,22 +90,32 @@ async def deliver(
     attempt per channel, and a second would violate its unique constraint
     only *after* both sends went out.
 
+    Raises ``IdempotencyKeyTaken``, before sending anything, when a dispatch
+    with this tenant's ``idempotency_key`` has committed — including one that
+    was still in flight when this was called, which this waits for.
+
     Adds and flushes rows but does not commit — the caller owns the
     transaction, so a route can still return a 4xx after this runs.
     """
     channels = list({c.id: c for c in channels}.values())
-    dispatch = Dispatch(
-        tenant_id=tenant_id,
-        template_id=template_id,
-        idempotency_key=idempotency_key,
-        rendered_title=rendered_title,
-        rendered_body=rendered_body,
-        variables=variables or {},
-        request_metadata=metadata or {},
-        status=DispatchStatus.FAILED,  # provisional; updated after attempts
+    inserted = await session.execute(
+        insert(Dispatch)
+        .values(
+            tenant_id=tenant_id,
+            template_id=template_id,
+            idempotency_key=idempotency_key,
+            rendered_title=rendered_title,
+            rendered_body=rendered_body,
+            variables=variables or {},
+            request_metadata=metadata or {},
+            status=DispatchStatus.FAILED,  # provisional; updated after attempts
+        )
+        .on_conflict_do_nothing(constraint="uq_dispatches_tenant_idempotency")
+        .returning(Dispatch)
     )
-    session.add(dispatch)
-    await session.flush()  # populate dispatch.id without releasing the txn
+    dispatch = inserted.scalar_one_or_none()
+    if dispatch is None:
+        raise IdempotencyKeyTaken(idempotency_key)
 
     attempts = [await _attempt(session, dispatch, channel, attempt=1) for channel in channels]
     successes = sum(a.status == DispatchAttemptStatus.SUCCEEDED for a in attempts)
