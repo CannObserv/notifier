@@ -7,10 +7,12 @@ get a 201, and discover it only at dispatch time — on the request that
 mattered, once per dispatch.
 """
 
+import hashlib
 import secrets
 
 import pytest
 
+from src.core.models import ApiKey, Tenant
 from src.core.models.template import Template
 
 HEADER = "X-API-Key"
@@ -430,3 +432,78 @@ class TestDeliberateExclusions:
         )
         assert response.status_code == 200, response.text
         assert response.json()["variables_schema"] == INVALID_SCHEMA
+
+
+class TestNameUniqueness:
+    """A duplicate name is a 409, on POST and PATCH alike.
+
+    Both routes catch `IntegrityError` from `uq_templates_tenant_name` and
+    roll back. Untested until #110: SQLAlchemy 2.1 rebases every async
+    driver's exceptions onto a new adapter, and these are the paths a
+    changed exception hierarchy would turn from a 409 into a 500.
+    """
+
+    DUPLICATE = "Template name already exists"
+
+    @pytest.fixture
+    async def taken(self, client, headers) -> dict:
+        response = await _create(client, headers)
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    @pytest.fixture
+    async def other_headers(self, db_session) -> dict[str, str]:
+        """A second tenant's API key."""
+        other = Tenant(name=f"other-{secrets.token_hex(4)}")
+        db_session.add(other)
+        await db_session.flush()
+        raw = "nk_" + secrets.token_urlsafe(16)
+        db_session.add(
+            ApiKey(
+                tenant_id=other.id,
+                label="other",
+                key_prefix=raw[:8],
+                key_hash=hashlib.sha256(raw.encode()).hexdigest(),
+            )
+        )
+        await db_session.flush()
+        return {HEADER: raw}
+
+    async def test_post_with_a_taken_name_is_409(self, client, headers, taken):
+        response = await _create(client, headers, name=taken["name"])
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"] == self.DUPLICATE
+
+    async def test_a_rejected_post_leaves_the_original_intact(self, client, headers, taken):
+        await _create(client, headers, name=taken["name"], title_template="intruder")
+        listing = await client.get("/api/v1/templates", headers=headers)
+        named = [t for t in listing.json() if t["name"] == taken["name"]]
+        assert [t["id"] for t in named] == [taken["id"]]
+        assert named[0]["title_template"] == taken["title_template"]
+
+    async def test_patch_renaming_onto_a_taken_name_is_409(self, client, headers, taken):
+        sibling = (await _create(client, headers)).json()
+        response = await client.patch(
+            f"/api/v1/templates/{sibling['id']}", headers=headers, json={"name": taken["name"]}
+        )
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"] == self.DUPLICATE
+
+    async def test_a_rejected_patch_leaves_the_row_intact(self, client, headers, taken):
+        sibling = (await _create(client, headers)).json()
+        await client.patch(
+            f"/api/v1/templates/{sibling['id']}", headers=headers, json={"name": taken["name"]}
+        )
+        response = await client.get(f"/api/v1/templates/{sibling['id']}", headers=headers)
+        assert response.json()["name"] == sibling["name"]
+
+    async def test_the_session_survives_a_409(self, client, headers, taken):
+        """The rollback in the handler is what keeps the next write working."""
+        await _create(client, headers, name=taken["name"])
+        response = await _create(client, headers)
+        assert response.status_code == 201, response.text
+
+    async def test_another_tenant_may_use_the_same_name(self, client, other_headers, taken):
+        """The constraint is `(tenant_id, name)` — tenancy is a partition key."""
+        response = await _create(client, other_headers, name=taken["name"])
+        assert response.status_code == 201, response.text
