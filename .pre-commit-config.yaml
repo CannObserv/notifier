@@ -30,5 +30,7 @@ repos:
         name: ruff format --check
         entry: uv run ruff format --check .
         language: system
-        files: '(\.pyi?$|(^|/)pyproject\.toml$)'
+        # `.md` here alone: ruff 0.16 formats Python blocks inside Markdown,
+        # which `ruff check` never reads (#124).
+        files: '(\.(pyi?|md)$|(^|/)pyproject\.toml$)'
         pass_filenames: false

@@ -67,13 +67,14 @@ filterwarnings = [
 line-length = 100
 target-version = "py312"
 # ruff 0.16 formats Python blocks inside Markdown, so skills/ came into scope.
-# It does not descend into symlinked *directories*, so the 20 whole-skill links
+# It does not descend into symlinked *directories*, so the whole-skill links
 # into skills-vendor/ are already skipped; only file-level symlinks — what
 # managing-skills creates when a local override shadows part of a skill — are
 # read, and they dangle wherever the submodules are not checked out, which is
 # every CI job but context-cadence. Excluding the ones that exist rather than
 # all of skills/, so the committed SKILL.md overrides stay formatted. A new
-# file symlink here fails loudly, naming its own path (#45, #124).
+# file symlink resolves locally and dangles only in CI, so
+# tests/ci/test_ruff_exclude.py reads the git index and names it first (#45, #124).
 # docs/plans/ are dated snapshots of what was proposed, not maintained
 # source; reformatting their code samples rewrites the record.
 extend-exclude = [
