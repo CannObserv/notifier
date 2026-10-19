@@ -52,6 +52,12 @@ specific to notifier.
   to co-status instead (CannObserv/status#36), over its own
   `tag:power-map → tag:status:9000` rule, which is co-status's to record. It
   is also one of the index store's clients.
+- **Consumer node:** `archiver`, tag `tag:archiver`, `100.109.138.101` — the
+  `co-registrar` VM. It takes over Watcher's notifications (#116,
+  CannObserv/archiver#368) as tenant `archiver`, held in both databases
+  (#117). So it gets **both ports**, like watcher: `:9001` is where its
+  non-production processes point. It is also one of the index store's
+  clients.
 
 ### ACL
 
@@ -84,6 +90,9 @@ specific to notifier.
     { "action": "accept", "src": ["tag:observo-primary"], "dst": ["tag:notifier:9000"] },
     // Power Map's API OnFailure= handler (#114). :9000 only — production alone.
     { "action": "accept", "src": ["tag:power-map"], "dst": ["tag:notifier:9000"] },
+    // Archiver, Watcher's successor as the notifying tenant (#117, #116).
+    // Both ports, like watcher: it has a development tenant on :9001.
+    { "action": "accept", "src": ["tag:archiver"], "dst": ["tag:notifier:9000,9001"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
@@ -157,6 +166,14 @@ specific to notifier.
 > `"environment":"production"` (build `194f7fb`) and `:9001` timed out. The
 > `GET /health` from `100.94.201.110` at 14:51:01Z is in `notifier.service`'s
 > access log.
+>
+> **The archiver rule is verified from this end only, 2026-10-19 (#117).**
+> `archiver` (`100.109.138.101`) shows in `tailscale status` here, and only
+> this rule can put it there, since the two nodes share no other edge.
+> `tailscale whois` reports `tag:archiver`. Neither unit's access log holds a
+> request from it yet. The other end's proof is Archiver's first `/health` on
+> `:9000` and on `:9001`, both of which should answer
+> (CannObserv/archiver#368).
 
 > **Peer visibility follows `acls`, not `ssh`.** A node absent from the peer's
 > netmap does not resolve over MagicDNS at all, so this rule has to exist in
@@ -168,9 +185,10 @@ specific to notifier.
 > *and* replicator; archiver and replicator have since moved to `co-registrar`
 > and `co-replicator`, so the tags now separate the services they name. The
 > client rule above lists `tag:archiver` and `tag:replicator`, **confirmed
-> 2026-09-13** as the real tags on `co-registrar` and `co-replicator`. Not
-> checkable from this host, which has no ACL edge to either VM and so cannot
-> see their tags — it was confirmed in the admin console. Worth the check: a
+> 2026-09-13** as the real tags on `co-registrar` and `co-replicator`, in
+> the admin console, while this host had no ACL edge to either VM. Each
+> one's own rule to notifier has since made it a peer here, and `tailscale whois`
+> confirms both tags from this host (2026-10-19). Worth the check: a
 > wrong name admits nobody while reading correctly, and surfaces on their side
 > as a DNS failure rather than a permission denial.
 >
