@@ -25,7 +25,7 @@ dependencies = [
     "jsonschema>=4.21.0,<5",
     "apprise>=1.13.1,<2",
     "cryptography>=50.0.2,<51",
-    "mistune>=3.3.4,<4",
+    "mistune>=3.4.0,<4",
     "referencing>=0.37.0,<0.38",
 ]
 
