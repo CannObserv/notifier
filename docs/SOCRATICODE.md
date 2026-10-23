@@ -325,7 +325,7 @@ which `co-watcher` hit first). So it lives in two places:
 
 | Where | Role |
 |---|---|
-| `.claude/settings.json` `env`: **`socraticode@1.16.1`**, the pre-install's version (re-pinned from 1.14.0 in #134) | **Declares** it — the value the driver, preflight and the tests read |
+| `.claude/settings.json` `env`: **`socraticode@1.16.1`**, the pre-install's version | **Declares** it — the value the driver, preflight and the tests read |
 | `claudeCode.environmentVariables` in `~/.vscode-server/data/Machine/settings.json` | **Delivers** it — the extension sets it in `claude`'s environment at startup. Machine-scoped, so VM-local and never committed; it reaches every VS Code session on this host, whatever the folder |
 
 **Verified 2026-09-24** after a reconnect with the machine setting: the
@@ -393,11 +393,9 @@ install scripts unless approved; for SocratiCode that is harmless — the
 `@ast-grep/lang-*` packages, `@parcel/watcher` and `tree-sitter-gdscript`, the
 only ones skipped, all ship linux-x64 prebuilds.
 
-**Re-pinned 1.14.0 → 1.16.1 (#134).** Embedding text is byte-identical across
-those releases, so the shared store's vectors stay comparable and no re-index
-was needed (CannObserv/index#13); the next `codebase_graph_build` re-stamps
-`builtByVersion`. Leave `SOCRATICODE_AUTO_CLEANUP` unset — it refuses a shared,
-non-loopback store anyway.
+A release whose embedding text is unchanged needs no re-index of the shared
+store (#134, CannObserv/index#13); rebuild the graph afterwards. Leave
+`SOCRATICODE_AUTO_CLEANUP` unset.
 
 ## Repo-specific notes
 
