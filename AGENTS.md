@@ -28,10 +28,9 @@ over both locks on push, PRs and daily (#103).
 
 Never re-derive these from the YAML:
 
-- **`pre-commit` runs ruff plus one index check, never pytest.** The check,
-  `scripts/check_ruff_exclude.py`, refuses a file symlink ruff reads that
-  `extend-exclude` misses (#126). A clean commit hook says nothing about
-  correctness — only CI does.
+- **`pre-commit` runs ruff plus `scripts/check_ruff_exclude.py`, never
+  pytest** (#126). A clean commit hook says nothing about correctness — only
+  CI does.
 - **CI pins CPython 3.12 and installs with `uv sync --locked`, deliberately.**
   `[tool.coverage.run] core = "sysmon"` needs ≥3.12 and coverage ≥7.10; below
   either it falls back silently and reports ~6 points low against the live
