@@ -378,8 +378,9 @@ literal, `SOCRATICODE_SPEC` in both places above, and the version named there �
 and `tests/deploy/test_socraticode_pin.py` fails until they agree. Do it as a
 decision, not on a schedule: the pin exists so no unattended launch installs.
 
-**Then warm the session's npx entry, under the same cap** — no test covers it,
-and skipping it moves the cold install to the next session start:
+**Then warm the session's npx entry, under the same cap** — skipping it moves
+the cold install to the next session start, and the same test fails until the
+entry holds the new release (VM-local, like the pre-install):
 
 ```bash
 systemd-run --user --scope -p MemoryHigh=700M -p MemoryMax=1000M \
