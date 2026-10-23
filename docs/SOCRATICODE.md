@@ -401,11 +401,13 @@ non-loopback store anyway.
 
 ## Repo-specific notes
 
-**Measured yield (2026-09-23, #78 audit).** `verdict: ok`, ruled by the server
-over a graph **built by v1.14.0**, the release then current (re-pinned to 1.16.1 in #134). **598 edges across 258
-files = 2.318 edges/file**, 2,031 symbols, 7,071 call edges, 72.3% unresolved
-— high by construction for a FastAPI service calling into Starlette,
-SQLAlchemy, Apprise and Jinja; judge this graph on edges/file. A **from-empty
+**Measured yield (2026-10-23, #134).** `verdict: ok`, ruled by the server
+over a graph **built by v1.16.1**. **514 edges across 238 files = 2.160
+edges/file**, 1,947 symbols, 6,901 call edges, 72.4% unresolved — high by
+construction for a FastAPI service calling into Starlette, SQLAlchemy, Apprise
+and Jinja; judge this graph on edges/file. The drop from the #78 audit's
+2.318 (598 / 258, v1.14.0, 2026-09-23) tracks the files removed since, not
+the release. A **from-empty
 index takes 516 s** (measured 2026-09-12, D6: the restore path for this store
 is a re-index, and that is the number the runbook rests on). The policy block
 in `AGENTS.md` is therefore on **variant A** (standard).
