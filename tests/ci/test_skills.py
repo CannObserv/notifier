@@ -13,14 +13,24 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 OVERRIDES = {"shipping-work-python-fastapi"}
 
 
-def test_skills_are_links_except_declared_overrides():
-    """A path nested under skills/<name>/ means that directory is real, not a link."""
+def _real_skill_dirs(root: str) -> set[str]:
+    """Skill names under ``root`` that are real directories: a path nested under one."""
     indexed = subprocess.run(
-        ("git", "ls-files", "-z", "skills/"),
+        ("git", "ls-files", "-z", root),
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=True,
     ).stdout.split("\0")
-    forks = {path.split("/")[1] for path in indexed if path.count("/") > 1}
+    depth = root.count("/") + 1
+    return {path.split("/")[depth - 1] for path in indexed if path.count("/") > depth - 1}
+
+
+def test_skills_are_links_except_declared_overrides():
+    forks = _real_skill_dirs("skills/")
     assert forks == OVERRIDES, "a skill directory that is not a symlink is a fork; see #133"
+
+
+def test_claude_skills_holds_links_only():
+    """An override belongs in skills/, where the line above sees it, never here."""
+    assert not _real_skill_dirs(".claude/skills/")
