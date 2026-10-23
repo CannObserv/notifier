@@ -18,6 +18,10 @@ pre-install, the block, the machine setting and docs/SOCRATICODE.md — and thes
 fail until all four agree. The pre-install and the machine setting are
 VM-local, so CI, which has neither, holds only the block and the doc; the rest
 is compared here.
+
+A fifth, VM-local too: the session's npx entry must already hold the pinned
+release, or the next session start performs the very install the pin exists to
+prevent (#134).
 """
 
 import json
@@ -58,6 +62,19 @@ def pinned_install_version() -> str | None:
     return json.loads(manifest.read_text())["version"]
 
 
+def npx_cached_versions() -> set[str]:
+    """SocratiCode releases installed in npx's cache, which `npx -y` reuses without installing.
+
+    npx keys each entry by the requested specs under ``<cache>/_npx/<hash>``;
+    the cache is ``npm_config_cache`` when set, else ``~/.npm``.
+    """
+    cache = Path(os.environ.get("npm_config_cache") or "~/.npm").expanduser()
+    return {
+        json.loads(manifest.read_text())["version"]
+        for manifest in cache.glob("_npx/*/node_modules/socraticode/package.json")
+    }
+
+
 def vscode_launch_spec() -> str | None:
     """SOCRATICODE_SPEC as the extension hands it to `claude` at startup; None if unset."""
     if not VSCODE_MACHINE_SETTINGS.exists():
@@ -88,6 +105,22 @@ def test_session_spec_matches_the_driver_pin(session_spec):
         pytest.skip("no SocratiCode pre-install on this machine")
     assert session_spec == f"socraticode@{pinned}", (
         f"{SPEC_VARIABLE}={session_spec!r} but the driver's pre-install is {pinned}"
+    )
+
+
+def test_session_spec_is_warm_in_the_npx_cache(session_spec):
+    """The plugin's `npx -y --prefer-online <spec>` must find its entry, not install it (#134).
+
+    Skips where there is no pre-install, as in CI: a host without one is not
+    running this pin.
+    """
+    if pinned_install_version() is None:
+        pytest.skip("no SocratiCode pre-install on this machine")
+    version = EXACT_SPEC.fullmatch(session_spec).group(1)
+    cached = npx_cached_versions()
+    assert version in cached, (
+        f"no npx cache entry holds socraticode {version} (cached: {sorted(cached)}); "
+        "the next session start installs it — warm it per docs/SOCRATICODE.md"
     )
 
 
