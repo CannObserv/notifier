@@ -8,8 +8,6 @@ posture scheduled
 # Near-silent hours: 60 days of dispatches landed almost all 14:00-00:00 UTC.
 window Tue 08:00-11:30
 window Wed 08:00-11:30
-# One-off, for TS-2026-013 (#131): removed after the run.
-window Fri 16:30-19:30
 
 # Callers' scheduled jobs whose OnFailure= handler dispatches here.
 quiet 02:55-03:30                  # address-validator audit-archive, 03:00
