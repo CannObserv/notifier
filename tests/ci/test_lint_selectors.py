@@ -1,8 +1,9 @@
 """Drift test for ``[tool.ruff.lint] select`` — the whole static-analysis surface.
 
 ``pre-commit`` runs ruff and never pytest, and CI's ``lint`` job runs the same
-two ruff commands. So the selector list *is* every automated check standing
-between a commit and review; a family dropped from it goes quiet without
+two ruff commands. So the selector list *is* every static-analysis check
+standing between a commit and review (the hook's one other entry checks
+ruff's config, not code, #126); a family dropped from it goes quiet without
 failing anything.
 
 Both families #66 adopted are asserted by name rather than left to "ruff

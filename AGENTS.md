@@ -218,7 +218,7 @@ channel](docs/DEPLOYMENT.md#the-credential-audit-channel-67)).
 - All UTC
 - ISO 8601: `YYYY-MM-DDTHH:MM:SS.ffffffZ` (timestamps), `YYYY-MM-DD` (dates)
 
-**Lint:** ruff `select` is the whole gate between a commit and CI (`pre-commit` skips pytest), and `tests/ci/test_lint_selectors.py` asserts the list, since `ASYNC` finds nothing here and a clean run proves nothing. **`ASYNC210` matches blocking HTTP by *name*** — `client.get(...)` on an instance passes, so green lint is not proof no handler blocks. [Detail](docs/ARCHITECTURE.md#lint-policy).
+**Lint:** ruff `select` is the whole analysis gate between a commit and CI (`pre-commit` skips pytest), and `tests/ci/test_lint_selectors.py` asserts the list, since `ASYNC` finds nothing here and a clean run proves nothing. **`ASYNC210` matches blocking HTTP by *name*** — `client.get(...)` on an instance passes, so green lint is not proof no handler blocks. [Detail](docs/ARCHITECTURE.md#lint-policy).
 
 **Dependencies:** four rules, all asserted by `tests/ci/test_dependencies.py` — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#dependency-policy) before adding or bumping one
 
