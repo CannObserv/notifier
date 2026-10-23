@@ -131,5 +131,7 @@ def test_every_extend_exclude_entry_names_an_indexed_path():
     indexed = subprocess.run(
         ("git", "ls-files", "-z"), cwd=REPO_ROOT, capture_output=True, text=True, check=True
     ).stdout.split("\0")
+    globs = [entry for entry in excludes if any(c in entry for c in "*?[")]
+    assert not globs, f"is_excluded matches literal paths only, so cannot check: {globs}"
     stale = [entry for entry in excludes if not any(is_excluded(p, [entry]) for p in indexed)]
     assert not stale, f"[tool.ruff] extend-exclude entries matching nothing in the index: {stale}"
