@@ -25,7 +25,7 @@ import yaml
 from scripts.check_ruff_exclude import (
     RUFF_NAMES,
     RUFF_SUFFIXES,
-    _is_excluded,
+    is_excluded,
     unexcluded_symlinks,
 )
 
@@ -131,5 +131,5 @@ def test_every_extend_exclude_entry_names_an_indexed_path():
     indexed = subprocess.run(
         ("git", "ls-files", "-z"), cwd=REPO_ROOT, capture_output=True, text=True, check=True
     ).stdout.split("\0")
-    stale = [entry for entry in excludes if not any(_is_excluded(p, [entry]) for p in indexed)]
+    stale = [entry for entry in excludes if not any(is_excluded(p, [entry]) for p in indexed)]
     assert not stale, f"[tool.ruff] extend-exclude entries matching nothing in the index: {stale}"

@@ -46,7 +46,7 @@ def _ruff_reads(path: str) -> bool:
     return p.suffix in RUFF_SUFFIXES or p.name in RUFF_NAMES
 
 
-def _is_excluded(path: str, excludes: list[str]) -> bool:
+def is_excluded(path: str, excludes: list[str]) -> bool:
     """Literal path or directory-prefix match; a glob entry is not modelled."""
     for entry in excludes:
         stem = entry.rstrip("/")
@@ -62,7 +62,7 @@ def unexcluded_symlinks(root: Path) -> list[str]:
     return [
         path
         for path in _committed_symlinks(root)
-        if _ruff_reads(path) and not _is_excluded(path, excludes)
+        if _ruff_reads(path) and not is_excluded(path, excludes)
     ]
 
 
