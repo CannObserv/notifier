@@ -5,10 +5,10 @@
 #
 # These hooks do not run pytest. CI does (.github/workflows/ci.yml), and so
 # does the ship gate (`pre-ship.sh`, in the shipping-work-python-fastapi skill
-# rather than the repo's scripts/). A green pre-commit proves style, not
-# correctness.
+# rather than the repo's scripts/). A green pre-commit proves style plus the
+# one config invariant ruff cannot see locally, not correctness.
 #
-# Both hooks are read-only: they report violations rather than rewriting files
+# Every hook is read-only: it reports violations rather than rewriting files
 # mid-commit. Fix with `uv run ruff format .` / `uv run ruff check --fix .`.
 #
 # Install once per clone: uv run pre-commit install
@@ -33,4 +33,21 @@ repos:
         # `.md` here alone: ruff 0.16 formats Python blocks inside Markdown,
         # which `ruff check` never reads (#124).
         files: '(\.(pyi?|md)$|(^|/)pyproject\.toml$)'
+        pass_filenames: false
+
+      # The one non-ruff hook (#126). A file symlink into skills-vendor/
+      # resolves here and dangles in CI, so ruff passes locally on exactly the
+      # commit that turns lint red on main (#45, #124). The script reads the
+      # git index and needs no database; tests/ci/test_ruff_exclude.py runs it
+      # again in CI. types_or, not files: a link's name is arbitrary and
+      # pre-commit ANDs files with the tag filters, so only tags can say "a
+      # staged symlink, or pyproject.toml" (the commit that drops an exclude).
+      # `types: []` is load-bearing: the default is [file], and a link's tags
+      # are {symlink} alone, so the default skips every link silently.
+      - id: ruff-exclude-symlinks
+        name: ruff extend-exclude covers file symlinks
+        entry: uv run python scripts/check_ruff_exclude.py
+        language: system
+        types: []
+        types_or: [symlink, toml]
         pass_filenames: false

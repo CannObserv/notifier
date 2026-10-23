@@ -8,63 +8,58 @@ Markdown link, and ``ruff check .`` exits 1 (E902) on a ``pyproject.toml`` one.
 Locally the submodules are checked out, the link resolves, and ruff passes, so
 nothing short of CI on main noticed the second one (#45, #124).
 
-This reads the git index rather than the working tree, so it fails the same
-way with or without submodules — in pytest, ahead of the push.
+The check itself is ``scripts/check_ruff_exclude.py``, which reads the git
+index and needs no database, so ``pre-commit`` refuses the commit before it
+exists (#126). This is the CI half of the same assertion, plus the wiring that
+makes the hook fire: a hook that never triggers passes exactly like one that
+finds nothing.
 """
 
-import subprocess
-import tomllib
 from pathlib import Path
 
+import yaml
+
+from scripts.check_ruff_exclude import unexcluded_symlinks
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PYPROJECT = REPO_ROOT / "pyproject.toml"
-
-# What ruff 0.16 discovers on its own under `ruff check .` / `format .`:
-# `file_resolver.include` in `ruff check --show-settings`, by suffix and by name.
-RUFF_SUFFIXES = {".py", ".pyi", ".ipynb", ".md"}
-RUFF_NAMES = {"pyproject.toml", "ruff.toml", ".ruff.toml"}
+PRE_COMMIT = REPO_ROOT / ".pre-commit-config.yaml"
+HOOK_ID = "ruff-exclude-symlinks"
 
 
-def _committed_symlinks() -> list[str]:
-    """Paths git records with mode 120000."""
-    result = subprocess.run(
-        ("git", "ls-files", "-s", "-z"),
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return [
-        entry.split("\t", 1)[1]
-        for entry in result.stdout.split("\0")
-        if entry.startswith("120000 ")
-    ]
-
-
-def _ruff_reads(path: str) -> bool:
-    """Whether ruff's default include picks up this path."""
-    p = Path(path)
-    return p.suffix in RUFF_SUFFIXES or p.name in RUFF_NAMES
-
-
-def _is_excluded(path: str, excludes: list[str]) -> bool:
-    """Literal path or directory-prefix match; a glob entry is not modelled."""
-    for entry in excludes:
-        stem = entry.rstrip("/")
-        if path == stem or path.startswith(stem + "/"):
-            return True
-    return False
+def _hook() -> dict:
+    config = yaml.safe_load(PRE_COMMIT.read_text())
+    hooks = [hook for repo in config["repos"] for hook in repo["hooks"]]
+    matches = [hook for hook in hooks if hook["id"] == HOOK_ID]
+    assert len(matches) == 1, f"expected one {HOOK_ID!r} hook in {PRE_COMMIT.name}"
+    return matches[0]
 
 
 def test_every_ruff_readable_file_symlink_is_excluded():
     """A new file symlink must be named in extend-exclude before it reaches CI."""
-    excludes = tomllib.loads(PYPROJECT.read_text())["tool"]["ruff"]["extend-exclude"]
-    unexcluded = [
-        path
-        for path in _committed_symlinks()
-        if _ruff_reads(path) and not _is_excluded(path, excludes)
-    ]
+    unexcluded = unexcluded_symlinks(REPO_ROOT)
     assert not unexcluded, (
         f"file symlinks ruff will read and that dangle in CI: {unexcluded}; "
         "add each to [tool.ruff] extend-exclude in pyproject.toml (#124)"
     )
+
+
+def test_pre_commit_hook_runs_the_check():
+    hook = _hook()
+    assert "scripts/check_ruff_exclude.py" in hook["entry"]
+    assert hook.get("pass_filenames") is False, "the check reads the whole index"
+
+
+def test_pre_commit_hook_fires_on_new_links_and_pyproject():
+    """Both halves of the failure: a link is added, or its exclude is removed.
+
+    ``types_or`` rather than ``files``: a link's name is arbitrary, and
+    pre-commit ANDs ``files`` with the tag filters, so only tags can OR the
+    two. ``symlink`` is the tag a staged link carries; ``toml`` is
+    pyproject.toml's. ``types`` must be spelled empty: its default is
+    ``[file]``, which a link's tags (``{symlink}`` alone) never satisfy, so
+    the default skips every link with "(no files to check)".
+    """
+    hook = _hook()
+    assert {"symlink", "toml"} <= set(hook.get("types_or", []))
+    assert hook.get("types") == [], "the default types: [file] drops every symlink"
+    assert "files" not in hook, "files is ANDed with types_or and would narrow it"

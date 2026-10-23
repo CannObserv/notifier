@@ -137,7 +137,7 @@ a plain `git commit` enforces them locally too:
 
 ```bash
 uv run pre-commit install              # one-time, per clone
-uv run pre-commit run --all-files      # run both gates over the whole repo
+uv run pre-commit run --all-files      # run every hook over the whole repo
 git commit --no-verify                 # escape hatch — gates still fail at ship time
 ```
 
@@ -147,6 +147,18 @@ skew. Note the hooks stop there: **pre-commit runs no tests**. The suite runs
 in CI, and in `pre-ship.sh` — which lives in the
 `shipping-work-python-fastapi` skill (`.claude/skills/…/scripts/`), not in
 this repo's `scripts/`, which is why grepping the repo for it comes up empty.
+
+A third hook, `ruff-exclude-symlinks`, runs `scripts/check_ruff_exclude.py`
+on a commit that stages a symlink or a TOML file. A file symlink into
+`skills-vendor/` resolves locally and dangles in CI, so ruff passes here on
+exactly the commit that turns `lint` red on main (#45, #124); the script
+reads the git index instead and refuses it, naming the `extend-exclude` entry
+to add (#126). Stdlib only, no database, so it can run as a hook where pytest
+cannot; `tests/ci/test_ruff_exclude.py` runs it again in CI:
+
+```bash
+uv run python scripts/check_ruff_exclude.py   # exit 1 names each unexcluded link
+```
 
 
 ## Generating a Fernet key

@@ -71,7 +71,9 @@ the `docs/` entry above predates this file.
 
 `[tool.ruff.lint] select` is the entire static-analysis surface between a
 commit and CI: `pre-commit` runs ruff and never pytest, and CI's `lint` job
-runs the same two ruff commands. A family dropped from that list stops
+runs the same two ruff commands. The hook's one non-ruff entry,
+`scripts/check_ruff_exclude.py`, checks ruff's *config* against the git index
+rather than analysing code (#126). A family dropped from that list stops
 checking without failing anything, so `tests/ci/test_lint_selectors.py`
 asserts the list by name.
 
