@@ -322,7 +322,7 @@ which `co-watcher` hit first). So it lives in two places:
 
 | Where | Role |
 |---|---|
-| `.claude/settings.json` `env`: **`socraticode@1.14.0`**, the pre-install's version | **Declares** it — the value the driver, preflight and the tests read |
+| `.claude/settings.json` `env`: **`socraticode@1.16.1`**, the pre-install's version (re-pinned from 1.14.0 in #134) | **Declares** it — the value the driver, preflight and the tests read |
 | `claudeCode.environmentVariables` in `~/.vscode-server/data/Machine/settings.json` | **Delivers** it — the extension sets it in `claude`'s environment at startup. Machine-scoped, so VM-local and never committed; it reaches every VS Code session on this host, whatever the folder |
 
 **Verified 2026-09-24** after a reconnect with the machine setting: the
@@ -375,10 +375,30 @@ literal, `SOCRATICODE_SPEC` in both places above, and the version named there �
 and `tests/deploy/test_socraticode_pin.py` fails until they agree. Do it as a
 decision, not on a schedule: the pin exists so no unattended launch installs.
 
+**Then warm the session's npx entry, under the same cap** — no test covers it,
+and skipping it moves the cold install to the next session start:
+
+```bash
+systemd-run --user --scope -p MemoryHigh=700M -p MemoryMax=1000M \
+  -- npx -y -p socraticode@<version> -- node -e 0
+```
+
+`-p` keys the same `~/.npm/_npx/<hash>` directory as the plugin's
+`npx -y --prefer-online socraticode@<version>` (verified in #134: the plugin's
+spelling afterwards created no new entry). npm ≥11 skips dependency install
+scripts unless approved; for SocratiCode that is harmless — the
+`@ast-grep/lang-*` packages and `@parcel/watcher` ship linux-x64 prebuilds.
+
+**Re-pinned 1.14.0 → 1.16.1 (#134).** Embedding text is byte-identical across
+those releases, so the shared store's vectors stay comparable and no re-index
+was needed (CannObserv/index#13); the next `codebase_graph_build` re-stamps
+`builtByVersion`. Leave `SOCRATICODE_AUTO_CLEANUP` unset — it refuses a shared,
+non-loopback store anyway.
+
 ## Repo-specific notes
 
 **Measured yield (2026-09-23, #78 audit).** `verdict: ok`, ruled by the server
-over a graph **built by v1.14.0**, the current release. **598 edges across 258
+over a graph **built by v1.14.0**, the release then current (re-pinned to 1.16.1 in #134). **598 edges across 258
 files = 2.318 edges/file**, 2,031 symbols, 7,071 call edges, 72.3% unresolved
 — high by construction for a FastAPI service calling into Starlette,
 SQLAlchemy, Apprise and Jinja; judge this graph on edges/file. A **from-empty
