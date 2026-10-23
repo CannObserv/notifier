@@ -15,15 +15,41 @@ makes the hook fire: a hook that never triggers passes exactly like one that
 finds nothing.
 """
 
+import subprocess
+import sys
 from pathlib import Path
 
 import yaml
 
-from scripts.check_ruff_exclude import unexcluded_symlinks
+from scripts.check_ruff_exclude import RUFF_NAMES, RUFF_SUFFIXES, unexcluded_symlinks
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PRE_COMMIT = REPO_ROOT / ".pre-commit-config.yaml"
 HOOK_ID = "ruff-exclude-symlinks"
+INCLUDE_KEYS = ("file_resolver.include", "file_resolver.extend_include")
+
+
+def _ruff_include_patterns() -> list[str]:
+    """Every pattern in ruff's resolved include and extend-include, as ruff prints them."""
+    settings = subprocess.run(
+        (sys.executable, "-m", "ruff", "check", "--show-settings"),
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    patterns: list[str] = []
+    lines = iter(settings.splitlines())
+    for line in lines:
+        key, _, value = line.partition(" = ")
+        if key not in INCLUDE_KEYS:
+            continue
+        if value != "[]":
+            for item in lines:
+                if item.strip() == "]":
+                    break
+                patterns.append(item.strip().rstrip(",").strip('"'))
+    return patterns
 
 
 def _hook() -> dict:
@@ -41,6 +67,28 @@ def test_every_ruff_readable_file_symlink_is_excluded():
         f"file symlinks ruff will read and that dangle in CI: {unexcluded}; "
         "add each to [tool.ruff] extend-exclude in pyproject.toml (#124)"
     )
+
+
+def test_ruff_reads_exactly_what_the_check_models():
+    """The check's suffix and name lists are copied from ruff, so hold them to it.
+
+    This is how the class began: ruff 0.16 started reading ``*.md``, and a
+    Markdown link turned main red (#45). A ruff bump or an ``extend-include``
+    that widens discovery would otherwise leave the check green on a type it
+    never looks at. A pattern of any other shape fails too, since the check
+    could not model it.
+    """
+    suffixes, names, unmodelled = set(), set(), []
+    for pattern in _ruff_include_patterns():
+        if pattern.startswith("*.") and "/" not in pattern:
+            suffixes.add(pattern[1:])
+        elif pattern.startswith("**/") and "*" not in pattern[3:]:
+            names.add(pattern[3:])
+        else:
+            unmodelled.append(pattern)
+    assert not unmodelled, f"ruff include patterns the check cannot model: {unmodelled}"
+    assert suffixes == RUFF_SUFFIXES, "update RUFF_SUFFIXES in scripts/check_ruff_exclude.py"
+    assert names == RUFF_NAMES, "update RUFF_NAMES in scripts/check_ruff_exclude.py"
 
 
 def test_pre_commit_hook_runs_the_check():

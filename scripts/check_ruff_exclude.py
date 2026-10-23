@@ -20,6 +20,7 @@ from pathlib import Path
 
 # What ruff 0.16 discovers on its own under `ruff check .` / `format .`:
 # `file_resolver.include` in `ruff check --show-settings`, by suffix and by name.
+# tests/ci/test_ruff_exclude.py holds these to that output, extend-include too.
 RUFF_SUFFIXES = {".py", ".pyi", ".ipynb", ".md"}
 RUFF_NAMES = {"pyproject.toml", "ruff.toml", ".ruff.toml"}
 
