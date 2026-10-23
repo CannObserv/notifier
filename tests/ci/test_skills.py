@@ -1,8 +1,8 @@
 """Every skill under ``skills/`` is a whole-directory vendor link unless declared a fork.
 
 A forked ``SKILL.md`` drifts behind upstream on every submodule bump and has to
-be 3-way merged back by hand; ``brainstorming`` needed that three times before
-it became a link again, its local preferences moved to AGENTS.md (#133). A new
+be 3-way merged back by hand; ``brainstorming`` needed that twice before it
+became a link, its local preferences moved to AGENTS.md (#133). A new
 fork has to be added here on purpose, with its override notes in docs/SKILLS.md.
 """
 
