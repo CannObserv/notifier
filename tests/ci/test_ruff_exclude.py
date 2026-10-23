@@ -17,11 +17,17 @@ finds nothing.
 
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import yaml
 
-from scripts.check_ruff_exclude import RUFF_NAMES, RUFF_SUFFIXES, unexcluded_symlinks
+from scripts.check_ruff_exclude import (
+    RUFF_NAMES,
+    RUFF_SUFFIXES,
+    _is_excluded,
+    unexcluded_symlinks,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PRE_COMMIT = REPO_ROOT / ".pre-commit-config.yaml"
@@ -111,3 +117,19 @@ def test_pre_commit_hook_fires_on_new_links_and_pyproject():
     assert {"symlink", "toml"} <= set(hook.get("types_or", []))
     assert hook.get("types") == [], "the default types: [file] drops every symlink"
     assert "files" not in hook, "files is ANDed with types_or and would narrow it"
+
+
+def test_every_extend_exclude_entry_names_an_indexed_path():
+    """An exclude whose path left the index guards nothing and hides what lands there.
+
+    The two ``skills/brainstorming/`` file entries outlived the override they
+    were added for (#133); a stale entry also reads as a live constraint.
+    """
+    excludes = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())["tool"]["ruff"][
+        "extend-exclude"
+    ]
+    indexed = subprocess.run(
+        ("git", "ls-files", "-z"), cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    ).stdout.split("\0")
+    stale = [entry for entry in excludes if not any(_is_excluded(p, [entry]) for p in indexed)]
+    assert not stale, f"[tool.ruff] extend-exclude entries matching nothing in the index: {stale}"

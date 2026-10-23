@@ -199,6 +199,13 @@ Full reference: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 Skills live in `skills/` (agentskills.io) and `.claude/skills/` (Claude Code); local overrides in `skills/` shadow the vendored copy. Inventory, sources and override notes: [docs/SKILLS.md § Skills Inventory](docs/SKILLS.md#skills-inventory).
 
+**Skill preferences** override skill text ([why](docs/SKILLS.md#skill-preferences)):
+
+- `brainstorming` only on "brainstorm"/"design this"/"let's design", or a new feature with no prior design talk.
+- Specs → `docs/plans/YYYY-MM-DD-<topic>-design.md`, committed per § Conventions.
+- `writing-plans` after design approval is optional, HARD-GATE notwithstanding; gregoryfoster-skills', not `superpowers:` (not installed).
+- Multi-step work: `using-git-worktrees` once the design is approved.
+
 ## Conventions
 
 **Commit Messages:**

@@ -71,8 +71,8 @@ never the reverse, then diff the pre-merge copy and account for every removed li
 `shipping-work-python-fastapi` shows both the mitigation and the residue. Its five unchanged
 scripts are **per-script symlinks** into `skills-vendor/`, so they track upstream for free — a
 pattern thinner than `managing-skills`' documented "complete replacement" rule, and worth
-preferring. `brainstorming` now follows it too. But `SKILL.md` carries the local deltas and
-cannot be symlinked, so it is the one file that drifts. `shipping-work`'s sat at v1.2 while
+preferring. But `SKILL.md` carries the local deltas and cannot be symlinked, so it is the one
+file that drifts. `shipping-work`'s sat at v1.2 while
 vendor reached v1.4, missing the Step 1 script-resolution loop upstream added for
 [gregoryfoster/skills#63](https://github.com/gregoryfoster/skills/issues/63); Step 1 failed
 until it was re-synced. It drifted a second time without the version moving at all: vendor
@@ -101,6 +101,16 @@ architectural path; notifier's standing delta makes that plan a judgement call, 
 re-synced with the delta reapplied onto the new text rather than the new text dropped. Both
 re-syncs were 3-way merges against the previously pinned commit, which is what `synced-from:` is
 for: without it there is no merge base and the choice degrades to diffing two divergent files.
+
+`brainstorming` was the other override until #133, and the reason it stopped is the strongest case
+against forking a fast-moving upstream: it was re-synced at v6.4.1 and again at v7.0.0, and was
+behind again at v7.0.1 — 243 lines against vendor's 294, with two new sections — each time a
+3-way merge of the same handful of deltas onto restructured text. Its deltas were preferences,
+not changes to the skill's mechanics, so they moved to AGENTS.md (§ Skill preferences, below) and
+`skills/brainstorming` became a whole-directory link. That also retired the last file symlinks
+under `skills/` that ruff reads, and with them every `skills/` entry in `[tool.ruff]
+extend-exclude` (#45, #124, #126). `tests/ci/test_skills.py` holds the fork set to
+`shipping-work-python-fastapi` alone, so a new fork is added on purpose.
 
 **One caveat on the symlink pattern.** `doctor.sh` globs `"$dir"/*` exactly one level deep under
 `skills` and `.claude/hooks`, so symlinks nested inside an override directory sit below its scan
@@ -134,11 +144,33 @@ Its sibling `.claude/hooks/socraticode-reminder.sh` — the `ToolSearch` prefetc
 
 To add a new external skill repo: follow the `managing-skills` skill.
 
+## Skill preferences
+
+AGENTS.md § Agent Skills carries notifier's preferences as rules that beat any skill's own text,
+in place of forking a `SKILL.md` to say them (#133). They are the deltas the `brainstorming`
+override carried, and they apply to whatever skill reaches the same decision:
+
+- **Trigger.** Vendor's `description` is "You MUST use this before any creative work", which
+  fires on nearly every feature request. Ours was "brainstorm", "design this", "let's design", or
+  a new feature with no prior design discussion; the AGENTS.md line keeps that scope. The harness
+  still lists the skill under vendor's text — only the rule narrows it.
+- **Spec path.** `docs/plans/`, which `writing-plans` also resolves to, rather than upstream's
+  `docs/superpowers/specs/`. `[tool.ruff] extend-exclude` already skips it as dated snapshots.
+- **`writing-plans` optional.** Upstream's `<HARD-GATE>` mandates a plan after every approved
+  design. Here a design whose steps follow from it may go straight to implementation. When a plan
+  is warranted it is gregoryfoster-skills' `writing-plans`; `superpowers:writing-plans` is not
+  vendored, so the gate's literal instruction names a skill that does not exist here.
+- **Worktrees.** Multi-step work lands on its own branch via `using-git-worktrees` once the design
+  is approved.
+
+Commit format and stack context needed no entry: § Conventions and § Environment & Tooling already
+say them, and a skill defers to AGENTS.md.
+
 ## Skills Inventory
 
 | Skill | Source | Notes |
 |---|---|---|
-| `brainstorming` | Thin override (obra-superpowers), **synced from v7.0.0 (`bb92a77`)** | Project-specific conventions: `docs/plans/` spec path, notifier commit format, `writing-plans` optional rather than mandatory (and gregoryfoster-skills', not upstream's `superpowers:` one), `using-git-worktrees` for multi-step work — all carried in the HARD-GATE and size table since v7.0.0's rewrite dropped the Spike/Bounded/Architectural paths. `SKILL.md` is the only real file; `visual-companion.md`, `builder-check-prompt.md` and `scripts/` symlink into `skills-vendor/`. Upstream carries no `version:`, so the pin is the submodule tag in `synced-from:` |
+| `brainstorming` | obra-superpowers symlink | An override until #133. Its preferences — trigger scope, `docs/plans/` spec path, `writing-plans` optional and gregoryfoster-skills', worktrees for multi-step work — live in AGENTS.md; see [§ Skill preferences](#skill-preferences) |
 | `coordinating-epics` | gregoryfoster-skills symlink | Triggers: `coordinate the epic`, `burn down`, `check-in`, `I finished #N`, `next issue`. Serial, operator-paced; the coordinator thread writes no code — parallel agent teams go to `orchestrating-issue-backlog`. Needs an authenticated `gh` and python3 ≥3.9 |
 | `curating-context` | gregoryfoster-skills symlink | Triggers: `curate context`, `context budget`, `trim AGENTS.md`. Tracks the vendored pointer; the wave-A hold at v1.2 was lifted 2026-08-14 (#20) |
 | `dispatching-parallel-agents` | obra-superpowers symlink | |

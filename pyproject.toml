@@ -71,8 +71,9 @@ target-version = "py312"
 # into skills-vendor/ are already skipped; only file-level symlinks — what
 # managing-skills creates when a local override shadows part of a skill — are
 # read, and they dangle wherever the submodules are not checked out, which is
-# every CI job but context-cadence. Excluding the ones that exist rather than
-# all of skills/, so the committed SKILL.md overrides stay formatted. A new
+# every CI job but context-cadence. None exist since brainstorming became a
+# whole-directory link (#133); one that appears is excluded by name rather
+# than all of skills/, so the committed SKILL.md overrides stay formatted. A new
 # file symlink resolves locally and dangles only in CI, so
 # scripts/check_ruff_exclude.py reads the git index and names it first — as a
 # pre-commit hook, and again in CI via tests/ci/test_ruff_exclude.py (#45, #124, #126).
@@ -80,8 +81,6 @@ target-version = "py312"
 # source; reformatting their code samples rewrites the record.
 extend-exclude = [
     "skills-vendor/",
-    "skills/brainstorming/visual-companion.md",
-    "skills/brainstorming/builder-check-prompt.md",
     "alembic/versions/",
     "docs/plans/",
 ]

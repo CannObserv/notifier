@@ -405,8 +405,8 @@ reach from source alone:
 
 **Why `.socraticodeignore` keeps `skills/`.** The cohort default excludes
 `skills-vendor/`, `skills/` and `.claude/skills/`. This repo excludes only the
-first and third: `skills/` holds first-party overrides (`brainstorming`,
-`shipping-work-python-fastapi`) that are this repo's own content, and its other
+first and third: `skills/` holds a first-party override
+(`shipping-work-python-fastapi`) that is this repo's own content, and its other
 entries are symlinks into the already-excluded `skills-vendor/`.
 
 **Project id is pinned (`.socraticode.json`, #57 D0).** `projectId: "notifier"`,
