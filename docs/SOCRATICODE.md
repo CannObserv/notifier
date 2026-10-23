@@ -302,6 +302,9 @@ the 1.2 G cold-install path it replaces. The cap above is sized for this host
 rather than broker's 8 GB; it leaves the live service real headroom, and
 because earlyoom now prefers `^npm`, a genuinely tight install is killed
 rather than allowed to starve production. Re-run it if that happens.
+**Re-measured 2026-10-23 at 1.16.1 (#134): 105 MiB** (twice, ±0.3), read from
+the scope's own `memory.peak` — `systemd-run --wait`'s summary reports the
+unit's main process only and read 556 K.
 
 **The session is pinned too: `SOCRATICODE_SPEC` (#87).** The pre-install
 covers only the driver — the health hook, `index`, `verify`. The session's
