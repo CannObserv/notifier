@@ -19,7 +19,7 @@ repos:
         name: ruff check
         entry: uv run ruff check .
         language: system
-        # Both hooks are repo-wide (pass_filenames: false), so this pattern is
+        # Every hook is repo-wide (pass_filenames: false), so this pattern is
         # purely a trigger. It must include pyproject.toml: a `[tool.ruff]`
         # change invalidates the formatting of the whole tree, so that is the
         # one commit that most needs a re-check.
