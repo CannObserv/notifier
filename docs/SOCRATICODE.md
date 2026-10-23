@@ -385,9 +385,10 @@ systemd-run --user --scope -p MemoryHigh=700M -p MemoryMax=1000M \
 
 `-p` keys the same `~/.npm/_npx/<hash>` directory as the plugin's
 `npx -y --prefer-online socraticode@<version>` (verified in #134: the plugin's
-spelling afterwards created no new entry). npm ≥11 skips dependency install
-scripts unless approved; for SocratiCode that is harmless — the
-`@ast-grep/lang-*` packages and `@parcel/watcher` ship linux-x64 prebuilds.
+spelling afterwards created no new entry). npm 11.19 here skips dependency
+install scripts unless approved; for SocratiCode that is harmless — the
+`@ast-grep/lang-*` packages, `@parcel/watcher` and `tree-sitter-gdscript`, the
+only ones skipped, all ship linux-x64 prebuilds.
 
 **Re-pinned 1.14.0 → 1.16.1 (#134).** Embedding text is byte-identical across
 those releases, so the shared store's vectors stay comparable and no re-index
