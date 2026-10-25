@@ -90,8 +90,9 @@ RAW_KEY_PREFIX = "nk_"
 KEY_PREFIX_LENGTH = 8
 
 #: The deployments a key may be marked for. A production deployment refuses a
-#: ``development`` key at the auth layer (#22, finding 3); the model carries
-#: the same pair as a CheckConstraint.
+#: ``development`` key held in its own database at the auth layer (#22,
+#: finding 3) — one minted elsewhere is not found there, a 401 (#138); the
+#: model carries the same pair as a CheckConstraint.
 ENVIRONMENTS = ("production", "development")
 
 

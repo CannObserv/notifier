@@ -214,9 +214,11 @@ Skips with a message if `TEST_DATABASE_URL` is unset.
 
 Use `scripts/seed_tenant.py`. The third argument marks which deployment the
 key is for — `production` (default) or `development`. **A production
-deployment refuses `development` keys at the auth layer** (403), which is the
-layer that catches a consumer's test suite calling production over HTTP; no
-database guard can see that vector (issue #22, finding 3).
+deployment refuses a `development`-marked key in its own database at the auth
+layer** (403), which is the layer that catches a dev credential reaching
+production over HTTP; no database guard can see that vector (issue #22,
+finding 3). A key minted below, in `notifier_dev`, never gets that far against
+`:9000`: production has no such row, so it answers **401** (#138).
 
 ```bash
 . scripts/load_env.sh
@@ -374,10 +376,11 @@ to supply it — which you have during an exposure, and do not during a routine
 rotation. Without `--verify-old` the script says the old key went unchecked
 rather than passing over it.
 
-**A 403 on the old key is not proof of revocation.** 403 is what a production
-deployment returns for a `development` key — a perfectly valid credential being
-turned away. Only **401** means the row is gone. `--verify-old` insists on 401
-for that reason.
+**A 403 on the old key is not proof of revocation.** A 403 means the key was
+found and is marked `development` on a production deployment — a perfectly
+valid credential being turned away. (The converse does not hold: a key minted
+in another database gets 401, #138.) Only **401** means the row is gone.
+`--verify-old` insists on 401 for that reason.
 
 **Revocation is a `DELETE`, and there is no `revoked_at`.** A column would leave
 an audit trail but would require every present and future key lookup to filter

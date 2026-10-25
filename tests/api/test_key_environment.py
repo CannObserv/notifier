@@ -1,8 +1,10 @@
 """A non-production API key must be refused by a production deployment.
 
 This is the layer the four-layer DB guard cannot provide: it catches a dev
-process on a sibling VM calling production notifier over HTTP with a valid
-key (issue #22, finding 3).
+process on a sibling VM calling production notifier over HTTP with a key
+production holds, marked ``development`` (issue #22, finding 3). A key minted
+only in ``notifier_dev`` is never found there and gets 401 instead
+(``tests/test_smoke.py::test_v1_invalid_api_key``, #138).
 """
 
 import hashlib

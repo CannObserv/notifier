@@ -12,9 +12,11 @@ class ApiKey(Base):
     """Stores a SHA-256 hash of each API key; raw key is never persisted.
 
     ``environment`` marks which deployment a key is meant for. A production
-    deployment refuses ``development`` keys outright — the layer that catches
-    a sibling's dev process calling production over HTTP, which no database
-    guard can see (issue #22, finding 3).
+    deployment refuses a ``development`` row in its own database outright
+    (403) — the layer that catches a dev credential reaching production over
+    HTTP, which no database guard can see (issue #22, finding 3). A key held
+    only by another database never gets that far: it is not found, so 401
+    (#138).
     """
 
     __tablename__ = "api_keys"

@@ -20,10 +20,12 @@ This script opens a connection through ``src.core.database``, so the guard in
 opt-in above. Pass it on the command line for the single invocation — never
 add it to an env file.
 
-``environment`` is ``production`` (default) or ``development``. A production
-deployment refuses development keys at the auth layer, so a key minted for a
-consumer's test suite cannot reach production notifier even if it leaks into
-the wrong config (issue #22, finding 3).
+``environment`` is ``production`` (default) or ``development``. A key minted
+into ``notifier_dev`` is unknown to production, which answers it 401; a
+``development`` key minted into the production database is refused there with
+403 at the auth layer. Either way a key minted for a consumer's test suite
+cannot reach production notifier even if it leaks into the wrong config
+(issue #22, finding 3; #138).
 
 Prints ``tenant_id``, ``key_id`` and the raw API key. **The raw key is shown
 ONCE** — store it in the consumer's secrets immediately. Only the SHA-256 hash

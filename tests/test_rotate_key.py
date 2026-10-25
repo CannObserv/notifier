@@ -482,8 +482,9 @@ class TestVerify:
         assert [c.ok for c in checks] == [True, False]
 
     def test_a_403_on_the_old_key_is_not_proof_of_revocation(self):
-        """403 is what a production deployment returns for a development key —
-        a key that is still perfectly valid. Only 401 means the row is gone."""
+        """A 403 means the key was found and is marked development on a
+        production deployment — still perfectly valid. Only 401 means the row
+        is gone (#138: the converse fails; a key from another database is 401)."""
 
         def handler(request):
             if request.headers["X-API-Key"] == "nk_old":

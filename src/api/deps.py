@@ -30,8 +30,11 @@ async def require_api_key(
     """Validate X-API-Key header; return ``tenant_id`` on success.
 
     Raises 403 when the header is absent, 401 when the key is invalid or not
-    found, and 403 when a ``development`` key is presented to a production
-    deployment. Updates ``last_used_at`` on each successful authentication —
+    found, and 403 when a key found in this database is marked
+    ``development`` and this is a production deployment. The environment is
+    read off the row, so a key minted in another database — every consumer's
+    ``notifier_dev`` key, sent to production — is a 401, never the 403
+    (#138). Updates ``last_used_at`` on each successful authentication —
     a refused key is never stamped, because it was never used.
     """
     if raw_key is None:

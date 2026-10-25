@@ -2,8 +2,10 @@
 
 ``clients/python`` is generated from ``/openapi.json``. A failure mode absent
 from the spec gives SDK consumers no typed handle on it — including the 403 a
-production deployment returns for a development key, which fires exactly when
-a consumer is misconfigured (issue #22).
+production deployment returns for a development-marked key in its own
+database, which fires when a dev credential reaches production (issue #22).
+The commoner misconfiguration, a ``notifier_dev`` key sent to production, is
+the 401: that key is not found there (#138).
 """
 
 import pytest

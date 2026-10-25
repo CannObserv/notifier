@@ -91,7 +91,8 @@ pinned under `~/.socraticode/pin` (#74,
 [reservation](docs/reference/memory-reservation.md)).
 
 Both always-on. **9001 is the development endpoint consumers point at** — it
-accepts `development`-marked API keys, which 9000 refuses (#24).
+accepts `development`-marked API keys, which 9000 refuses — with **401**, not
+403, since they live in `notifier_dev` and `notifier` has no such row (#24, #138).
 
 **Both bind this host's tailnet address alone, never `0.0.0.0`** — so the API
 is unreachable from exe.dev's internal `10.42.0.0/16`, from the proxy and from
@@ -246,7 +247,7 @@ The service is consumer-agnostic. Resist these temptations:
 - **Do** validate `variables` against the template's `variables_schema` on dispatch; a miss is a 422 naming the field path. The *schema itself* is checked twice — on template write, where a malformed one is a 422 naming `body.variables_schema`, and again at dispatch, which catches rows stored before that guard (#28).
 - **Do** render with `StrictUndefined` so unbound references fail loudly rather than silently producing empty output.
 - **Do** require `idempotency_key` to be tenant-scoped and unique-where-not-null; replay must be safe.
-- **Do** mark every API key with an `environment` (`production` | `development`); a production deployment refuses `development` keys with 403. It is the only layer that sees a consumer's dev process calling production over HTTP — a database guard cannot (issue #22).
+- **Do** mark every API key with an `environment` (`production` | `development`); a production deployment refuses a `development`-marked key *in its own database* with 403. A key minted in `notifier_dev` is unknown to production, so it gets 401 before the environment is read (#138). The 403 is the backstop behind that partition: the only layer that sees a dev-marked credential reaching production over HTTP — a database guard cannot (issue #22).
 
 ## Detail Docs
 
