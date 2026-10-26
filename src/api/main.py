@@ -25,10 +25,12 @@ configure_audit_logging()
 logger = get_logger(__name__)
 
 
-# FastAPI >= 0.142 adds OTLP exporters for spans, metrics and logs (exception
-# messages and stack traces included) whenever an OTEL_* endpoint is in the
-# environment. Exporting the alert path's telemetry off-host is a decision to
-# make deliberately, not one a stray variable makes for us (CR 12, #112).
+# FastAPI can add OTLP exporters for spans, metrics and logs (exception messages
+# and stack traces included) from OTEL_* endpoints in the environment. Since
+# 0.143 that is opt-in — but via another variable, FASTAPI_OTEL_AUTO_CONFIGURE,
+# which an explicit setting here overrides. Exporting the alert path's telemetry
+# off-host is a decision to make deliberately, not one a stray variable makes
+# for us (CR 12, #112).
 app = FastAPI(title="notifier", version="0.3.2", telemetry={"auto_configure": False})
 
 # Every /api/v1 route inherits require_api_key, so every one of them can fail
