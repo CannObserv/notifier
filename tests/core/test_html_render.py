@@ -3,7 +3,8 @@
 Pure-function tests — no Apprise, no I/O. Asserts cover:
 - diff-fence styling produces the expected colored <span> structure;
 - non-diff fences fall through to standard <pre><code>;
-- HTML escaping survives XSS payloads inside diff lines;
+- HTML escaping survives XSS payloads inside diff lines and plain Markdown;
+- harmful link schemes (javascript:, vbscript:, data:) are neutralized;
 - multiple diff fences in one body each get styled independently;
 - plain Markdown outside fences renders correctly;
 - _classify_diff_line is exhaustive over the prefixes we care about.
@@ -135,6 +136,26 @@ def test_paragraph_outside_diff_fence_renders_as_p():
     html = markdown_to_email_html("Just a paragraph.\n")
     assert "<p>" in html
     assert "Just a paragraph." in html
+
+
+def test_raw_html_outside_fences_is_escaped():
+    """Escaping rests on ``_DiffAwareRenderer(escape=True)`` alone.
+
+    mistune 3.4.0 changed how ``create_markdown(escape=...)`` treats a
+    renderer instance; this pins the outcome, not the mechanism.
+    """
+    html = markdown_to_email_html('<script>alert("xss")</script>\n\n<img src=x onerror=alert(1)>\n')
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_harmful_link_schemes_are_neutralized():
+    body = "[a](javascript:alert(1)) [b](vbscript:x) [c](data:text/html,x)\n"
+    html = markdown_to_email_html(body)
+    assert "javascript:" not in html
+    assert "vbscript:" not in html
+    assert "data:text/html" not in html
 
 
 # --- _classify_diff_line ----------------------------------------------------
