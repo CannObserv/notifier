@@ -4,7 +4,7 @@ This is the layer the four-layer DB guard cannot provide: it catches a dev
 process on a sibling VM calling production notifier over HTTP with a key
 production holds, marked ``development`` (issue #22, finding 3). A key minted
 only in ``notifier_dev`` is never found there and gets 401 instead
-(``tests/test_smoke.py::test_v1_invalid_api_key``, #138).
+(``test_production_deployment_answers_an_unknown_key_with_401``, #138).
 """
 
 import hashlib
@@ -55,6 +55,20 @@ async def test_production_deployment_refuses_a_development_key(client, db_sessio
     response = await client.get("/api/v1/templates", headers={"X-API-Key": raw})
     assert response.status_code == 403
     assert "development" in response.json()["detail"]
+
+
+async def test_production_deployment_answers_an_unknown_key_with_401(client, monkeypatch):
+    """A key production has no row for — every ``notifier_dev`` key — is a
+    401, never the 403: the environment is read off the row, so there is
+    nothing to refuse it on (#142). ``tests/test_smoke.py`` asserts the same
+    401 unclassified, where the environment check is never reached either way;
+    only under production does an environment check moved ahead of the lookup
+    turn this into a 403."""
+    monkeypatch.setattr("src.api.deps.serving_production", lambda: True)
+    response = await client.get(
+        "/api/v1/templates", headers={"X-API-Key": "nk_" + secrets.token_urlsafe(16)}
+    )
+    assert response.status_code == 401
 
 
 async def test_production_deployment_accepts_a_production_key(client, db_session, monkeypatch):
