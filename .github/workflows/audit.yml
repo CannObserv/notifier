@@ -3,6 +3,8 @@
 # Dependabot's version updates cover direct dependencies only. starlette 1.0.0
 # (via fastapi) sat in uv.lock with five open advisories, and urllib3, oauthlib,
 # idna and mako beside it, with no gate anywhere able to see them (#103).
+# Dependabot's security updates now propose transitive lock bumps as well
+# (#140), but as an early warning in front of this gate, not instead of it.
 #
 # The schedule is the point: advisories publish independently of commits, so a
 # push-only audit reports a new one on whichever unrelated commit lands next.
