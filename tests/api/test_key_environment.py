@@ -61,9 +61,9 @@ async def test_production_deployment_answers_an_unknown_key_with_401(client, mon
     """A key production has no row for — every ``notifier_dev`` key — is a
     401, never the 403: the environment is read off the row, so there is
     nothing to refuse it on (#142). ``tests/test_smoke.py`` asserts the same
-    401 unclassified, where the environment check is never reached either way;
-    only under production does an environment check moved ahead of the lookup
-    turn this into a 403."""
+    401 unclassified, where the environment check never fires either way;
+    only under production does an environment check moved ahead of the
+    not-found 401 turn this into a 403."""
     monkeypatch.setattr("src.api.deps.serving_production", lambda: True)
     response = await client.get(
         "/api/v1/templates", headers={"X-API-Key": "nk_" + secrets.token_urlsafe(16)}
