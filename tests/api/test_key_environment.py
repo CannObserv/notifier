@@ -11,6 +11,7 @@ import hashlib
 import secrets
 
 import pytest
+from sqlalchemy import select
 
 from src.core.models import ApiKey, Tenant
 
@@ -95,7 +96,5 @@ async def test_refusal_does_not_stamp_last_used_at(client, db_session, monkeypat
     raw = await _key(db_session, "development")
     await client.get("/api/v1/templates", headers={"X-API-Key": raw})
     key_hash = hashlib.sha256(raw.encode()).hexdigest()
-    from sqlalchemy import select
-
     result = await db_session.execute(select(ApiKey).where(ApiKey.key_hash == key_hash))
     assert result.scalar_one().last_used_at is None
