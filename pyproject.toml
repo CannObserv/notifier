@@ -17,7 +17,7 @@ dependencies = [
     # regression fixes at 2.1.4. Lift it in its own change (#110), with the
     # full integration suite run against it.
     "sqlalchemy[asyncio]>=2.0.54,<2.1",
-    "asyncpg>=0.30.0,<0.32",
+    "asyncpg>=0.32.0,<0.33",
     "alembic>=1.20.0,<2",
     "python-ulid>=4.0.1,<5",
     "httpx>=0.28.0,<0.29",
