@@ -255,7 +255,7 @@ dev = [
     { name = "pytest", specifier = ">=9.1.1,<10" },
     { name = "pytest-asyncio", specifier = ">=1.4.0,<2" },
     { name = "respx", specifier = ">=0.23.1,<0.24" },
-    { name = "ruff", specifier = ">=0.16.10,<0.18" },
+    { name = "ruff", specifier = ">=0.17.1,<0.18" },
 ]
 
 [[package]]

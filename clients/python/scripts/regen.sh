@@ -18,13 +18,21 @@ uv run openapi-python-client generate \
     --path "${TMP_SPEC}" \
     --meta none \
     --output-path "${GEN_DIR}" \
-    --overwrite
+    --overwrite \
+    --fail-on-warning
 
 # No ruff pass of our own here: `generated/` is excluded from every ruff run
 # (`extend-exclude` in clients/python/pyproject.toml). The output is still
-# coupled to the ruff version, though — with `--meta none` and no config file,
+# coupled to ruff, though — with `--meta none` and no config file,
 # openapi-python-client runs its own post-hooks, `ruff check . --fix-only
-# --extend-select=I` then `ruff format .`, with the SDK venv's ruff. A ruff bump
-# that changes formatting therefore surfaces in CI as "SDK generated/ is stale"
-# on the bump PR itself; regenerate and commit with it (ruff 0.17, #125).
+# --extend-select=I` then `ruff format .`, with the SDK venv's ruff and the
+# `[tool.ruff]` settings in clients/python/pyproject.toml. A ruff bump that
+# changes formatting, or an edit to those settings, therefore surfaces in CI as
+# "SDK generated/ is stale" on that PR itself; regenerate and commit with it
+# (ruff 0.17, #125). The SDK's ruff floor tracks the version the committed
+# output was formatted with.
+#
+# `--fail-on-warning`: a ruff missing from PATH is only a warning to the
+# generator, which then skips both hooks and exits 0 with unformatted output —
+# a "stale" failure that names the wrong cause.
 echo "Regenerated: ${GEN_DIR}"
