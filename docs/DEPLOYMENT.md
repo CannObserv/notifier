@@ -220,8 +220,8 @@ exit-status line for it. **Any `Main process exited` or `Failed with result`
 line is real.** Both units run `Restart=always`, so an exit systemd did not ask
 for — an earlyoom kill, a crash — logs `Scheduled restart job` and bumps
 `NRestarts`
-(`systemctl show notifier -p NRestarts`), until five starts inside the
-`StartLimitIntervalSec` window park the unit failed.
+(`systemctl show notifier -p NRestarts`), until a sixth start inside the
+`StartLimitIntervalSec` window is refused and the unit parks failed.
 
 ### OS patching (#113)
 
