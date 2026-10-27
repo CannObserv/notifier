@@ -114,7 +114,7 @@ Other tailnet nodes reach `http://notifier:9000` / `:9001`. **On this VM both
 | Code committed to main | `sudo systemctl restart notifier notifier-dev` |
 | Testing a worktree/branch | `sudo systemctl stop notifier-dev`, then `./scripts/dev_server.sh` |
 | Debugging live / dev | `sudo journalctl -u notifier -f` · `-u notifier-dev -f` |
-| After editing a unit in `deploy/` | `sudo systemctl daemon-reload`, then restart both |
+| After editing a unit in `deploy/` | `sudo cp` it to `/etc/systemd/system/`, `sudo systemctl daemon-reload`, restart both |
 | After DB model changes | `uv run alembic upgrade head`, the same against `DEV_DATABASE_URL`, then restart both |
 | Which key was minted, revoked, or destroyed with its tenant | `journalctl -t notifier-keys` |
 
