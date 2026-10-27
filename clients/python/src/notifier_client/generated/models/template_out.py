@@ -47,12 +47,8 @@ class TemplateOut:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.template_out_sample_variables_type_0 import (
-            TemplateOutSampleVariablesType0,  # noqa: PLC0415
-        )
-        from ..models.template_out_variables_schema_type_0 import (
-            TemplateOutVariablesSchemaType0,  # noqa: PLC0415
-        )
+        from ..models.template_out_sample_variables_type_0 import TemplateOutSampleVariablesType0  # noqa: PLC0415
+        from ..models.template_out_variables_schema_type_0 import TemplateOutVariablesSchemaType0  # noqa: PLC0415
 
         body_template = self.body_template
 
@@ -117,12 +113,8 @@ class TemplateOut:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.template_out_sample_variables_type_0 import (
-            TemplateOutSampleVariablesType0,  # noqa: PLC0415
-        )
-        from ..models.template_out_variables_schema_type_0 import (
-            TemplateOutVariablesSchemaType0,  # noqa: PLC0415
-        )
+        from ..models.template_out_sample_variables_type_0 import TemplateOutSampleVariablesType0  # noqa: PLC0415
+        from ..models.template_out_variables_schema_type_0 import TemplateOutVariablesSchemaType0  # noqa: PLC0415
 
         d = dict(src_dict)
         body_template = d.pop("body_template")
