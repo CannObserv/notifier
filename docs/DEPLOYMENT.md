@@ -126,7 +126,7 @@ Three properties are load-bearing, each with a drift test in
   uvicorn spelling in the unit would be a second code path that can drift out
   from under all four.
 - **`NOTIFIER_DEV_RELOAD=0`.** A wedged reloader keeps running after a syntax
-  error on `main`, so `Restart=on-failure` never fires and the endpoint dies
+  error on `main`, so no `Restart=` policy fires and the endpoint dies
   silently while systemd reports it active.
 
 `StartLimitBurst=5` at `RestartSec=15` bounds the restart loop: an
@@ -210,6 +210,18 @@ journalctl -t notifier-keys
 
 Restarting `notifier notifier-dev` picks up merged code for the API;
 `systemctl daemon-reload` comes first after editing anything in `deploy/`.
+The units are installed copies, so `sudo cp` the edited ones into
+`/etc/systemd/system/` before the reload.
+
+A clean restart logs `Stopping`, `Deactivated successfully`, `Stopped`,
+`Started` for each unit. `uv run` exits 143 on the SIGTERM, and both units
+count that as success (`SuccessExitStatus=143`, #143), so systemd prints no
+exit-status line for it. **Any `Main process exited` or `Failed with result`
+line is real.** Both units run `Restart=always`, so an exit systemd did not ask
+for — an earlyoom kill, a crash — logs `Scheduled restart job` and bumps
+`NRestarts`
+(`systemctl show notifier -p NRestarts`), until five starts inside the
+`StartLimitIntervalSec` window park the unit failed.
 
 ### OS patching (#113)
 

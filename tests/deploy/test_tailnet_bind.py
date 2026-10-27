@@ -7,7 +7,7 @@ HTTPS proxy, and from the internet. Defense in depth behind the Tailscale ACL.
 That decision buys a boot race. ``After=tailscaled.service`` orders startup but
 does not wait for tailscaled to *assign* an address, and unlike Redis 7 — whose
 ``-`` bind prefix makes an address optional — uvicorn has no way to bind an
-address that is not there yet. It exits non-zero, ``Restart=on-failure`` fires,
+address that is not there yet. It exits non-zero, ``Restart=always`` fires,
 and a tight ``StartLimitBurst`` turns a transient into a unit that stays failed
 until a human runs ``systemctl reset-failed``.
 
@@ -71,7 +71,7 @@ def test_wait_is_bounded_and_fails_loudly():
     Redis could fall back to a local-only bind because a local-only broker
     still serves local pipelines. Notifier has no such half-service: an
     unreachable API is the whole outage. So the timeout must exit non-zero and
-    let ``Restart=on-failure`` retry, rather than binding something else.
+    let ``Restart=always`` retry, rather than binding something else.
     """
     assert "exit 1" in code(), "timeout must exit non-zero, never fall back to another bind"
     assert "100." in body(), "must document/match the CGNAT range it waits for"

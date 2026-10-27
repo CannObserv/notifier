@@ -13,7 +13,8 @@ After=network.target postgresql.service tailscaled.service
 # Since #43 this unit also waits on tailscaled for its bind address, which
 # scripts/tailnet_bind.sh bounds internally before failing the start.
 #
-# 5 tries x RestartSec=15 = 75s of retries. Long enough for any plausible boot
+# 5 tries x RestartSec=15 = 75s of retries when a start fails fast, ~375s
+# when each also waits out the tailnet. Long enough for any plausible boot
 # race; short enough that a real misconfiguration, which no amount of waiting
 # fixes, still gives up somewhere a human will see it.
 StartLimitIntervalSec=600
@@ -55,7 +56,11 @@ Environment=NOTIFIER_DEV_RELOAD=0
 # out from under all four checks (issues #22, #23, #24).
 ExecStart=/home/exedev/notifier/scripts/dev_server.sh
 
-Restart=on-failure
+# Same pair as notifier.service, same reason (#143): a deliberate stop's exit
+# 143 is success, and every other exit restarts. The bound above counts every
+# start, tailnet wait included: 5 x (60s + 15s) = 375s, inside 600s.
+SuccessExitStatus=143
+Restart=always
 RestartSec=15
 
 [Install]

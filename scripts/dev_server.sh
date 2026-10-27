@@ -84,7 +84,7 @@ fi
 # --reload is right for a hand-run server and wrong for a service. Under
 # systemd an edit mid-request drops a consumer's connection, and a syntax
 # error on main leaves the reloader wedged and *running* — so
-# Restart=on-failure never fires and the endpoint is silently dead.
+# no Restart= policy ever fires and the endpoint is silently dead.
 # deploy/notifier-dev.service sets NOTIFIER_DEV_RELOAD=0 (issue #24).
 reload_args=()
 if [[ "${NOTIFIER_DEV_RELOAD:-1}" == "1" ]]; then

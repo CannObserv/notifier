@@ -67,7 +67,17 @@ EnvironmentFile=-/home/exedev/notifier/.env
 # runs — so no ExecStartPre can resolve this host's tailnet address into the
 # environment ExecStart would see. Resolving and binding must share a process.
 ExecStart=/home/exedev/notifier/scripts/serve.sh
-Restart=on-failure
+
+# `uv run` exits 143 after a SIGTERM: uvicorn shuts down, re-raises the signal
+# it caught, and uv reports the child's death as 128+15 rather than dying of
+# it. Without SuccessExitStatus every `systemctl restart` logs `Failed with
+# result 'exit-code'`, burying a real failure (#143). With it alone, under
+# on-failure, a SIGTERM systemd did not send — earlyoom's first action — would
+# leave the alert path down. So: any exit systemd did not ask for restarts,
+# whatever its status. Every start counts against StartLimitBurst above, which
+# is still sized to trip on the slowest such loop.
+SuccessExitStatus=143
+Restart=always
 RestartSec=5
 
 [Install]

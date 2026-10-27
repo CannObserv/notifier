@@ -229,7 +229,7 @@ interface the proxy forwards to. That is the design, not a fault.
 The cost is a startup race. `After=tailscaled.service` orders the two but does
 **not** wait for an address to be *assigned*, and unlike Redis 7 — whose `-`
 bind prefix makes an address optional — uvicorn cannot bind an address that is
-not there yet. It exits non-zero, `Restart=on-failure` fires, and a tight
+not there yet. It exits non-zero, `Restart=always` fires, and a tight
 `StartLimitBurst` converts a transient into a unit that stays failed until
 someone runs `systemctl reset-failed`.
 

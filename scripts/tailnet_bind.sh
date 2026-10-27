@@ -7,7 +7,7 @@
 #
 # That buys a boot race. `After=tailscaled.service` orders startup but does not
 # wait for tailscaled to *assign* an address, and uvicorn cannot bind an
-# address that is not there yet: it exits non-zero, `Restart=on-failure` fires,
+# address that is not there yet: it exits non-zero, `Restart=always` fires,
 # and a tight StartLimitBurst turns a transient into a unit that stays failed
 # until someone runs `systemctl reset-failed`. CannObserv/observo#473 is this
 # exact race against redis-server; it cost that project two weeks of silently
@@ -25,7 +25,7 @@
 #   2. Time out loudly. Redis could fall back to a local-only bind because a
 #      local-only broker still serves local pipelines. Notifier has no half
 #      service — an unreachable API is the entire outage — so exhausting the
-#      wait exits non-zero and lets Restart=on-failure retry, rather than
+#      wait exits non-zero and lets Restart=always retry, rather than
 #      quietly binding something reachable from somewhere else.
 #
 # Usage:  HOST="$(scripts/tailnet_bind.sh)"  — address on stdout, notes on stderr.

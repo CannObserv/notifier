@@ -176,7 +176,7 @@ def test_dev_server_reload_can_be_switched_off(tmp_path):
 
     Under systemd the reloader is wrong twice over: an edit mid-request drops
     a consumer's connection, and a syntax error on main leaves the reloader
-    wedged and *running*, so Restart=on-failure never fires and the endpoint
+    wedged and *running*, so no Restart= policy fires and the endpoint
     is silently dead.
     """
     assert "--reload" not in _run_dev_server(tmp_path, NOTIFIER_DEV_RELOAD="0")

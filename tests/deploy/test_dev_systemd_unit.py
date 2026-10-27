@@ -14,28 +14,18 @@ four checks.
 """
 
 import re
-from pathlib import Path
 
 from src.core import db_safety
+from tests.deploy.systemd_units import (
+    REPO_ROOT,
+    directives,
+    seconds,
+    tailnet_wait_seconds,
+    values,
+)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 DEV_UNIT = REPO_ROOT / "deploy" / "notifier-dev.service"
 PROD_UNIT = REPO_ROOT / "deploy" / "notifier.service"
-
-
-def directives(unit: Path) -> str:
-    """The lines systemd acts on, with comments and blanks dropped.
-
-    The absence checks below are about what the unit *does*, and this unit
-    explains at length why it omits the production opt-in and why ExecStart is
-    not a uvicorn line. Matching raw text would make those comments fail the
-    tests they document.
-    """
-    return "\n".join(
-        line
-        for line in unit.read_text().splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    )
 
 
 def test_dev_unit_exists():
@@ -63,7 +53,7 @@ def test_dev_unit_does_not_pin_a_database_url():
 
 
 def test_dev_unit_disables_the_reloader():
-    """A wedged reloader keeps running, so Restart=on-failure never fires."""
+    """A wedged reloader keeps running, so no Restart= policy ever fires."""
     assert "Environment=NOTIFIER_DEV_RELOAD=0" in directives(DEV_UNIT)
 
 
@@ -73,50 +63,46 @@ def test_dev_unit_stays_off_the_production_port():
 
 def test_dev_unit_bounds_its_restart_loop():
     """An unmigrated dev DB exits non-zero by design; don't loop on it forever."""
-    body = directives(DEV_UNIT)
-    assert "StartLimitBurst=" in body
-    assert "Restart=on-failure" in body
+    assert seconds(DEV_UNIT, "StartLimitBurst") == 5
+    assert seconds(DEV_UNIT, "StartLimitIntervalSec") == 600
+    assert seconds(DEV_UNIT, "RestartSec") == 15
 
 
-def _seconds(unit: Path, key: str) -> int:
-    """Read a systemd time-valued setting as whole seconds.
+def test_dev_unit_restarts_on_any_exit_systemd_did_not_ask_for():
+    """#143, the same pair as the production unit.
 
-    Accepts a bare integer or an explicit ``s`` suffix, both of which systemd
-    takes. Anything else — ``1min``, ``2h`` — is rejected with a message
-    naming the parser rather than raising ValueError from int(), so the
-    failure points at this helper instead of looking like a broken test.
+    The dev endpoint is where the SIGTERM probe runs: an earlyoom-style kill
+    of the uvicorn child must bring it back, and a ``systemctl restart`` must
+    not log ``Failed``.
     """
-    for line in directives(unit).splitlines():
-        name, _, value = line.partition("=")
-        if name.strip() != key:
-            continue
-        raw = value.strip().removesuffix("s")
-        assert raw.isdigit(), (
-            f"{key}={value.strip()} in {unit.name} is a systemd time span this "
-            f"helper does not parse — express it in seconds, or teach _seconds() the unit"
-        )
-        return int(raw)
-    raise AssertionError(f"{key} not set in {unit.name}")
+    assert values(DEV_UNIT, "Restart") == ["always"]
+    assert values(DEV_UNIT, "SuccessExitStatus") == ["143"]
 
 
 def test_dev_unit_survives_a_slow_database_at_boot():
     """The bound must outlast a boot race, not just an unmigrated database.
 
     A unit that trips StartLimitBurst stays failed until someone runs
-    `systemctl reset-failed`. The production unit sets no limit at all, so it
-    retries until Postgres is up; this one would give up permanently and leave
-    the endpoint silently down — the exact outcome #24 exists to prevent.
+    `systemctl reset-failed`, leaving the endpoint silently down — the exact
+    outcome #24 exists to prevent.
     `After=postgresql.service` orders startup but does not wait for the
     cluster to accept connections.
 
     One minute of retries distinguishes a slow boot from a real
     misconfiguration, which no amount of waiting will fix.
+
+    The ceiling is the slowest loop, not the fastest: since #43 a start can
+    wait the full tailnet bound before failing, and under ``Restart=always``
+    (#143) every start counts. If that loop fits inside the interval, the
+    limit can always trip.
     """
-    window = _seconds(DEV_UNIT, "RestartSec") * _seconds(DEV_UNIT, "StartLimitBurst")
-    assert window >= 60, f"gives up after {window}s — too fast to ride out a slow Postgres"
-    assert window <= _seconds(DEV_UNIT, "StartLimitIntervalSec"), (
-        "StartLimitIntervalSec is shorter than the retries it is meant to count, "
-        "so the limit can never actually trip and the loop runs forever"
+    burst = seconds(DEV_UNIT, "StartLimitBurst")
+    fastest = burst * seconds(DEV_UNIT, "RestartSec")
+    slowest = burst * (tailnet_wait_seconds() + seconds(DEV_UNIT, "RestartSec"))
+    assert fastest >= 60, f"gives up after {fastest}s — too fast to ride out a slow Postgres"
+    assert slowest <= seconds(DEV_UNIT, "StartLimitIntervalSec"), (
+        f"{burst} slow failures take {slowest}s, longer than the window that counts "
+        "them — the limit never trips and the loop runs forever"
     )
 
 

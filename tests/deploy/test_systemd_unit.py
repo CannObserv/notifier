@@ -11,24 +11,16 @@ from pathlib import Path
 import pytest
 
 from src.core import db_safety
+from tests.deploy.systemd_units import (
+    REPO_ROOT,
+    directives,
+    seconds,
+    tailnet_wait_seconds,
+    values,
+)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 UNIT = REPO_ROOT / "deploy" / "notifier.service"
 SERVE = REPO_ROOT / "scripts" / "serve.sh"
-
-
-def directives(unit: Path) -> str:
-    """The lines systemd acts on, with comments and blanks dropped.
-
-    Mirrors the helper in test_dev_systemd_unit.py: the absence checks are
-    about what the unit *does*, and this unit explains at length why ExecStart
-    is not a uvicorn line.
-    """
-    return "\n".join(
-        line
-        for line in unit.read_text().splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    )
 
 
 def test_unit_sets_the_production_opt_in_flag():
@@ -94,10 +86,41 @@ def test_unit_bounds_its_restart_loop_around_the_tailnet_wait():
     genuinely broken config would retry forever — the failure mode the dev
     unit's bound exists to prevent, arriving here by a different route.
     """
-    body = directives(UNIT)
-    assert "StartLimitBurst=" in body
-    assert "StartLimitIntervalSec=" in body
-    assert "Restart=on-failure" in body
+    assert seconds(UNIT, "StartLimitBurst") == 5
+    assert seconds(UNIT, "StartLimitIntervalSec") == 900
+    assert seconds(UNIT, "RestartSec") == 5
+
+
+def test_unit_start_limit_can_trip_on_its_slowest_crash_loop():
+    """The limit must be able to count every start of a loop, tailnet wait and all.
+
+    Under ``Restart=always`` (#143) every exit systemd did not ask for is
+    another start, and every start — auto or manual, whatever the exit status
+    — counts against the burst. The slowest loop is a start that waits the
+    full tailnet bound before failing. If even that one fits inside the
+    interval, every faster loop does too.
+    """
+    burst = seconds(UNIT, "StartLimitBurst")
+    worst = burst * (tailnet_wait_seconds() + seconds(UNIT, "RestartSec"))
+    assert worst <= seconds(UNIT, "StartLimitIntervalSec"), (
+        f"{burst} slow failures take {worst}s, longer than the window that counts "
+        "them — the limit never trips and a broken unit retries forever"
+    )
+
+
+def test_unit_restarts_on_any_exit_systemd_did_not_ask_for():
+    """#143: a deliberate stop logs as success; any other exit still restarts.
+
+    ``uv run`` exits 143 after a SIGTERM, because uvicorn re-raises the
+    signal it caught and uv reports the child's death as 128+15. Without
+    ``SuccessExitStatus=143`` every ``systemctl restart`` writes ``Failed with
+    result 'exit-code'``, burying a real failure. With it but under
+    ``Restart=on-failure``, a SIGTERM systemd did not send — earlyoom's first
+    action — would leave the alert path down. Both together, exactly once,
+    since systemd keeps the last assignment.
+    """
+    assert values(UNIT, "Restart") == ["always"]
+    assert values(UNIT, "SuccessExitStatus") == ["143"]
 
 
 BIND_OVERRIDE = "NOTIFIER_BIND_HOST"
