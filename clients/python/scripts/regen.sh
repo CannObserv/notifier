@@ -20,10 +20,11 @@ uv run openapi-python-client generate \
     --output-path "${GEN_DIR}" \
     --overwrite
 
-# No ruff format pass here on purpose. openapi-python-client's output is
-# already format-clean, and `generated/` is excluded from every ruff run
-# (`extend-exclude` in clients/python/pyproject.toml), so formatting it here
-# would couple the committed tree to the ruff version: a formatter bump would
-# rewrite these files and surface in CI as a misleading "SDK generated/ is
-# stale" failure. Keep this script a pure function of the OpenAPI spec.
+# No ruff pass of our own here: `generated/` is excluded from every ruff run
+# (`extend-exclude` in clients/python/pyproject.toml). The output is still
+# coupled to the ruff version, though — with `--meta none` and no config file,
+# openapi-python-client runs its own post-hooks, `ruff check . --fix-only
+# --extend-select=I` then `ruff format .`, with the SDK venv's ruff. A ruff bump
+# that changes formatting therefore surfaces in CI as "SDK generated/ is stale"
+# on the bump PR itself; regenerate and commit with it (ruff 0.17, #125).
 echo "Regenerated: ${GEN_DIR}"
