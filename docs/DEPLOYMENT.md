@@ -95,10 +95,8 @@ sudo install -D -m 644 deploy/needrestart.conf.d/notifier.conf \
 sudo install -D -m 644 deploy/apt-preferences.d/tailscale.pref \
      /etc/apt/preferences.d/tailscale.pref
 
-# PID 1's lines stay in the journal after a reload (#145): the image's
-# container-overrides.conf sets LogTarget=console, which every daemon-reload
-# applies. co-image-base's file, byte-identical (CannObserv/provisioner#62);
-# `systemd-analyze get-log-target` then reads journal-or-kmsg.
+# Keeps PID 1's lines in the journal across a reload (#145); co-image-base's
+# file, byte-identical (CannObserv/provisioner#62).
 sudo install -D -m 644 deploy/system.conf.d/zz-cannobserv-log-target.conf \
      /etc/systemd/system.conf.d/zz-cannobserv-log-target.conf
 sudo systemctl daemon-reload
@@ -227,12 +225,10 @@ not ask for (earlyoom, a crash) logs `Scheduled restart job` and bumps
 `NRestarts`, until a sixth start inside `StartLimitIntervalSec` is refused and
 the unit parks failed.
 
-Those lines are PID 1's, and reach the journal only while
-`systemd-analyze get-log-target` reads `journal-or-kmsg` (#145). A runtime
-`systemctl log-target` outlives every reload until boot and blocks the
-drop-in; clear it with `sudo kill -s RTMIN+26 1`, then
-`sudo systemctl daemon-reload` until `get-log-target` reads `journal-or-kmsg`
-(a reload that beats the signal is undone by it).
+These are PID 1's lines, journaled only while `systemd-analyze
+get-log-target` reads `journal-or-kmsg` (#145). A runtime `systemctl
+log-target` blocks the drop-in until boot: `sudo kill -s RTMIN+26 1`, then
+`sudo systemctl daemon-reload` until it reads `journal-or-kmsg`.
 
 ### OS patching (#113)
 
