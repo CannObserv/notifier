@@ -94,6 +94,14 @@ sudo install -D -m 644 deploy/needrestart.conf.d/notifier.conf \
 # effect at once; `apt-cache policy tailscale` shows the candidate at 600.
 sudo install -D -m 644 deploy/apt-preferences.d/tailscale.pref \
      /etc/apt/preferences.d/tailscale.pref
+
+# PID 1's lines stay in the journal after a reload (#145): the image's
+# container-overrides.conf sets LogTarget=console, which every daemon-reload
+# applies. co-image-base's file, byte-identical (CannObserv/provisioner#62);
+# `systemd-analyze get-log-target` then reads journal-or-kmsg.
+sudo install -D -m 644 deploy/system.conf.d/zz-cannobserv-log-target.conf \
+     /etc/systemd/system.conf.d/zz-cannobserv-log-target.conf
+sudo systemctl daemon-reload
 ```
 
 ## Production database opt-in
@@ -218,6 +226,12 @@ both units count that as success (#143). **Any `Main process exited` or
 not ask for (earlyoom, a crash) logs `Scheduled restart job` and bumps
 `NRestarts`, until a sixth start inside `StartLimitIntervalSec` is refused and
 the unit parks failed.
+
+Those lines are PID 1's, and reach the journal only while
+`systemd-analyze get-log-target` reads `journal-or-kmsg` (#145). A runtime
+`systemctl log-target` outlives every reload until boot and blocks the
+drop-in; clear it with `sudo kill -s RTMIN+26 1`, wait for `get-log-target`
+to read `console`, then `sudo systemctl daemon-reload`.
 
 ### OS patching (#113)
 
