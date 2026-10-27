@@ -209,19 +209,15 @@ journalctl -t notifier-keys
 ```
 
 Restarting `notifier notifier-dev` picks up merged code for the API;
-`systemctl daemon-reload` comes first after editing anything in `deploy/`.
-The units are installed copies, so `sudo cp` the edited ones into
-`/etc/systemd/system/` before the reload.
+After editing a unit in `deploy/`, `sudo cp` it to `/etc/systemd/system/` and
+`systemctl daemon-reload` first — the units are installed copies.
 
-A clean restart logs `Stopping`, `Deactivated successfully`, `Stopped`,
-`Started` for each unit. `uv run` exits 143 on the SIGTERM, and both units
-count that as success (`SuccessExitStatus=143`, #143), so systemd prints no
-exit-status line for it. **Any `Main process exited` or `Failed with result`
-line is real.** Both units run `Restart=always`, so an exit systemd did not ask
-for — an earlyoom kill, a crash — logs `Scheduled restart job` and bumps
-`NRestarts`
-(`systemctl show notifier -p NRestarts`), until a sixth start inside the
-`StartLimitIntervalSec` window is refused and the unit parks failed.
+A clean restart logs no exit status: `uv run` exits 143 on the SIGTERM and
+both units count that as success (#143). **Any `Main process exited` or
+`Failed with result` line is real.** Under `Restart=always` an exit systemd did
+not ask for (earlyoom, a crash) logs `Scheduled restart job` and bumps
+`NRestarts`, until a sixth start inside `StartLimitIntervalSec` is refused and
+the unit parks failed.
 
 ### OS patching (#113)
 
