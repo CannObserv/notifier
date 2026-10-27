@@ -230,8 +230,9 @@ the unit parks failed.
 Those lines are PID 1's, and reach the journal only while
 `systemd-analyze get-log-target` reads `journal-or-kmsg` (#145). A runtime
 `systemctl log-target` outlives every reload until boot and blocks the
-drop-in; clear it with `sudo kill -s RTMIN+26 1`, wait for `get-log-target`
-to read `console`, then `sudo systemctl daemon-reload`.
+drop-in; clear it with `sudo kill -s RTMIN+26 1`, then
+`sudo systemctl daemon-reload` until `get-log-target` reads `journal-or-kmsg`
+(a reload that beats the signal is undone by it).
 
 ### OS patching (#113)
 
