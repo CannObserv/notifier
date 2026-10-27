@@ -145,3 +145,30 @@ def test_bind_override_is_not_in_any_env_file_on_the_unit_load_path(env_file):
     if not env_file.exists():
         pytest.skip(f"{env_file} not present on this machine")
     assert BIND_OVERRIDE not in env_file.read_text()
+
+
+TAILNET_WAIT = "NOTIFIER_TAILNET_WAIT_SECONDS"
+
+
+def test_tailnet_wait_is_not_overridden_by_either_unit():
+    """Both units' start-limit arithmetic reads tailnet_bind.sh's *default* wait (#143).
+
+    A unit that set its own would move the slowest loop past the interval
+    that counts it, and every arithmetic test would stay green.
+    """
+    for unit in (UNIT, REPO_ROOT / "deploy" / "notifier-dev.service"):
+        assert TAILNET_WAIT not in directives(unit), f"{unit.name} overrides the tailnet wait"
+
+
+@pytest.mark.parametrize(
+    "env_file", [Path("/etc/notifier/.env"), REPO_ROOT / ".env"], ids=["etc", "repo"]
+)
+def test_tailnet_wait_is_not_in_any_env_file_on_the_unit_load_path(env_file):
+    """VM-local check. Skips loudly off-VM rather than passing vacuously.
+
+    Both units read these files — notifier.service through EnvironmentFile=,
+    notifier-dev.service by sourcing them in dev_server.sh.
+    """
+    if not env_file.exists():
+        pytest.skip(f"{env_file} not present on this machine")
+    assert TAILNET_WAIT not in env_file.read_text()
