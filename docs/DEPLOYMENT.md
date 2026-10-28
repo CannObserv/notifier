@@ -225,10 +225,11 @@ not ask for (earlyoom, a crash) logs `Scheduled restart job` and bumps
 `NRestarts`, until a sixth start inside `StartLimitIntervalSec` is refused and
 the unit parks failed.
 
-These are PID 1's lines, journaled only while `systemd-analyze
-get-log-target` reads `journal-or-kmsg` (#145). A runtime `systemctl
-log-target` blocks the drop-in until boot: `sudo kill -s RTMIN+26 1`, then
-`sudo systemctl daemon-reload` until it reads `journal-or-kmsg`.
+These are PID 1's lines, journaled only while
+`systemd-analyze get-log-target` reads `journal-or-kmsg` (#145). A runtime
+`systemctl log-target` blocks the drop-in until boot:
+`sudo kill -s RTMIN+26 1`, then `sudo systemctl daemon-reload` until
+`get-log-target` reads `journal-or-kmsg`.
 
 ### OS patching (#113)
 
