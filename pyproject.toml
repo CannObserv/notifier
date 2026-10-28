@@ -12,7 +12,11 @@ dependencies = [
     "pydantic>=2.14.1,<3",
     "python-json-logger>=4.2.0,<5",
     "uvicorn>=0.54.0,<0.55",
-    "sqlalchemy[asyncio]>=2.1.6,<3",
+    # Capped at the minor, not the house-style next major: SQLAlchemy breaks
+    # in its X.Y series, each with its own migration guide (2.1 moved every
+    # async dialect onto a new adapter), so each minor gets its own reviewed
+    # change, as 2.1 did (#103, #110).
+    "sqlalchemy[asyncio]>=2.1.6,<2.2",
     "asyncpg>=0.32.0,<0.33",
     "alembic>=1.20.0,<2",
     "python-ulid>=4.0.1,<5",
