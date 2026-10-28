@@ -15,7 +15,8 @@ dependencies = [
     # Capped at the minor, not the house-style next major: SQLAlchemy breaks
     # in its X.Y series, each with its own migration guide (2.1 moved every
     # async dialect onto a new adapter), so each minor gets its own reviewed
-    # change, as 2.1 did (#103, #110).
+    # change, as 2.1 did (#103, #110), with the SDK's integration suite run
+    # against it — CI's `test` job deselects `-m integration`.
     "sqlalchemy[asyncio]>=2.1.6,<2.2",
     "asyncpg>=0.32.0,<0.33",
     "alembic>=1.20.0,<2",
