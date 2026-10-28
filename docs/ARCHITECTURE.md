@@ -123,4 +123,4 @@ fixes are marked unsafe for real reasons:
 - All of these are asserted there, so a dependency added without them fails the suite
 - The caps make new minors invisible to `uv lock`, so `.github/dependabot.yml` proposes each bump as a CI-gated PR (#33) — `tests/ci/test_dependabot.py` guards that config, since a broken one stops producing PRs silently
 - Dependabot's *version* updates propose direct dependencies only. Its *security* updates, effective since the dependency graph was turned on (#140), propose transitive `uv.lock` bumps too, as an early warning; `audit.yml`'s schedule stays the gate for transitive advisories, fixed by a lock-only bump (#103). None of them sees an advisory mapped to no package — apprise's GHSA-856c-92hv-3vxx was one, found only by reading upstream's advisories (#112), so a major-version review reads them
-- A cap tighter than house style says why beside it — `sqlalchemy` caps at the minor (`<2.2`), since its X.Y series are its breaking releases (#103, #110)
+- A cap tighter than house style says why beside it — `sqlalchemy` caps at the next minor, not the next major, since its X.Y series are its breaking releases (#103, #110)
