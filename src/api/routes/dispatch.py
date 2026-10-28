@@ -75,7 +75,7 @@ async def _load_owned_template(session: AsyncSession, template_id: str, tenant_i
     return template
 
 
-def _by_key(tenant_id: str, idempotency_key: str) -> Select[tuple[Dispatch]]:
+def _by_key(tenant_id: str, idempotency_key: str) -> Select[Dispatch]:
     return select(Dispatch).where(
         Dispatch.tenant_id == tenant_id, Dispatch.idempotency_key == idempotency_key
     )
