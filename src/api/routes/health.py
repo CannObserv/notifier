@@ -92,6 +92,10 @@ async def ready(session: Annotated[AsyncSession, Depends(get_db_session)]) -> JS
             environment=environment_label(name),
         )
         return JSONResponse(status_code=200, content=payload.model_dump())
-    except SQLAlchemyError:
+    # OSError beside SQLAlchemyError (#147): a refused connection, a host that
+    # will not resolve or a connect timeout fails inside asyncpg before any
+    # DBAPI error exists, so SQLAlchemy has nothing to wrap. Not `Exception`:
+    # a bug in this route should stay a 500.
+    except (SQLAlchemyError, OSError):
         not_ready = NotReadyResponse(status="not_ready", db=False)
         return JSONResponse(status_code=503, content=not_ready.model_dump())
