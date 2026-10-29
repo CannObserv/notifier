@@ -26,7 +26,10 @@ from collections.abc import AsyncGenerator
 from typing import NoReturn
 
 import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from src.api.deps import get_db_session
 from src.api.main import app
@@ -157,6 +160,51 @@ async def test_ready_reports_503_without_naming_a_database(client):
         # binds every request to the savepointed session, and popping would
         # leave anything appended after this hitting the real factory.
         app.dependency_overrides[get_db_session] = healthy_session
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "not_ready", "db": False}
+
+
+@pytest.fixture
+async def refused_engine(closed_port: int) -> AsyncGenerator[AsyncEngine]:
+    """The test database's URL, pointed at a port that refuses connections.
+
+    Built here rather than through ``get_database_url()``, so the
+    ``_test``/``_dev`` guard never sees it — nothing is opened to guard.
+    """
+    url = make_url(os.environ["TEST_DATABASE_URL"]).set(host="127.0.0.1", port=closed_port)
+    engine = create_async_engine(url)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_ready_reports_503_when_the_database_refuses_connections(refused_engine):
+    """The outage ``_DeadSession`` cannot stand in for (#147).
+
+    asyncpg's connect fails before a DBAPI error exists, so SQLAlchemy has
+    nothing to wrap and the route sees a bare ``ConnectionRefusedError`` — an
+    ``OSError``, not a ``SQLAlchemyError``. A real refused port, not a mock,
+    because the bug was precisely that the mock raised the one shape already
+    handled. The same branch takes ``socket.gaierror`` (a bad host) and
+    ``TimeoutError``; both are ``OSError`` too, and not exercised here.
+
+    Its own client, with ``raise_app_exceptions=False``: the suite's client
+    re-raises an unhandled error into the test, while a real caller gets the
+    500 — and the 500 is what this asserts against.
+    """
+
+    async def refused_session() -> AsyncGenerator[AsyncSession]:
+        async with AsyncSession(refused_engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db_session] = refused_session
+    try:
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            response = await c.get("/ready")
+    finally:
+        app.dependency_overrides.pop(get_db_session)
 
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready", "db": False}
