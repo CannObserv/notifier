@@ -63,8 +63,8 @@ The current reference-doc index is [AGENTS.md § Detail Docs](../AGENTS.md#detai
 the `docs/` entry above predates this file.
 
 **Environment files** (not in the repo tree):
-- `/etc/notifier/.env` — Production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); outside repo, persistent. Sourcing it leaves `DATABASE_URL` on **production** — intended for alembic and systemctl only
-- `.env` (repo root) — Dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`); git-ignored
+- `/etc/notifier/.env` — Production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); outside repo, persistent; the only env file `notifier.service` loads. Loading it leaves `DATABASE_URL` on **production** — intended for alembic and systemctl only
+- `.env` (repo root) — Dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`); git-ignored; production never reads it (#154)
 
 
 ## Lint policy

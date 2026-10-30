@@ -1,9 +1,10 @@
 """Drift tests for deploy/notifier.service.
 
 The production opt-in flag must live in the unit itself. Anything placed in an
-EnvironmentFile is inherited by every process that sources that file, which
-re-opens the hole for exactly the hand-run servers the guard targets — and
-this unit loads both /etc/notifier/.env and the repo .env.
+env file is inherited by every process that loads that file, which re-opens
+the hole for exactly the hand-run servers the guard targets. This unit loads
+/etc/notifier/.env alone since #154; scripts/load_env.sh loads it and the repo
+.env for every shell, and for notifier-dev.service through dev_server.sh.
 """
 
 from pathlib import Path
@@ -28,6 +29,18 @@ def test_unit_sets_the_production_opt_in_flag():
     assert f"Environment={db_safety.ALLOW_PROD_ENV_VAR}=1" in body
 
 
+def test_unit_loads_only_the_system_env_file():
+    """Production reads /etc/notifier/.env and the build id, never the repo .env (#154).
+
+    The repo .env is the developer's file: PATs and an API key the service has
+    no use for, and any dev-only value in it would override production config.
+    """
+    assert values(UNIT, "EnvironmentFile") == ["-/run/notifier/build-id", "/etc/notifier/.env"]
+
+
+# Both files stay parametrized after #154 dropped the repo .env from this
+# unit: scripts/load_env.sh still loads both, into every shell and into
+# notifier-dev.service, and a flag in either reaches each of them.
 @pytest.mark.parametrize(
     "env_file", [Path("/etc/notifier/.env"), REPO_ROOT / ".env"], ids=["etc", "repo"]
 )
@@ -36,8 +49,8 @@ def test_opt_in_flag_is_not_in_any_env_file_on_the_unit_load_path(env_file):
     if not env_file.exists():
         pytest.skip(f"{env_file} not present on this machine")
     assert db_safety.ALLOW_PROD_ENV_VAR not in env_file.read_text(), (
-        f"{env_file} is on the unit's EnvironmentFile path and would leak "
-        f"the opt-in to every process that sources it"
+        f"{env_file} is loaded by scripts/load_env.sh and would leak "
+        f"the opt-in to every process that loads it"
     )
 
 
@@ -166,8 +179,9 @@ def test_tailnet_wait_is_not_overridden_by_either_unit():
 def test_tailnet_wait_is_not_in_any_env_file_on_the_unit_load_path(env_file):
     """VM-local check. Skips loudly off-VM rather than passing vacuously.
 
-    Both units read these files — notifier.service through EnvironmentFile=,
-    notifier-dev.service by sourcing them in dev_server.sh.
+    Both units read /etc/notifier/.env — notifier.service through
+    EnvironmentFile=, notifier-dev.service through load_env.sh in
+    dev_server.sh, which also reads the repo .env.
     """
     if not env_file.exists():
         pytest.skip(f"{env_file} not present on this machine")

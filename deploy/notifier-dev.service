@@ -43,7 +43,7 @@ EnvironmentFile=-/run/notifier/build-id-dev
 # tests/deploy/test_dev_systemd_unit.py asserts this stays absent.
 Environment=NOTIFIER_DEV_RELOAD=0
 
-# No EnvironmentFile= line for the secret files: the script sources
+# No EnvironmentFile= line for the secret files: the script loads
 # /etc/notifier/.env and the repo .env itself, then overrides DATABASE_URL
 # with DEV_DATABASE_URL. Loading them here too would just re-import the
 # production DATABASE_URL one layer earlier for no gain. The build-id file

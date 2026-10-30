@@ -11,9 +11,10 @@
 # other line is in the header of the gate it delegates to. Re-diff it against
 # that recipe when the submodule moves.
 #
-# Parses the env files, never sources them, unlike scripts/load_env.sh — the
-# gate must not execute a secrets file. PRE_SHIP_ENV_NAMES (names, never
-# values) keys the gate's per-SHA stamp; an empty list writes no stamp.
+# Parses the env files, never sources them — the gate must not execute a
+# secrets file. scripts/load_env.sh lifts load_env() from here (#154), so keep
+# its `load_env() {` and `}` lines at column 0. PRE_SHIP_ENV_NAMES (names,
+# never values) keys the gate's per-SHA stamp; an empty list writes no stamp.
 #
 # Usage: bash scripts/pre-ship.sh [--help]
 set -euo pipefail

@@ -1,7 +1,7 @@
 """Refuse to open a non-production process against the production database.
 
-The documented dev-server recipe sources ``/etc/notifier/.env``, which sets
-``DATABASE_URL`` to production. A hand-run uvicorn on port 9001 therefore
+Loading ``/etc/notifier/.env`` into a shell, as ``scripts/load_env.sh`` does,
+sets ``DATABASE_URL`` to production. A hand-run uvicorn on port 9001 therefore
 shares one database with the live service on 9000 (see issue #21/#22, root
 incident CannObserv/archiver#98).
 
@@ -18,11 +18,11 @@ Two deliberate carve-outs:
   against production is the correct operation, not the bug. Still true since
   #43 gave notifier its own VM: what stopped being shared is the *host*, not
   the dev-and-prod-on-one-box arrangement that makes this carve-out necessary.
-* **The escape flag lives in the systemd unit, never an EnvironmentFile.**
-  ``deploy/notifier.service`` carries ``EnvironmentFile=`` lines for both
-  ``/etc/notifier/.env`` and the repo ``.env``; a flag placed in either would
-  be inherited by every process that sources them, re-opening the hole for
-  exactly the hand-run servers this guard targets.
+* **The escape flag lives in the systemd unit, never an env file.**
+  ``scripts/load_env.sh`` loads ``/etc/notifier/.env`` (the unit's
+  ``EnvironmentFile=``) and the repo ``.env`` into every shell; a flag placed
+  in either would be inherited by every process that loads them, re-opening
+  the hole for exactly the hand-run servers this guard targets.
 """
 
 import os
