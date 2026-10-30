@@ -4,8 +4,9 @@
 # time and lets skill content outrank notifier's own source in codebase_search
 # results. Layered on top of SocratiCode's built-in defaults + .gitignore.
 #
-# skills/ is deliberately NOT excluded — it holds this repo's first-party skill
-# overrides (brainstorming, shipping-work-python-fastapi). Its other entries are
-# symlinks into skills-vendor/, which is excluded below.
+# skills/ holds only symlinks into skills-vendor/ since the last first-party
+# override became one (#133, #153), so all three trees are excluded: the cohort
+# default. The ship gate's notifier half is scripts/pre-ship.sh, indexed.
 skills-vendor/
+skills/
 .claude/skills/

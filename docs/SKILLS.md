@@ -8,7 +8,7 @@ Two directories serve different discovery systems:
 
 | Directory | Discovery system | Contents |
 |---|---|---|
-| `skills/` | agentskills.io | Committed overrides + symlinks → `skills-vendor/` |
+| `skills/` | agentskills.io | Symlinks → `skills-vendor/`; no committed override since #153 |
 | `.claude/skills/` | Claude Code | Symlinks → `../../skills/<name>` |
 
 Local overrides in `skills/` automatically shadow vendor skills in both systems. When adding a skill, always create both the `skills/<name>` entry and `.claude/skills/<name>` symlink.
@@ -55,6 +55,9 @@ The semantic index skips vendored skill prose — see `.socraticodeignore`.
 
 ### Override drift
 
+No override remains: `shipping-work-python-fastapi`, the last, became a whole-directory link in
+#153. This section is the record of why, and the rules for the next one.
+
 Overrides are the one thing the refresh machinery does not keep current: the daily hook only
 moves the submodule pointer, which by definition never touches a forked file, and nothing is ever
 auto-merged, because upstream text cannot be applied blindly over a fork. That drift used to be
@@ -68,11 +71,11 @@ drift down is still manual and the direction matters: local deltas onto the newe
 never the reverse, then diff the pre-merge copy and account for every removed line
 (`skills/managing-skills/references/local-overrides.md` § "Re-syncing a drifted override").
 
-`shipping-work-python-fastapi` shows both the mitigation and the residue. Its five unchanged
-scripts are **per-script symlinks** into `skills-vendor/`, so they track upstream for free — a
+`shipping-work-python-fastapi` showed both the mitigation and the residue. Its five unchanged
+scripts were **per-script symlinks** into `skills-vendor/`, so they tracked upstream for free — a
 pattern thinner than `managing-skills`' documented "complete replacement" rule, and worth
-preferring. But `SKILL.md` carries the local deltas and cannot be symlinked, so it is the one
-file that drifts. `shipping-work`'s sat at v1.2 while
+preferring. But `SKILL.md` carried the local deltas and could not be symlinked, so it was the one
+file that drifted. `shipping-work`'s sat at v1.2 while
 vendor reached v1.4, missing the Step 1 script-resolution loop upstream added for
 [gregoryfoster/skills#63](https://github.com/gregoryfoster/skills/issues/63); Step 1 failed
 until it was re-synced. It drifted a second time without the version moving at all: vendor
@@ -109,10 +112,25 @@ behind again at v7.0.1 — 243 lines against vendor's 294, with two new sections
 not changes to the skill's mechanics, so they moved to AGENTS.md (§ Skill preferences, below) and
 `skills/brainstorming` became a whole-directory link. That also retired the last file symlinks
 under `skills/` that ruff reads, and with them every `skills/` entry in `[tool.ruff]
-extend-exclude` (#45, #124, #126). `tests/ci/test_skills.py` holds the fork set to
-`shipping-work-python-fastapi` alone, so a new fork is added on purpose.
+extend-exclude` (#45, #124, #126). `tests/ci/test_skills.py` held the fork set to
+`shipping-work-python-fastapi` alone, so a new fork was added on purpose.
 
-**One caveat on the symlink pattern.** `doctor.sh` globs `"$dir"/*` exactly one level deep under
+`shipping-work-python-fastapi` followed in #153, after a fifth drift: `SKILL.md` and
+`scripts/pre-ship.sh` changed upstream at an unchanged `version: "1.5"`. None of its deltas needed
+a fork by then. The commit format and the Step 8 rows (both units, both databases,
+`/etc/notifier/.env`, port 9001) are AGENTS.md § Conventions and § Server Lifecycle. Vendor
+Step 2 defers to AGENTS.md by name, and Step 8's rows are examples with `<project>` placeholders
+that AGENTS.md fills in. The Step 1.5 tailoring is `.skills/doc-sensitive-paths` and
+`.skills/doc-sections`, which the vendor text already describes. The one functional delta, the env
+wrapper, moved to a repo-root `scripts/pre-ship.sh`, which Step 1 resolves ahead of the skill's
+own copy for that script alone ([gregoryfoster/skills#301](https://github.com/gregoryfoster/skills/issues/301)).
+It is upstream's "Project-local env loading" recipe, which parses the env files instead of sourcing
+them, falls back to the primary checkout's `.env` from a linked worktree, and exports
+`PRE_SHIP_ENV_NAMES` so the gate's stamp is keyed on the env it ran with. It carries one extra
+guard, for a key with a leading digit, which the recipe's filter lets through to a fatal `export`.
+`OVERRIDES` is now empty.
+
+**One caveat on the per-script symlink pattern**, for the next override that uses it. `doctor.sh` globs `"$dir"/*` exactly one level deep under
 `skills` and `.claude/hooks`, so symlinks nested inside an override directory sit below its scan
 depth and are never checked. A fresh clone is still covered — `scan_uninit()` catches an
 uninitialized submodule by a separate path — but if upstream *renames or deletes* a script, the
@@ -120,7 +138,7 @@ dangling symlink is invisible and surfaces only as `No such file or directory` m
 upstream alongside the pattern in
 [gregoryfoster/skills#238](https://github.com/gregoryfoster/skills/issues/238).
 
-To re-sync an override: diff its `SKILL.md` against the vendor copy, reapply the local deltas
+To re-sync one: diff its `SKILL.md` against the vendor copy, reapply the local deltas
 onto the newer upstream text (not the reverse), and update the pin in the table below.
 
 **What the pin means.** Every override carries `synced-from:` — the submodule commit its `SKILL.md`
@@ -182,7 +200,7 @@ say them, and a skill defers to AGENTS.md.
 | `patching-hosts` | gregoryfoster-skills symlink | Triggers: `patch the host`, `OS updates`, `apply updates`, `needrestart`. Reads the committed knob `.skills/patching-hosts` (#113); never edit the vendored copy, and file what it gets wrong upstream with the owner's approval |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
-| `shipping-work-python-fastapi` | Thin override (gregoryfoster-skills), **synced from v1.5 (`2e90414`)** | Loads `/etc/notifier/.env` before delegating; names notifier's two units and dev port. Only `SKILL.md` and `scripts/pre-ship.sh` are real files; the other five scripts symlink into `skills-vendor/`. Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`; the path list flags `skills-vendor/`, so the pointer move that stales this file trips the gate. See [Override drift](#override-drift) — `synced-from:` is now read by the doctor, so bump it **and** `version:` whenever you re-sync |
+| `shipping-work-python-fastapi` | gregoryfoster-skills symlink | An override until #153. Step 1 runs repo-root `scripts/pre-ship.sh`, which loads `/etc/notifier/.env` and the `.env` (the primary checkout's, from a worktree) and execs the vendored gate; see [Override drift](#override-drift). Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`. Units, databases and dev port come from AGENTS.md § Server Lifecycle |
 | `subagent-driven-development` | obra-superpowers symlink | |
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |

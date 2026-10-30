@@ -428,11 +428,12 @@ reach from source alone:
 | `systemd-unit` | `deploy/` | every unit and host config file: runtime config and the memory reservation (`co-index`'s live in CannObserv/index, #90) |
 | `code-exploration` | `docs/SOCRATICODE.md` | this file — so `codebase_context_search` can answer questions about exploring the repo |
 
-**Why `.socraticodeignore` keeps `skills/`.** The cohort default excludes
-`skills-vendor/`, `skills/` and `.claude/skills/`. This repo excludes only the
-first and third: `skills/` holds a first-party override
-(`shipping-work-python-fastapi`) that is this repo's own content, and its other
-entries are symlinks into the already-excluded `skills-vendor/`.
+**`.socraticodeignore` excludes all three skill trees.** This is the cohort default:
+`skills-vendor/`, `skills/` and `.claude/skills/`. Until #153 this repo kept
+`skills/` indexed, because it held a first-party override
+(`shipping-work-python-fastapi`). Every entry there is now a symlink into
+`skills-vendor/`, so it holds nothing of this repo's own. The ship gate's
+notifier half is `scripts/pre-ship.sh`, which stays indexed.
 
 **Project id is pinned (`.socraticode.json`, #57 D0).** `projectId: "notifier"`,
 so this repo's six Qdrant collections are `codebase_notifier`,
