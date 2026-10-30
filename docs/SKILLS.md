@@ -195,6 +195,7 @@ say them, and a skill defers to AGENTS.md.
 | `dispatching-parallel-agents` | obra-superpowers symlink | |
 | `enforcing-architecture` | gregoryfoster-skills symlink | Triggers: `add a fitness function`, `enforce this contract`, `lock this rule`. `reviewing-architecture` delegates here on a `fix + fitness` / `fitness` directive |
 | `init-socraticode` | gregoryfoster-skills symlink | Installs/audits SocratiCode: preflight, policy, the prefetch + once-per-day health hooks, context-artifact manifest, index. Vendors the health hook this repo wires (#21) |
+| `maintaining-host-disk` | gregoryfoster-skills symlink | Triggers: `disk GC`, `disk headroom`, `install the disk GC`, `VS Code server builds`. Installs Provisioner's disk GC and headroom sensor from the release `scripts/_pin.sh` pins (#136); never edit the installed copy, and raise what it gets wrong with the owner's approval |
 | `managing-skills` | gregoryfoster-skills symlink | |
 | `orchestrating-issue-backlog` | gregoryfoster-skills symlink | |
 | `patching-hosts` | gregoryfoster-skills symlink | Triggers: `patch the host`, `OS updates`, `apply updates`, `needrestart`. Reads the committed knob `.skills/patching-hosts` (#113); never edit the vendored copy, and file what it gets wrong upstream with the owner's approval |
