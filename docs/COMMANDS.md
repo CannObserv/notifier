@@ -144,9 +144,9 @@ git commit --no-verify                 # escape hatch — gates still fail at sh
 The hooks shell out to `uv run ruff`, so they use the exact ruff pinned in
 `uv.lock` — the same binary CI installs with `uv sync --locked`. No version
 skew. Note the hooks stop there: **pre-commit runs no tests**. The suite runs
-in CI, and in `pre-ship.sh` — which lives in the
-`shipping-work-python-fastapi` skill (`.claude/skills/…/scripts/`), not in
-this repo's `scripts/`, which is why grepping the repo for it comes up empty.
+in CI, and in the ship gate, `scripts/pre-ship.sh`. That file is a thin wrapper.
+It loads both env files and execs the vendored gate in the
+`shipping-work-python-fastapi` skill, which runs ruff and pytest (#153).
 
 A third hook, `ruff-exclude-symlinks`, runs `scripts/check_ruff_exclude.py`
 on a commit that stages a symlink or a TOML file. A file symlink into

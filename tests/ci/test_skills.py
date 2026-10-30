@@ -2,15 +2,18 @@
 
 A forked ``SKILL.md`` drifts behind upstream on every submodule bump and has to
 be 3-way merged back by hand; ``brainstorming`` needed that twice before it
-became a link, its local preferences moved to AGENTS.md (#133). A new
-fork has to be added here on purpose, with its override notes in docs/SKILLS.md.
+became a link, its local preferences moved to AGENTS.md (#133), and
+``shipping-work-python-fastapi`` five times before its one functional delta
+moved to a repo-root ``scripts/pre-ship.sh`` the skill resolves first (#153).
+None is left. A new fork has to be added here on purpose, with its override
+notes in docs/SKILLS.md.
 """
 
 import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-OVERRIDES = {"shipping-work-python-fastapi"}
+OVERRIDES: set[str] = set()
 
 
 def _real_skill_dirs(root: str) -> set[str]:
