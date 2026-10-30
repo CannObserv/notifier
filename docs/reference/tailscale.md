@@ -58,6 +58,12 @@ specific to notifier.
   (#117). So it gets **both ports**, like watcher: `:9001` is where its
   non-production processes point. It is also one of the index store's
   clients.
+- **Monitor node:** `status`, tag `tag:status`, `100.88.216.92`: the
+  `co-status` VM. This host's disk headroom sensor checks in there every ten
+  minutes (#136, CannObserv/status#74), as monitor
+  `co-notifier-disk-headroom` in tenant `co-notifier`, over the
+  `tag:notifier → tag:status:9000` rule. The check-in is host monitoring, not
+  an API path. The edge is in the policy below.
 
 ### ACL
 
@@ -70,17 +76,21 @@ specific to notifier.
     "tag:index":    ["autogroup:admin"]
   },
   "acls": [
-    // Consumer host -> notifier's two API ports, and nothing else. Nothing
-    // lists tag:notifier as a *source*: notifier initiates nothing across the
-    // tailnet. Its Apprise egress goes straight to the internet.
+    // Consumer host -> notifier's two API ports, and nothing else. The API
+    // initiates nothing across the tailnet: its Apprise egress goes straight
+    // to the internet. Two rules list tag:notifier as a source, both host
+    // tooling: the index store's, and the disk sensor's to co-status.
     { "action": "accept", "src": ["tag:watcher"], "dst": ["tag:notifier:9000,9001"] },
     // #57, index D17: every cohort VM is a CLIENT of the shared index store.
     // Qdrant is TLS + API-key gated; Ollama has no auth and is gated by this
-    // rule alone. This is the one rule listing tag:notifier as a source.
+    // rule alone. One of two rules listing tag:notifier as a source.
     { "action": "accept",
       "src": ["tag:notifier", "tag:watcher", "tag:archiver", "tag:replicator",
               "tag:broker", "tag:status", "tag:observo-primary", "tag:power-map"],
       "dst": ["tag:index:6333,11434"] },
+    // The disk headroom sensor's check-ins to co-status (#136, status#74).
+    // :9000 only. Live since 2026-10-30.
+    { "action": "accept", "src": ["tag:notifier"], "dst": ["tag:status:9000"] },
     // Replicator's OnFailure= handler dispatches here (#70). :9000 only — one
     // production unit, no dev process to point at :9001.
     { "action": "accept", "src": ["tag:replicator"], "dst": ["tag:notifier:9000"] },
@@ -129,8 +139,18 @@ specific to notifier.
 > nothing across the tailnet — verified, not assumed." That stopped being true
 > when this host became a client of the shared index store. The claim now is
 > narrower and still worth holding: notifier initiates nothing across the
-> tailnet **on any production path**. The one outbound rule serves developer
+> tailnet **on any production path**. The index rule serves developer
 > tooling, whose entire outage budget is "search degrades to `grep`".
+>
+> **A second outbound rule, `tag:notifier → tag:status:9000` (#136).** The disk
+> headroom sensor checks in to co-status from this host. It is host
+> monitoring, not the API, so the claim above still holds. If the edge breaks,
+> co-status pages *has stopped reporting* about 40 minutes after the last
+> check-in, and that page reaches the operator through this host's own
+> `/dispatch`. Verified 2026-10-30T21:13:41Z: `curl http://status:9000/health`
+> returned 200 by name. Before the operator applied the rule it timed out,
+> though `tailscale ping status` answered, which is how a missing grant looks
+> here. Ports 8000, 22 and 443 on `status` still time out.
 >
 > **`tag:index → tag:notifier:9000` is gone (2026-10-01, #98).** co-index has
 > checked in to co-status since #83 (index D16), so nothing used it; from
