@@ -52,6 +52,10 @@ addopts = "-v --tb=short -m 'not integration' --cov=src --cov-report=term-missin
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+# The disk GC's alert line is sized from the baseline plus one run's basetemp
+# (#136); pytest's default keeps three, failed or not.
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"
 markers = [
     "integration: marks tests that hit live external services; excluded by default (run with -m integration)",
 ]
