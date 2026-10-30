@@ -31,8 +31,7 @@ def get_database_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError(
-            "DATABASE_URL environment variable is not set. "
-            "Load env: set -a; . /etc/notifier/.env; . .env; set +a"
+            "DATABASE_URL environment variable is not set. Load env:  . scripts/load_env.sh"
         )
     assert_safe_database_url(url)
     return url

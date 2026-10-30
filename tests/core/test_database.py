@@ -34,6 +34,15 @@ def test_get_database_url_raises_when_unset(monkeypatch):
         database.get_database_url()
 
 
+def test_unset_url_hint_points_at_the_loader(monkeypatch):
+    """The hint is copied at the moment it is needed; it must not teach sourcing (#154)."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    with pytest.raises(RuntimeError) as excinfo:
+        database.get_database_url()
+    assert ". scripts/load_env.sh" in str(excinfo.value)
+    assert "set -a" not in str(excinfo.value)
+
+
 def test_get_engine_lazy_and_memoized(_db_url):
     assert database._engine is None  # lazy: nothing created until first call
     e1 = database.get_engine()

@@ -106,11 +106,12 @@ sudo systemctl daemon-reload
 
 `deploy/notifier.service` carries `Environment=NOTIFIER_ALLOW_PROD_DB=1`. This
 is what lets the live service open the production database past the guard in
-`src/core/db_safety.py`. **Keep it in the unit.** Both `EnvironmentFile=`
-paths on that unit — `/etc/notifier/.env` and the repo `.env` — are sourced by
-humans and agents in ordinary shells; a flag placed in either would be
+`src/core/db_safety.py`. **Keep it in the unit.** `scripts/load_env.sh` loads
+`/etc/notifier/.env` — the unit's one secrets file — and the repo `.env` into
+the ordinary shells of humans and agents; a flag placed in either would be
 inherited by every one of them and would re-open the hole the guard closes
-(issue #22).
+(issue #22). The unit stopped loading the repo `.env` in #154: production
+needs none of its names.
 
 ## The dev endpoint (:9001)
 

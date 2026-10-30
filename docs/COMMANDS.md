@@ -18,12 +18,14 @@ Two env files, loaded in order:
 # Dev/agent secrets (GH_TOKEN, TEST_DATABASE_URL, DEV_DATABASE_URL) — repo root, git-ignored
 .env
 
-# Load both for shell commands. Source them; do not word-split through xargs,
-# which corrupts values containing spaces or quotes.
+# Load both for shell commands. The loader parses them, never sources them;
+# from a linked worktree it reads the primary checkout's .env.
 . scripts/load_env.sh
 ```
 
-The systemd service loads both automatically (see `deploy/notifier.service`).
+`notifier.service` loads `/etc/notifier/.env` alone, never the repo `.env`
+(#154). `notifier-dev.service` gets both through `scripts/dev_server.sh`,
+which sources the loader.
 
 **Loading these leaves `DATABASE_URL` pointing at production.** That is the
 intended target for `alembic upgrade head` — on this single-VM setup `main`

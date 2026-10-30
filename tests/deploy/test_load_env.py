@@ -6,6 +6,7 @@ form is the unsafe one. One short sourceable line keeps the copyable surface
 small and gives these tests a single target.
 """
 
+import os
 import stat
 import subprocess
 from pathlib import Path
@@ -14,6 +15,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOADER = REPO_ROOT / "scripts" / "load_env.sh"
+WRAPPER = REPO_ROOT / "scripts" / "pre-ship.sh"
+ETC_LINE = '="/etc/notifier/.env"'
 DOCS = [
     "AGENTS.md",
     "README.md",
@@ -50,13 +53,141 @@ def test_loader_refuses_to_be_executed():
     assert "source" in (result.stdout + result.stderr).lower()
 
 
-def test_loader_guards_both_env_files():
-    """A fresh clone has neither file; sourcing must not fail."""
+def test_loader_never_sources_an_env_file():
+    """Sourcing runs a secrets file as shell code; the loader parses it (#154)."""
     body = LOADER.read_text()
-    assert "[ -r /etc/notifier/.env ]" in body
-    assert "set -a" in body
+    assert "set -a" not in body
     assert "| xargs" not in body
     assert "export $(cat" not in body
+
+
+def test_loader_lifts_the_parser_from_the_tracked_wrapper():
+    """One parser in the repo, pre-ship.sh's, which test_pre_ship holds to upstream.
+
+    Not skills-vendor/: CI's test job and a clone without submodules lack it,
+    and dev_server.sh, notifier-dev.service's ExecStart, sources this file.
+    """
+    body = LOADER.read_text()
+    assert "scripts/pre-ship.sh" in body
+    assert "skills-vendor" not in body
+    assert "read -r line" not in body, "a second copy of the parser"
+
+
+def _repo(tmp_path: Path, *, wrapper: bool = True) -> tuple[Path, Path]:
+    """A scratch repo holding the loader and its parser, and the path standing in for /etc."""
+    root = tmp_path / "repo"
+    (root / "scripts").mkdir(parents=True)
+    etc_env = tmp_path / "etc.env"
+    body = LOADER.read_text()
+    assert body.count(ETC_LINE) == 1, "the test rewrites this line; keep it literal"
+    (root / "scripts" / "load_env.sh").write_text(body.replace(ETC_LINE, f'="{etc_env}"'))
+    if wrapper:
+        (root / "scripts" / "pre-ship.sh").write_text(WRAPPER.read_text())
+    _git(root, "init", "-q")
+    _git(root, "add", "scripts")
+    _git(root, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "i")
+    return root, etc_env
+
+
+def _git(cwd: Path, *args: str) -> None:
+    # GIT_DIR inherited from a hook would point these at the real repo.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(("git", *args), cwd=cwd, env=env, check=True, capture_output=True)
+
+
+def _source(
+    cwd: Path, loader: str = "scripts/load_env.sh", **env: str
+) -> subprocess.CompletedProcess[str]:
+    """Source the loader under ``set -euo pipefail``, then report what it left behind."""
+    report = (
+        'echo "SHARED=${SHARED-unset}"; echo "SPACED=${SPACED-unset}"; '
+        'echo "QUOTED=${QUOTED-unset}"; echo "NAMES=${PRE_SHIP_ENV_NAMES-unset}"; '
+        'echo "EXPORTED=$(env | grep -c ^SHARED=)"; '
+        'echo "FUNCS=$(declare -F | grep -c -e load_env -e _notifier)"'
+    )
+    return subprocess.run(
+        ["bash", "-c", f"set -euo pipefail; . {loader}; {report}"],
+        cwd=cwd,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(cwd), **env},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+def _out(result: subprocess.CompletedProcess[str]) -> dict[str, str]:
+    return dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+
+
+def test_loader_loads_both_files_in_order_and_exports_them(tmp_path):
+    """/etc first, repo .env over it; spaces and matched quotes survive."""
+    root, etc_env = _repo(tmp_path)
+    etc_env.write_text("# system\nSHARED=etc\nSPACED=two words\n")
+    (root / ".env").write_text("export SHARED=repo\nQUOTED=\"a 'b' c\"\nnot a line\n9BAD=x\n")
+    result = _source(root)
+    assert result.returncode == 0, result.stderr
+    out = _out(result)
+    assert out["SHARED"] == "repo", "the repo .env overrides /etc's"
+    assert out["SPACED"] == "two words"
+    assert out["QUOTED"] == "a 'b' c"
+    assert out["EXPORTED"] == "1", "loaded values reach child processes"
+
+
+def test_loader_never_executes_env_file_content(tmp_path):
+    """A ``$(...)`` value stays literal, and a bare command line is skipped."""
+    root, etc_env = _repo(tmp_path)
+    marker = tmp_path / "ran"
+    etc_env.write_text(f"SPACED=$(touch {marker})\ntouch {marker}\n")
+    result = _source(root)
+    assert result.returncode == 0, result.stderr
+    assert not marker.exists()
+    assert _out(result)["SPACED"] == f"$(touch {marker})"
+
+
+def test_loader_leaves_the_callers_shell_clean(tmp_path):
+    """No helper functions left behind, and a ship run's stamp list untouched.
+
+    The lifted parser appends every name to PRE_SHIP_ENV_NAMES, which keys the
+    ship gate's per-SHA stamp; a loader sourced under that gate must not edit it.
+    """
+    root, etc_env = _repo(tmp_path)
+    etc_env.write_text("SHARED=etc\n")
+    result = _source(root, PRE_SHIP_ENV_NAMES="ALREADY")
+    assert result.returncode == 0, result.stderr
+    assert _out(result)["NAMES"] == "ALREADY"
+    assert _out(result)["FUNCS"] == "0"
+    assert _out(_source(root))["NAMES"] == "unset"
+
+
+def test_loader_in_a_linked_worktree_reads_the_primary_env(tmp_path):
+    """A git-ignored .env lives only in the primary checkout."""
+    root, _ = _repo(tmp_path)
+    (root / ".env").write_text("SHARED=primary\n")
+    worktree = tmp_path / "wt"
+    _git(root, "worktree", "add", "-q", str(worktree))
+    result = _source(worktree)
+    assert result.returncode == 0, result.stderr
+    assert _out(result)["SHARED"] == "primary"
+
+
+def test_loader_outside_git_loads_only_what_it_finds(tmp_path):
+    """No repo to ask (an exported tarball): the fallback must not guess a path."""
+    root, etc_env = _repo(tmp_path)
+    etc_env.write_text("SHARED=etc\n")
+    subprocess.run(["rm", "-rf", str(root / ".git")], check=True)
+    (tmp_path / ".env").write_text("SHARED=wrong\n")  # the caller's cwd, not the repo's
+    result = _source(tmp_path, loader=str(root / "scripts" / "load_env.sh"))
+    assert result.returncode == 0, result.stderr
+    assert _out(result)["SHARED"] == "etc"
+
+
+def test_loader_without_its_parser_fails_loudly(tmp_path):
+    """A missing or renamed parser must not load nothing and report success."""
+    root, etc_env = _repo(tmp_path, wrapper=False)
+    etc_env.write_text("SHARED=etc\n")
+    result = _source(root)
+    assert result.returncode != 0
+    assert "pre-ship.sh" in result.stderr
 
 
 def test_loader_resolves_the_repo_env_regardless_of_cwd():

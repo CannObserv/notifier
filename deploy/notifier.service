@@ -30,9 +30,9 @@ ExecStartPre=+/bin/bash -c 'mkdir -p /run/notifier && chown exedev:exedev /run/n
 ExecStartPre=/bin/bash -c 'echo BUILD_ID=$(git rev-parse --short HEAD) > /run/notifier/build-id'
 
 # The production database opt-in for src/core/db_safety.py. This MUST stay in
-# the unit and never move into an EnvironmentFile below — anything in those
-# files is inherited by every shell that sources them, which would re-open the
-# hole for exactly the hand-run servers the guard targets (issue #22).
+# the unit and never move into an EnvironmentFile below — scripts/load_env.sh
+# loads that file into every shell, which would re-open the hole for exactly
+# the hand-run servers the guard targets (issue #22).
 Environment=NOTIFIER_ALLOW_PROD_DB=1
 
 # Memory reservation (#74). This host is 3.8 GiB with no swap and runs the live
@@ -57,10 +57,11 @@ MemoryLow=192M
 # here into a wedged host with no kill and no report.
 OOMScoreAdjust=-500
 
-# Load BUILD_ID, then system secrets, then optional repo-local overrides
+# Load BUILD_ID, then system secrets. Never the repo .env (#154): it is the
+# developer's file — PATs and an API key this process has no use for — and a
+# dev-only value in it would silently override production config.
 EnvironmentFile=-/run/notifier/build-id
 EnvironmentFile=/etc/notifier/.env
-EnvironmentFile=-/home/exedev/notifier/.env
 
 # Never a uvicorn line here. Besides the one-spelling rule notifier-dev.service
 # has held since #24, systemd reads every EnvironmentFile= *before* ExecStartPre

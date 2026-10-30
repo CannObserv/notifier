@@ -197,8 +197,9 @@ def test_dev_server_refuses_without_the_encryption_key():
     move the check back.
 
     scripts/load_env.sh skips /etc/notifier/.env silently when it is not
-    readable — `[ -r … ] && . …`. The file is exedev-owned today, so it loads;
-    at root:root 0640 it would vanish from the environment without a word.
+    readable — its parser returns early on `[ -r … ] || return 0`. The file
+    is exedev-owned today, so it loads; at root:root 0640 it would vanish
+    from the environment without a word.
     The service would still start and still pass /ready, because the database
     URL comes from the repo .env, and would then fail on the first channel
     decrypt. A health check that reports green while the one thing the service

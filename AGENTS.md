@@ -128,7 +128,7 @@ sudo systemctl stop notifier-dev   # the unit owns 9001; take it first
 sudo systemctl start notifier-dev  # hand it back
 ```
 
-**Never hand-run uvicorn.** Sourcing `/etc/notifier/.env` points
+**Never hand-run uvicorn.** Loading `/etc/notifier/.env` points
 `DATABASE_URL` at **production**, which is how a "dev" server once shared the
 live database (#22) — still the risk here, where both endpoints share a host
 and a cluster and only the database differs. `src/core/db_safety.py` refuses
@@ -145,12 +145,12 @@ sudo systemctl restart notifier notifier-dev
 
 Two env files, loaded in order (later values override):
 
-1. **`/etc/notifier/.env`** — production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); managed by hand on the VM, and survives repo resets and worktree switches.
-2. **`.env`** (repo root, git-ignored) — dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`, `DEV_DATABASE_URL`). Never commit.
+1. **`/etc/notifier/.env`** — production secrets (`DATABASE_URL`, `NOTIFIER_SECRET_KEY`); managed by hand on the VM, and survives repo resets and worktree switches. The only file `notifier.service` loads.
+2. **`.env`** (repo root, git-ignored) — dev/agent secrets (`GH_TOKEN`, `TEST_DATABASE_URL`, `DEV_DATABASE_URL`). Never commit. Production never reads it (#154).
 
-The systemd service loads both automatically. Source them for shell commands
-— never word-split through `xargs`, which corrupts any value containing spaces
-or quotes:
+For shell commands, source the loader, which **parses** both files and never
+sources them — sourcing runs a secrets file as shell code. From a worktree it
+reads the primary checkout's `.env`. It still exports every value:
 
 ```bash
 . scripts/load_env.sh
