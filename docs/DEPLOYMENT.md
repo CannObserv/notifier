@@ -237,6 +237,7 @@ These are PID 1's lines, journaled only while
 Monthly and owner-approved, under the vendored `patching-hosts` skill and this
 host's knob, `.skills/patching-hosts`: windows, callers, recovery point and
 the Tailscale step in [reference/os-patching.md](reference/os-patching.md).
+Its free-space floor is the disk GC's alert line: [reference/disk-gc.md](reference/disk-gc.md).
 
 ### The credential audit channel (#67)
 
