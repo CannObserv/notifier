@@ -63,7 +63,10 @@ specific to notifier.
   minutes (#136, CannObserv/status#74), as monitor
   `co-notifier-disk-headroom` in tenant `co-notifier`, over the
   `tag:notifier → tag:status:9000` rule. The check-in is host monitoring, not
-  an API path. The edge is in the policy below.
+  an API path. The edge is in the policy below. It is also a **consumer**:
+  co-status sends its pages through `/dispatch` (#83), on **both ports**, over
+  `tag:status → tag:notifier:9000,9001`. That edge dates from 2026-09-28, but
+  went unrecorded until 2026-10-31 (see the note below the policy).
 
 ### ACL
 
@@ -103,6 +106,9 @@ specific to notifier.
     // Archiver, Watcher's successor as the notifying tenant (#117, #116).
     // Both ports, like watcher: it has a development tenant on :9001.
     { "action": "accept", "src": ["tag:archiver"], "dst": ["tag:notifier:9000,9001"] },
+    // co-status dispatches its monitor pages here (#83). Both ports: it polls
+    // and dispatches against :9001 too. Recorded 2026-10-31 (#136).
+    { "action": "accept", "src": ["tag:status"], "dst": ["tag:notifier:9000,9001"] },
     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] }
   ]
 }
@@ -151,6 +157,19 @@ specific to notifier.
 > returned 200 by name. Before the operator applied the rule it timed out,
 > though `tailscale ping status` answered, which is how a missing grant looks
 > here. Ports 8000, 22 and 443 on `status` still time out.
+>
+> **`tag:status → tag:notifier:9000,9001` was recorded late (2026-10-31,
+> #136).** This file listed no rule for it. Yet this host's access logs show
+> `100.88.216.92` on both ports from 2026-09-28T16:45:13Z onward:
+> - on `:9000`, 150 `POST /api/v1/dispatch` (the #136 rehearsal's among them)
+>   plus previews and channel reads;
+> - on `:9001`, `/health` about every minute, plus dispatches, previews and
+>   redelivers.
+>
+> The operator has updated the policy so that it grants both ports
+> explicitly. Whatever grant carried the traffic before cannot be seen from
+> this host. If co-status loses the edge, its pages stop arriving with it,
+> and nothing on this host would notice.
 >
 > **`tag:index → tag:notifier:9000` is gone (2026-10-01, #98).** co-index has
 > checked in to co-status since #83 (index D16), so nothing used it; from
