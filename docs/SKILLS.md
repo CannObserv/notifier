@@ -31,9 +31,9 @@ A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and
 `.skills/doctor.sh` (a real file, not a symlink — it diagnoses broken vendor symlinks) is installed and re-synced by the refresh hook's `install-doctor.sh` step, and re-syncs itself on every run. Check the symlink chain by hand with `bash .skills/doctor.sh`.
 
 `.skills/` also holds committed configuration the skills read: the `curating-context` budgets and
-telemetry, and **both halves** of `doc-check.sh`'s Step 1.5 gate, each replacing its built-in
-defaults wholesale rather than extending them — a default upstream adds later has to be added here
-by hand.
+telemetry, `import-targets` for the ship gate's import check (#162), and **both halves** of
+`doc-check.sh`'s Step 1.5 gate, each replacing its built-in defaults wholesale rather than
+extending them — a default upstream adds later has to be added here by hand.
 
 `.skills/doc-sensitive-paths` (#47) is what the gate watches. Beyond the defaults it names
 `scripts/`, `.github/workflows/`, `skills/`, `skills-vendor/` and `.skills/`: a submodule bump
