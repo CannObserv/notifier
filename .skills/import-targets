@@ -1,5 +1,6 @@
-# Import targets for shipping-work's import check (gate-topology row 7, #162).
-# Without this file the gate guesses `notifier` from [project] name, finds no
-# notifier/ or src/notifier/, and skips the check. src.api.main imports the
-# whole app, both route and core layers, without touching a database.
+# Import targets for shipping-work's import check (#162; the "Import check"
+# row of skills/shipping-work/references/gate-topology.md). Without this file
+# the gate guesses `notifier` from [project] name, finds no notifier/ or
+# src/notifier/, and skips the check. src.api.main imports the whole app,
+# both route and core layers, without touching a database.
 src.api.main
