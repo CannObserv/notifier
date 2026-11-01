@@ -5,7 +5,7 @@
 #
 # These hooks do not run pytest. CI does (.github/workflows/ci.yml), and so
 # does the ship gate (`scripts/pre-ship.sh`, which execs the vendored one in
-# the shipping-work-python-fastapi skill). A green pre-commit proves style plus
+# the shipping-work skill). A green pre-commit proves style plus
 # the one config invariant ruff cannot see locally, not correctness.
 #
 # Every hook is read-only: it reports violations rather than rewriting files

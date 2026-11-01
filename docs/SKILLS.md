@@ -31,9 +31,9 @@ A second `SessionStart` entry runs `bash .skills/doctor.sh` on every session and
 `.skills/doctor.sh` (a real file, not a symlink — it diagnoses broken vendor symlinks) is installed and re-synced by the refresh hook's `install-doctor.sh` step, and re-syncs itself on every run. Check the symlink chain by hand with `bash .skills/doctor.sh`.
 
 `.skills/` also holds committed configuration the skills read: the `curating-context` budgets and
-telemetry, and **both halves** of `doc-check.sh`'s Step 1.5 gate, each replacing its built-in
-defaults wholesale rather than extending them — a default upstream adds later has to be added here
-by hand.
+telemetry, `import-targets` for the ship gate's import check (#162), and **both halves** of
+`doc-check.sh`'s Step 1.5 gate, each replacing its built-in defaults wholesale rather than
+extending them — a default upstream adds later has to be added here by hand.
 
 `.skills/doc-sensitive-paths` (#47) is what the gate watches. Beyond the defaults it names
 `scripts/`, `.github/workflows/`, `skills/`, `skills-vendor/` and `.skills/`: a submodule bump
@@ -56,7 +56,7 @@ The semantic index skips vendored skill prose — see `.socraticodeignore`.
 ### Override drift
 
 No override remains: `shipping-work-python-fastapi`, the last, became a whole-directory link in
-#153. This section is the record of why, and the rules for the next one.
+#153, and the doctor repointed it to the unified `shipping-work` in #162. This section is the record of why, and the rules for the next one.
 
 Overrides are the one thing the refresh machinery does not keep current: the daily hook only
 moves the submodule pointer, which by definition never touches a forked file, and nothing is ever
@@ -126,8 +126,9 @@ wrapper, moved to a repo-root `scripts/pre-ship.sh`, which Step 1 resolves ahead
 own copy for that script alone ([gregoryfoster/skills#301](https://github.com/gregoryfoster/skills/issues/301)).
 It is upstream's "Project-local env loading" recipe, which parses the env files instead of sourcing
 them, falls back to the primary checkout's `.env` from a linked worktree, and exports
-`PRE_SHIP_ENV_NAMES` so the gate's stamp is keyed on the env it ran with. It carries one extra
-guard, for a key with a leading digit, which the recipe's filter lets through to a fatal `export`.
+`PRE_SHIP_ENV_NAMES` so the gate's stamp is keyed on the env it ran with. It carried one extra
+guard, for a key with a leading digit, which the recipe's filter let through to a fatal `export`;
+upstream took it in gregoryfoster/skills#532, so since #162 the `ETC_ENV` path is the only delta.
 `OVERRIDES` is now empty.
 
 **One caveat on the per-script symlink pattern**, for the next override that uses it. `doctor.sh` globs `"$dir"/*` exactly one level deep under
@@ -201,7 +202,7 @@ say them, and a skill defers to AGENTS.md.
 | `patching-hosts` | gregoryfoster-skills symlink | Triggers: `patch the host`, `OS updates`, `apply updates`, `needrestart`. Reads the committed knob `.skills/patching-hosts` (#113); never edit the vendored copy, and file what it gets wrong upstream with the owner's approval |
 | `reviewing-architecture` | gregoryfoster-skills symlink | |
 | `reviewing-code-python-fastapi` | gregoryfoster-skills symlink | |
-| `shipping-work-python-fastapi` | gregoryfoster-skills symlink | An override until #153. Step 1 runs repo-root `scripts/pre-ship.sh`, which loads `/etc/notifier/.env` and the `.env` (the primary checkout's, from a worktree) and execs the vendored gate; see [Override drift](#override-drift). Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`. Units, databases and dev port come from AGENTS.md § Server Lifecycle |
+| `shipping-work` | gregoryfoster-skills symlink | Replaced `shipping-work-python-fastapi` (an override until #153) in #162; the gate detects `uv` and `fastapi` itself. Step 1 runs repo-root `scripts/pre-ship.sh`, which loads `/etc/notifier/.env` and the `.env` (the primary checkout's, from a worktree) and execs the vendored gate; see [Override drift](#override-drift). Step 1.5 is tailored in both halves — `.skills/doc-sensitive-paths` (#47) and `.skills/doc-sections` (#65), guarded by `tests/ci/test_doc_sensitive_paths.py` and `tests/ci/test_doc_sections.py`. `.skills/import-targets` names `src.api.main` for the import check, which the `[project]` name would skip (#162). Units, databases and dev port come from AGENTS.md § Server Lifecycle |
 | `subagent-driven-development` | obra-superpowers symlink | |
 | `systematic-debugging` | obra-superpowers symlink | |
 | `test-driven-development` | obra-superpowers symlink | |

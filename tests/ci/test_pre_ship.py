@@ -20,7 +20,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WRAPPER = REPO_ROOT / "scripts" / "pre-ship.sh"
-DELEGATE = "skills/shipping-work-python-fastapi/scripts/pre-ship.sh"
+DELEGATE = "skills/shipping-work/scripts/pre-ship.sh"
 VENDORED = REPO_ROOT / DELEGATE
 ETC_LINE = 'ETC_ENV="/etc/notifier/.env"'
 STUB = """#!/usr/bin/env bash
@@ -95,7 +95,7 @@ def test_wrapper_matches_the_vendored_recipe():
     """The wrapper is a copy of upstream's recipe, so it drifts like the fork did (#153).
 
     The recipe lives in the vendored gate's header; the wrapper must equal it
-    but for the two named deltas. Skips where the submodule is not checked
+    but for the ``ETC_ENV`` path. Skips where the submodule is not checked
     out (CI's test job); the ship gate runs where it is.
     """
     if not VENDORED.is_file():
@@ -104,15 +104,10 @@ def test_wrapper_matches_the_vendored_recipe():
     recipe = [line[4:] for line in header.splitlines() if line.startswith("#   ")]
     recipe = recipe[: recipe.index('exec bash "$DELEGATE" "$@"') + 1]
     expected = _code_lines("\n".join(recipe))
-    expected = [
-        line.replace("/etc/<project>/.env", "/etc/notifier/.env").replace(
-            "case $key in ''|*[!A-Za-z0-9_]*)", "case $key in ''|[0-9]*|*[!A-Za-z0-9_]*)"
-        )
-        for line in expected
-    ]
+    expected = [line.replace("/etc/<project>/.env", "/etc/notifier/.env") for line in expected]
     assert _code_lines(WRAPPER.read_text()) == expected, (
         "scripts/pre-ship.sh has drifted from the recipe in the vendored gate's header; "
-        "re-sync it, keeping only the ETC_ENV path and the leading-digit guard"
+        "re-sync it, keeping only the ETC_ENV path"
     )
 
 

@@ -1,6 +1,6 @@
 """Drift tests for ``.skills/doc-sensitive-paths``.
 
-``shipping-work-python-fastapi``'s Step 1.5 gate (``doc-check.sh``) flags
+``shipping-work``'s Step 1.5 gate (``doc-check.sh``) flags
 branch changes that touch files the docs describe. Its built-in defaults are
 written for a generic FastAPI service; this repo replaces them wholesale with
 a committed list, because three defaults (``schema.sql``, ``src/models/``,

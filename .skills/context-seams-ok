@@ -59,10 +59,10 @@ docs/reference/tailscale.md :: to [DEPLOYMENT.md](../DEPLOYMENT.md).
 .claude/hooks/socraticode-health.sh :: repo's AGENTS.md.
 .claude/hooks/socraticode-health.sh :: told by AGENTS.md to prefer codebase_search over grep
 scripts/rotate_key.py :: AGENTS.md fixes ISO 8601 with a ``Z`` suffix
-skills/shipping-work-python-fastapi/scripts/doc-check.sh :: referenced from project docs (e.g., AGENTS.md, README.md)
-skills/shipping-work-python-fastapi/scripts/doc-check.sh :: "AGENTS.md"
-skills/shipping-work-python-fastapi/scripts/doc-check.sh :: AGENTS.md: project structure, conventions
-skills/shipping-work-python-fastapi/scripts/doc-check.sh :: check AGENTS.md and README.md, never the
+skills/shipping-work/scripts/doc-check.sh :: referenced from project docs (e.g., AGENTS.md, README.md)
+skills/shipping-work/scripts/doc-check.sh :: "AGENTS.md"
+skills/shipping-work/scripts/doc-check.sh :: AGENTS.md: project structure, conventions
+skills/shipping-work/scripts/doc-check.sh :: check AGENTS.md and README.md, never the
 src/api/schemas/monitor.py :: (AGENTS.md, API Boundary
 tests/api/test_dispatch_route.py :: AGENTS.md: reject 422 with a clear field path on miss
 tests/api/test_dispatch_route.py :: an unbound reference fails loudly, per AGENTS.md

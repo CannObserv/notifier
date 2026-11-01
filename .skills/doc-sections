@@ -1,4 +1,4 @@
-# Doc sections for shipping-work-python-fastapi's Step 1.5 doc check.
+# Doc sections for shipping-work's Step 1.5 doc check.
 #
 # The advice printed on a hit: which docs to spot-check before shipping.
 # Like .skills/doc-sensitive-paths beside it, this REPLACES doc-check.sh's
