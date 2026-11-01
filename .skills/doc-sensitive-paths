@@ -1,4 +1,4 @@
-# Sensitive paths for shipping-work-python-fastapi's Step 1.5 doc check.
+# Sensitive paths for shipping-work's Step 1.5 doc check.
 #
 # Replaces doc-check.sh's built-in FastAPI defaults wholesale — it does not
 # extend them, so a default added upstream has to be added here too. Entries

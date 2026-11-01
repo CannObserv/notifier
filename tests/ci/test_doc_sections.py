@@ -1,6 +1,6 @@
 """Drift tests for ``.skills/doc-sections``.
 
-``shipping-work-python-fastapi``'s Step 1.5 gate prints two tailorable lists.
+``shipping-work``'s Step 1.5 gate prints two tailorable lists.
 ``.skills/doc-sensitive-paths`` says what the gate watches;
 ``.skills/doc-sections`` is the advice printed on a hit — which docs to
 spot-check. Each replaces its built-in defaults wholesale, and since

@@ -148,7 +148,7 @@ def test_loader_leaves_the_callers_shell_clean(tmp_path):
     """No helper functions left behind, and a ship run's stamp list untouched.
 
     The lifted parser appends every name to PRE_SHIP_ENV_NAMES, which keys the
-    ship gate's per-SHA stamp; a loader sourced under that gate must not edit it.
+    ship gate's pass stamp; a loader sourced under that gate must not edit it.
     """
     root, etc_env = _repo(tmp_path)
     etc_env.write_text("SHARED=etc\n")
