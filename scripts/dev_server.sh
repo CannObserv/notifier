@@ -84,16 +84,17 @@ for name in PATH HOME USER LOGNAME LANG LC_ALL LC_CTYPE TZ \
     clean_env+=("$name=${!name}")
   fi
 done
-uv_run() { env -i "${clean_env[@]}" uv run "$@"; }
+# One spelling for all three calls, the exec included, which a function cannot be.
+uv_clean=(env -i "${clean_env[@]}" uv run)
 
-uv_run python -m src.core.db_safety
+"${uv_clean[@]}" python -m src.core.db_safety
 
 # An unmigrated dev database starts cleanly and then 500s on every
 # authenticated request with "relation ... does not exist" (issue #23), so
 # check migration state here where the message can say what to do about it.
 # `alembic current` prints the revision on stdout: non-zero means the database
 # is unreachable, empty stdout means reachable but never migrated.
-if ! revision="$(uv_run alembic current 2>/dev/null)"; then
+if ! revision="$("${uv_clean[@]}" alembic current 2>/dev/null)"; then
   echo "dev_server: cannot read migration state — is the dev database reachable?" >&2
   exit 1
 fi
@@ -121,7 +122,7 @@ fi
 # business on 0.0.0.0 than :9000 does.
 HOST="$("$(dirname "${BASH_SOURCE[0]}")/tailnet_bind.sh")"
 
-exec env -i "${clean_env[@]}" uv run uvicorn src.api.main:app \
+exec "${uv_clean[@]}" uvicorn src.api.main:app \
   --host "$HOST" \
   --port 9001 \
   "${reload_args[@]}" \
