@@ -167,6 +167,9 @@ The per-variable reference. The two-file model, and the trap that
 in the policy file instead — nearly every task needs those two facts and almost
 none needs this list.
 
+A name `notifier-dev`'s process reads must also be on `scripts/dev_server.sh`'s
+env allowlist, or it never arrives (#158).
+
 Currently defined:
 - `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)
 - `GH_TOKEN` — GitHub personal access token (in `.env`)

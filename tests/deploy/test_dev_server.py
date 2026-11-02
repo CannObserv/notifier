@@ -166,6 +166,85 @@ def _run_dev_server(tmp_path, **overrides):
     return uvicorn_line
 
 
+def _uv_call_environments(tmp_path, **overrides):
+    """Run the script with a `uv` that records the environment of every call.
+
+    Returns ``{first argument after run: {name: value}}``, one entry per
+    ``uv run``: ``python`` (the db_safety guard), ``alembic`` and ``uvicorn``.
+    The dump path is baked into the shim, not passed in a variable, because
+    a variable is exactly what the allowlist under test would strip.
+    """
+    shim_dir = tmp_path / "recording"  # _run_dev_server rewrites tmp_path/uv
+    shim_dir.mkdir()
+    dump = tmp_path / "uv-env.dump"
+    fake = shim_dir / "uv"
+    fake.write_text(f'#!/usr/bin/env bash\n{{ echo "### $2"; env; }} >> "{dump}"\necho "uv $*"\n')
+    fake.chmod(0o755)
+    _run_dev_server(tmp_path, PATH=f"{shim_dir}:{os.environ['PATH']}", **overrides)
+    calls = {}
+    for block in dump.read_text().split("### ")[1:]:
+        command, *lines = block.splitlines()
+        calls[command] = dict(line.split("=", 1) for line in lines if "=" in line)
+    return calls
+
+
+# Names the dev server's process does not read, planted the way a shell that
+# already sourced load_env.sh would hand them over — the by-hand path, where
+# the credentials come from the parent environment and not from the loader.
+PLANTED = {
+    "GH_TOKEN_X": "planted",
+    "ANTHROPIC_API_KEY": "planted",
+    "EXE_API_TOKEN": "planted",
+    "DEV_TENANT_API_KEY": "planted",
+    "TEST_DATABASE_URL": "postgresql+asyncpg://u@h/notifier_test",
+    # uv reads this one itself, which is why UV_* is allowed by name, not prefix.
+    "UV_PUBLISH_TOKEN": "planted",
+}
+
+
+def test_dev_server_keeps_credentials_from_every_uv_call(tmp_path):
+    """#158 — notifier-dev held every repo .env credential through this script.
+
+    An allowlist at each `uv run`, not a denylist, so a token added to the
+    repo .env tomorrow stays out without anyone remembering to list it.
+    """
+    calls = _uv_call_environments(tmp_path, **PLANTED)
+    assert set(calls) == {"python", "alembic", "uvicorn"}
+    for command, env in calls.items():
+        leaked = sorted(set(PLANTED) & set(env))
+        assert not leaked, f"uv run {command} received {leaked}"
+        # A redundant copy of DATABASE_URL, and a second credential besides.
+        assert "DEV_DATABASE_URL" not in env, command
+
+
+def test_dev_server_passes_what_the_server_reads(tmp_path):
+    """Getting the allowlist wrong takes down the endpoint consumers use.
+
+    Each name here is read by the exec'd process: DATABASE_URL by the engine
+    and alembic, NOTIFIER_SECRET_KEY by crypto, BUILD_ID by /health,
+    NOTIFIER_APP_URL by the dispatcher, NOTIFIER_AUDIT_SOCKET by main.py's
+    audit logging, and PATH and HOME by uv itself.
+    """
+    wanted = {
+        "NOTIFIER_SECRET_KEY": "unused",
+        "BUILD_ID": "abc1234",
+        "NOTIFIER_APP_URL": "https://example.test",
+        "NOTIFIER_AUDIT_SOCKET": "/run/test.sock",
+    }
+    env = _uv_call_environments(tmp_path, **wanted)["uvicorn"]
+    assert env["DATABASE_URL"] == "postgresql+asyncpg://u@h/notifier_dev"
+    for name, value in wanted.items():
+        assert env.get(name) == value, name
+    assert env["PATH"].startswith(f"{tmp_path / 'recording'}:")
+    assert env["HOME"] == os.environ["HOME"]
+
+
+def test_dev_server_never_passes_the_production_opt_in(tmp_path):
+    """The unset at the top and the allowlist at each call agree."""
+    for command, env in _uv_call_environments(tmp_path, NOTIFIER_ALLOW_PROD_DB="1").items():
+        assert "NOTIFIER_ALLOW_PROD_DB" not in env, command
+
+
 def test_dev_server_reloads_by_default(tmp_path):
     """The hand-run server is an editing loop; keep --reload there."""
     assert "--reload" in _run_dev_server(tmp_path)

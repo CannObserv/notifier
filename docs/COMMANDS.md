@@ -25,7 +25,8 @@ Two env files, loaded in order:
 
 `notifier.service` loads `/etc/notifier/.env` alone, never the repo `.env`
 (#154). `notifier-dev.service` gets both through `scripts/dev_server.sh`,
-which sources the loader.
+which sources the loader and then hands each `uv run` a named allowlist, so
+no repo `.env` token reaches the server, by hand or under the unit (#158).
 
 **Loading these leaves `DATABASE_URL` pointing at production.** That is the
 intended target for `alembic upgrade head` — on this single-VM setup `main`
