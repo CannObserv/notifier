@@ -131,7 +131,9 @@ Three properties are load-bearing, each with a drift test in
   unsets the opt-in, swaps in `DEV_DATABASE_URL`, delegates the URL check to
   `src.core.db_safety`, and refuses an unmigrated database (#23). A second
   uvicorn spelling in the unit would be a second code path that can drift out
-  from under all four.
+  from under all four. Each of its `uv run` calls gets an allowlisted
+  environment, not the loader's, so the repo `.env`'s tokens never reach
+  this unit's processes (#158).
 - **`NOTIFIER_DEV_RELOAD=0`.** A wedged reloader keeps running after a syntax
   error on `main`, so no `Restart=` policy fires and the endpoint dies
   silently while systemd reports it active.
@@ -166,6 +168,10 @@ The per-variable reference. The two-file model, and the trap that
 `. scripts/load_env.sh` leaves `DATABASE_URL` pointing at **production**, are
 in the policy file instead — nearly every task needs those two facts and almost
 none needs this list.
+
+A name the dev server's process reads must also be on the allowlist in
+`scripts/dev_server.sh`, or `notifier-dev` never sees it (#158). The
+production unit has no such list: it reads `/etc/notifier/.env` whole.
 
 Currently defined:
 - `DATABASE_URL` — PostgreSQL connection string (in `/etc/notifier/.env`)

@@ -61,14 +61,39 @@ fi
 
 export DATABASE_URL="$DEV_DATABASE_URL"
 
-uv run python -m src.core.db_safety
+# Every `uv run` below gets a named environment, never this shell's (#158).
+# The loader exports every name in both env files — the GH_TOKEN* set,
+# ANTHROPIC_API_KEY, EXE_API_TOKEN, DEV_TENANT_API_KEY — and a by-hand run
+# inherits whatever its shell already sourced. An allowlist covers both
+# sources; a denylist would leak the next token added to the repo .env.
+#
+# The script's own knobs (DEV_DATABASE_URL, NOTIFIER_DEV_RELOAD,
+# NOTIFIER_BIND_HOST, ...) are read above and below, never by uv's child, so
+# they stay here. What the child reads: DATABASE_URL (engine, alembic),
+# NOTIFIER_SECRET_KEY (crypto), BUILD_ID (/health), NOTIFIER_APP_URL
+# (dispatcher), NOTIFIER_AUDIT_SOCKET (main.py's audit logging). The rest is
+# uv's and the interpreter's. uv's knobs are named, never UV_*: uv also reads
+# UV_PUBLISH_TOKEN and UV_INDEX_<NAME>_PASSWORD. A host that needs one more
+# (a proxy, a CA bundle) adds it to this list.
+clean_env=()
+for name in PATH HOME USER LOGNAME LANG LC_ALL LC_CTYPE TZ \
+  XDG_CACHE_HOME XDG_CONFIG_HOME XDG_DATA_HOME \
+  UV_CACHE_DIR UV_PYTHON_INSTALL_DIR UV_PROJECT_ENVIRONMENT \
+  DATABASE_URL NOTIFIER_SECRET_KEY BUILD_ID NOTIFIER_APP_URL NOTIFIER_AUDIT_SOCKET; do
+  if [[ -n "${!name+set}" ]]; then
+    clean_env+=("$name=${!name}")
+  fi
+done
+uv_run() { env -i "${clean_env[@]}" uv run "$@"; }
+
+uv_run python -m src.core.db_safety
 
 # An unmigrated dev database starts cleanly and then 500s on every
 # authenticated request with "relation ... does not exist" (issue #23), so
 # check migration state here where the message can say what to do about it.
 # `alembic current` prints the revision on stdout: non-zero means the database
 # is unreachable, empty stdout means reachable but never migrated.
-if ! revision="$(uv run alembic current 2>/dev/null)"; then
+if ! revision="$(uv_run alembic current 2>/dev/null)"; then
   echo "dev_server: cannot read migration state — is the dev database reachable?" >&2
   exit 1
 fi
@@ -96,7 +121,7 @@ fi
 # business on 0.0.0.0 than :9000 does.
 HOST="$("$(dirname "${BASH_SOURCE[0]}")/tailnet_bind.sh")"
 
-exec uv run uvicorn src.api.main:app \
+exec env -i "${clean_env[@]}" uv run uvicorn src.api.main:app \
   --host "$HOST" \
   --port 9001 \
   "${reload_args[@]}" \
