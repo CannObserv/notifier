@@ -10,6 +10,7 @@ We patch apprise.Apprise.async_notify to capture the kwargs so the assertions
 focus on contract, not Apprise internals.
 """
 
+import ast
 import socket
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -136,6 +137,25 @@ class TestBrandingAsset:
                 if not line.lstrip().startswith("#")
             )
             assert "exe.xyz" not in code
+
+
+class TestAppriseTwoCompatibility:
+    """The three dispatcher reads apprise 2.0 changed (#111)."""
+
+    def test_reads_the_service_by_index_not_servers(self):
+        """2.0 renamed `Apprise.servers` to `.services`; `ap[0]` works on both.
+
+        A source guard rather than a behaviour test because on 1.x `.servers`
+        still exists, so no dispatch can tell the two spellings apart there.
+        On 2.x the read raises outside the try block and the dispatch errors.
+        """
+        tree = ast.parse(Path(dispatcher_module.__file__).read_text())
+        reads = [
+            node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and node.attr == "servers"
+        ]
+        assert reads == [], f"dispatcher reads .servers at lines {reads}"
 
 
 def _closed_port() -> int:

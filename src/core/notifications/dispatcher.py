@@ -147,10 +147,14 @@ async def dispatch_to_channel(
             success=False, reason="Invalid Apprise URL: check your channel configuration"
         )
 
+    # `ap[0]`, not `ap.servers[0]`: apprise 2.0 renamed the attribute, and
+    # indexing reads the one service on both lines (#111).
+    service = ap[0]
+
     # Per-channel format negotiation: HTML-native plugins (mailto, sendgrid, etc.)
     # get a Markdown→HTML rewrite with colored diff fences; everything else
     # receives the source Markdown unchanged.
-    plugin_format = getattr(ap.servers[0], "notify_format", NotifyFormat.MARKDOWN)
+    plugin_format = getattr(service, "notify_format", NotifyFormat.MARKDOWN)
     if plugin_format == NotifyFormat.HTML:
         send_body = markdown_to_email_html(body)
         send_format = NotifyFormat.HTML
@@ -184,6 +188,6 @@ async def dispatch_to_channel(
     detail = (
         _scrub("; ".join(messages), url)
         if messages
-        else (f"{_describe_target(ap.servers[0])} reported no error detail")
+        else (f"{_describe_target(service)} reported no error detail")
     )
     return DispatchResult(success=False, reason=f"Delivery failed: {detail}")
