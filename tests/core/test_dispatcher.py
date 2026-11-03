@@ -1,15 +1,16 @@
 """Tests for src/core/notifications/dispatcher.py.
 
-Focus: per-channel HTML rendering. The dispatcher must inspect the resolved
-Apprise plugin's notify_format and:
+Focus: per-channel HTML rendering. The dispatcher must ask the resolved
+Apprise plugin which format Markdown resolves to, and:
 - HTML targets → render the body via markdown_to_email_html and dispatch with
   body_format=HTML;
 - non-HTML targets → dispatch unchanged with body_format=MARKDOWN.
 
-We patch apprise.Apprise.async_notify to capture the kwargs so the assertions
+We patch apprise.Apprise.notify to capture the kwargs so the assertions
 focus on contract, not Apprise internals.
 """
 
+import ast
 import socket
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -138,6 +139,73 @@ class TestBrandingAsset:
             assert "exe.xyz" not in code
 
 
+class TestAppriseTwoCompatibility:
+    """The three dispatcher reads apprise 2.0 changed (#111)."""
+
+    def test_reads_the_service_by_index_not_servers(self):
+        """2.0 renamed `Apprise.servers` to `.services`; `ap[0]` works on both.
+
+        A source guard rather than a behaviour test because on 1.x `.servers`
+        still exists, so no dispatch can tell the two spellings apart there.
+        On 2.x the read raises outside the try block and the dispatch errors.
+        """
+        tree = ast.parse(Path(dispatcher_module.__file__).read_text())
+        reads = [
+            node.lineno
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and node.attr == "servers"
+        ]
+        assert reads == [], f"dispatcher reads .servers at lines {reads}"
+
+    @pytest.mark.parametrize("delivered", [True, False])
+    async def test_success_is_the_results_truth_not_identity_with_true(self, delivered):
+        """2.0's `notify` returns an `AppriseResult`, truthy only on SUCCESS.
+
+        `result is True` is always False against it, so every delivery would
+        be recorded as failed while still reaching its target — the silent
+        break. The stand-in keeps the test meaningful on 1.x, which has no
+        `AppriseResult` to return.
+        """
+
+        class _Result:
+            def __bool__(self) -> bool:
+                return delivered
+
+        encrypted = encrypt_apprise_url("json://example.com")
+        with patch.object(apprise.Apprise, "notify", MagicMock(return_value=_Result())):
+            result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
+
+        assert result.success is delivered
+
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            # 2.x made mailto's format a tuple (HTML, TEXT); mailgun stayed a
+            # scalar HTML. Both are email, both get our coloured-diff render.
+            ("mailto://user:pass@example.com", apprise.NotifyFormat.HTML),
+            ("mailgun://noreply@example.com/apikey/", apprise.NotifyFormat.HTML),
+            ("slack://T1JJ3T3L2/A1BRTD4JD/TIiajkdnlazkcOXrIdevi7FQ", apprise.NotifyFormat.MARKDOWN),
+            ("json://example.com", apprise.NotifyFormat.MARKDOWN),
+            # A channel's own ?format= still wins over the plugin default.
+            (
+                "mailgun://noreply@example.com/apikey/?format=markdown",
+                apprise.NotifyFormat.MARKDOWN,
+            ),
+            # Deliberate 2.x change: HTML-only on 1.x, Telegram now takes
+            # Markdown natively, so it gets the source rather than our render.
+            ("tgram://123456789:abcdefg_hijklmnop/12315544/", apprise.NotifyFormat.MARKDOWN),
+        ],
+        ids=["mailto", "mailgun", "slack", "json", "mailgun-format-override", "telegram"],
+    )
+    async def test_format_negotiation_per_scheme(self, captured_notify, url, expected):
+        """Which channels get our HTML render, held across the 1.x → 2.x port."""
+        encrypted = encrypt_apprise_url(url)
+
+        await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="**b**\n")
+
+        assert captured_notify.call_args.kwargs["body_format"] == expected
+
+
 def _closed_port() -> int:
     """A port nothing is listening on, so connecting is refused immediately."""
     with socket.socket() as s:
@@ -150,14 +218,16 @@ class TestFailureDetail:
 
     `reason` is the only diagnostic the API hands a consumer, and in production
     it read "Delivery failed: no detail captured" for every HTTP plugin — see
-    #25. The capture buffer is a contextvar, and Apprise runs a sync plugin's
-    send() through `loop.run_in_executor`, which does *not* copy the caller's
-    context. The WARNING Apprise logs is correct, well-worded, and lands in a
-    thread where the buffer is invisible.
+    #25. The capture buffer is a contextvar, and apprise 1.x ran a sync
+    plugin's send() through `loop.run_in_executor`, which does *not* copy the
+    caller's context. The WARNING Apprise logged was correct, well-worded, and
+    landed in a thread where the buffer was invisible.
 
-    Every existing test patches `Apprise.async_notify`, so none of them ever
+    Every test then patched `Apprise.async_notify`, so none of them ever
     crossed that thread boundary — which is exactly why a feature that never
-    worked once in production had a green suite behind it.
+    worked once in production had a green suite behind it. Apprise 2.x copies
+    the context into its own executor; these tests, unpatched, are what say
+    it still arrives (#111).
     """
 
     async def test_apprise_detail_survives_the_thread_hop(self):
@@ -223,7 +293,7 @@ class TestWireFormat:
     short of the wire is what hid #25 for the lifetime of the feature.
 
     Only the Markdown side can be checked this way: every HTML-native plugin
-    Apprise ships (mailto, mailgun, sendgrid, brevo, telegram, …) speaks SMTP
+    Apprise ships (mailto, mailgun, sendgrid, brevo, …) speaks SMTP
     or a fixed vendor host, so none can be pointed at a local sink. The HTML
     rewrite stays mock-asserted for that reason, not for convenience.
     """
