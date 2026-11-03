@@ -7,7 +7,7 @@
 
 ### Changed
 - The server runs apprise 2.1.0 (was 1.13.1). No response schema moved, but three things a consumer can see did (CannObserv/notifier#111):
-  - `apprise.list_plugins()` lists 18 more services, and `chime` is gone. A `chime://` channel stops delivering and can't be created again. In `get_plugin`, `mailto` loses its `pgpkey` arg and `tgram` gains `album`. For `mailgun`, `mailto`, `slack`, `json`, `syslog` and `tgram`, `assemble`'s `variant_index` still picks the same template.
+  - `apprise.list_plugins()` lists 21 more plugin schemas, and `chime` is gone (141 → 161). A `chime://` channel stops delivering and can't be created again. In `get_plugin`, `mailto` loses its `pgpkey` arg and `tgram` gains `album`. For `mailgun`, `mailto`, `slack`, `json`, `syslog` and `tgram`, `assemble`'s `variant_index` still picks the same template.
   - Telegram channels now receive the Markdown source rather than notifier's HTML render. Email channels (`mailto`, `mailgun`) still get the HTML render, and a channel's `?format=` override still wins.
   - A channel that hasn't finished sending after 60 seconds is recorded as a failed attempt, even if apprise finishes delivering it in the background. The realistic case is an unbatched `mailgun` channel with a dozen or more recipients. If you `redeliver` that attempt, those recipients can get the notification twice.
 
