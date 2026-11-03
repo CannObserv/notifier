@@ -157,6 +157,26 @@ class TestAppriseTwoCompatibility:
         ]
         assert reads == [], f"dispatcher reads .servers at lines {reads}"
 
+    @pytest.mark.parametrize("delivered", [True, False])
+    async def test_success_is_the_results_truth_not_identity_with_true(self, delivered):
+        """2.0's `notify` returns an `AppriseResult`, truthy only on SUCCESS.
+
+        `result is True` is always False against it, so every delivery would
+        be recorded as failed while still reaching its target — the silent
+        break. The stand-in keeps the test meaningful on 1.x, which has no
+        `AppriseResult` to return.
+        """
+
+        class _Result:
+            def __bool__(self) -> bool:
+                return delivered
+
+        encrypted = encrypt_apprise_url("json://example.com")
+        with patch.object(apprise.Apprise, "notify", MagicMock(return_value=_Result())):
+            result = await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="b")
+
+        assert result.success is delivered
+
 
 def _closed_port() -> int:
     """A port nothing is listening on, so connecting is refused immediately."""

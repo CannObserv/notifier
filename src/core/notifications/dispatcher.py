@@ -183,7 +183,9 @@ async def dispatch_to_channel(
     finally:
         _capture_ctx.reset(token)
 
-    if result is True:
+    # Truthiness, not `is True`: apprise 2.x returns an AppriseResult, truthy
+    # only when its status is SUCCESS (#111); 1.x's plain bool reads the same.
+    if result:
         return DispatchResult(success=True, reason="Notification sent successfully")
     detail = (
         _scrub("; ".join(messages), url)
