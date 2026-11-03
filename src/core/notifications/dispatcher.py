@@ -48,9 +48,10 @@ _ASSET = _build_asset()
 # Each asyncio task gets its own context copy, so concurrent dispatch calls
 # are fully isolated — no cross-contamination between tenants.
 #
-# The isolation is why this is a contextvar, and the thread hop below is why
-# reaching it takes care: Apprise runs a sync plugin's send() in a worker
-# thread, and only `asyncio.to_thread` copies the calling context across (see
+# The isolation is why this is a contextvar, and the thread hops below are why
+# reaching it takes care: `asyncio.to_thread` moves the call to a worker, and
+# apprise 2.x runs each service on its own executor again. Both copy the
+# calling context across; apprise 1.x's async path did not (see
 # dispatch_to_channel).
 _capture_ctx: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
     "_apprise_capture", default=None
@@ -127,14 +128,15 @@ async def dispatch_to_channel(
     actionable error detail (e.g. Slack's not_in_channel, HTTP 401 bodies).
 
     Uses the synchronous ``notify`` under ``asyncio.to_thread`` rather than
-    ``async_notify``. Apprise's async path ends in
+    ``async_notify``. On apprise 1.x the async path ended in
     ``loop.run_in_executor(None, send)``, and ``run_in_executor`` does not
     copy the caller's context into the worker thread — so every WARNING a
     plugin logged landed where the capture buffer was invisible, and the
     reason read "no detail captured" for every HTTP plugin in production
     (#25). ``asyncio.to_thread`` copies the context, which is the whole
-    difference. Both spellings hand the work to the same executor, so nothing
-    blocks the event loop either way.
+    difference. Apprise 2.x copies it on both paths itself, running each
+    service on its own executor under a 60 s per-service deadline; a service
+    that misses it reports TIMEOUT, which reads as a failed delivery here.
 
     Service-level concern: callers must already have rendered title and body.
     The dispatcher is template-agnostic.
@@ -151,11 +153,14 @@ async def dispatch_to_channel(
     # indexing reads the one service on both lines (#111).
     service = ap[0]
 
-    # Per-channel format negotiation: HTML-native plugins (mailto, sendgrid, etc.)
-    # get a Markdown→HTML rewrite with colored diff fences; everything else
-    # receives the source Markdown unchanged.
-    plugin_format = getattr(service, "notify_format", NotifyFormat.MARKDOWN)
-    if plugin_format == NotifyFormat.HTML:
+    # Per-channel format negotiation: a plugin that, offered Markdown, would
+    # still render HTML (mailto, mailgun, sendgrid, …) gets our Markdown→HTML
+    # rewrite with colored diff fences; everything else receives the source
+    # Markdown unchanged. Since apprise 2.0 a plugin's `notify_format` may be a
+    # tuple of supported formats, so it is asked rather than compared:
+    # `resolve_format` honours a channel's `?format=` override, else takes
+    # Markdown where supported, else the plugin's default (#111).
+    if service.resolve_format(NotifyFormat.MARKDOWN) == NotifyFormat.HTML:
         send_body = markdown_to_email_html(body)
         send_format = NotifyFormat.HTML
     else:

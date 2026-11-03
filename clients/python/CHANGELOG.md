@@ -5,6 +5,12 @@
 ### Removed
 - The generated `notifier_client.generated.api.monitors` endpoints and their models (`MonitorCreate`, `MonitorOut`, `MonitorUpdate`, `CheckinRequest`, `CheckinResponse` and their nested types). The server no longer serves `/api/v1/monitors`: dead-man's timers moved to co-status (CannObserv/status), whose check-in contract is unchanged, so consumers switch base URL and key, not code. The public surface never exported these (CannObserv/notifier#83).
 
+### Changed
+- The server runs apprise 2.1.0 (was 1.13.1). No response schema moved, but three things a consumer can see did (CannObserv/notifier#111):
+  - `apprise.list_plugins()` lists 18 more services, and `chime` is gone. A `chime://` channel stops delivering and can't be created again. In `get_plugin`, `mailto` loses its `pgpkey` arg and `tgram` gains `album`. For `mailgun`, `mailto`, `slack`, `json`, `syslog` and `tgram`, `assemble`'s `variant_index` still picks the same template.
+  - Telegram channels now receive the Markdown source rather than notifier's HTML render. Email channels (`mailto`, `mailgun`) still get the HTML render, and a channel's `?format=` override still wins.
+  - A channel that hasn't finished sending after 60 seconds is recorded as a failed attempt, even if apprise finishes delivering it in the background. The realistic case is an unbatched `mailgun` channel with a dozen or more recipients. If you `redeliver` that attempt, those recipients can get the notification twice.
+
 ### Fixed
 - `POST /dispatch` retried with the same `idempotency_key` while the first call is still sending now waits for it and returns 202 with the same dispatch record. Before this fix the retry got a 500 once the first call committed: sequential replay was safe, concurrent replay was not, and a client retries concurrently exactly when the first call timed out. No notification was ever sent twice. If the first call fails and rolls back, the retry delivers as a fresh dispatch (CannObserv/notifier#115).
 

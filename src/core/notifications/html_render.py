@@ -1,8 +1,10 @@
 """Markdown→HTML rendering for HTML-native notification channels.
 
 The dispatcher invokes :func:`markdown_to_email_html` when the resolved Apprise
-plugin advertises ``NotifyFormat.HTML`` (e.g. ``mailto://``). The output is
-suitable for ``Apprise.notify(body_format=NotifyFormat.HTML)``.
+plugin, offered Markdown, would still render HTML — its
+``resolve_format(NotifyFormat.MARKDOWN)`` is ``HTML`` (e.g. ``mailto://``,
+``mailgun://``). The output is suitable for
+``Apprise.notify(body_format=NotifyFormat.HTML)``.
 
 The single value-add over a plain Markdown renderer is colored styling for
 ``+``/``-`` lines inside ```` ```diff ```` fenced blocks, mirroring GitHub's
@@ -77,6 +79,6 @@ def markdown_to_email_html(body: str) -> str:
     """Render a Markdown body to HTML with colored diff fences.
 
     Suitable for dispatching with ``Apprise.notify(body_format=NotifyFormat.HTML)``
-    on plugins whose ``notify_format`` is ``HTML`` (e.g. ``mailto://``).
+    on plugins that resolve Markdown to ``HTML`` (e.g. ``mailto://``).
     """
     return _render_markdown(body)

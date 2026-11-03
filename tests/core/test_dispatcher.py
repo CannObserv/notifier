@@ -1,12 +1,12 @@
 """Tests for src/core/notifications/dispatcher.py.
 
-Focus: per-channel HTML rendering. The dispatcher must inspect the resolved
-Apprise plugin's notify_format and:
+Focus: per-channel HTML rendering. The dispatcher must ask the resolved
+Apprise plugin which format Markdown resolves to, and:
 - HTML targets → render the body via markdown_to_email_html and dispatch with
   body_format=HTML;
 - non-HTML targets → dispatch unchanged with body_format=MARKDOWN.
 
-We patch apprise.Apprise.async_notify to capture the kwargs so the assertions
+We patch apprise.Apprise.notify to capture the kwargs so the assertions
 focus on contract, not Apprise internals.
 """
 
@@ -177,6 +177,34 @@ class TestAppriseTwoCompatibility:
 
         assert result.success is delivered
 
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            # 2.x made mailto's format a tuple (HTML, TEXT); mailgun stayed a
+            # scalar HTML. Both are email, both get our coloured-diff render.
+            ("mailto://user:pass@example.com", apprise.NotifyFormat.HTML),
+            ("mailgun://noreply@example.com/apikey/", apprise.NotifyFormat.HTML),
+            ("slack://T1JJ3T3L2/A1BRTD4JD/TIiajkdnlazkcOXrIdevi7FQ", apprise.NotifyFormat.MARKDOWN),
+            ("json://example.com", apprise.NotifyFormat.MARKDOWN),
+            # A channel's own ?format= still wins over the plugin default.
+            (
+                "mailgun://noreply@example.com/apikey/?format=markdown",
+                apprise.NotifyFormat.MARKDOWN,
+            ),
+            # Deliberate 2.x change: HTML-only on 1.x, Telegram now takes
+            # Markdown natively, so it gets the source rather than our render.
+            ("tgram://123456789:abcdefg_hijklmnop/12315544/", apprise.NotifyFormat.MARKDOWN),
+        ],
+        ids=["mailto", "mailgun", "slack", "json", "mailgun-format-override", "telegram"],
+    )
+    async def test_format_negotiation_per_scheme(self, captured_notify, url, expected):
+        """Which channels get our HTML render, held across the 1.x → 2.x port."""
+        encrypted = encrypt_apprise_url(url)
+
+        await dispatch_to_channel(apprise_url_encrypted=encrypted, title="t", body="**b**\n")
+
+        assert captured_notify.call_args.kwargs["body_format"] == expected
+
 
 def _closed_port() -> int:
     """A port nothing is listening on, so connecting is refused immediately."""
@@ -263,7 +291,7 @@ class TestWireFormat:
     short of the wire is what hid #25 for the lifetime of the feature.
 
     Only the Markdown side can be checked this way: every HTML-native plugin
-    Apprise ships (mailto, mailgun, sendgrid, brevo, telegram, …) speaks SMTP
+    Apprise ships (mailto, mailgun, sendgrid, brevo, …) speaks SMTP
     or a fixed vendor host, so none can be pointed at a local sink. The HTML
     rewrite stays mock-asserted for that reason, not for convenience.
     """
