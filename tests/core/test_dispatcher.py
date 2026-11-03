@@ -218,14 +218,16 @@ class TestFailureDetail:
 
     `reason` is the only diagnostic the API hands a consumer, and in production
     it read "Delivery failed: no detail captured" for every HTTP plugin — see
-    #25. The capture buffer is a contextvar, and Apprise runs a sync plugin's
-    send() through `loop.run_in_executor`, which does *not* copy the caller's
-    context. The WARNING Apprise logs is correct, well-worded, and lands in a
-    thread where the buffer is invisible.
+    #25. The capture buffer is a contextvar, and apprise 1.x ran a sync
+    plugin's send() through `loop.run_in_executor`, which does *not* copy the
+    caller's context. The WARNING Apprise logged was correct, well-worded, and
+    landed in a thread where the buffer was invisible.
 
-    Every existing test patches `Apprise.async_notify`, so none of them ever
+    Every test then patched `Apprise.async_notify`, so none of them ever
     crossed that thread boundary — which is exactly why a feature that never
-    worked once in production had a green suite behind it.
+    worked once in production had a green suite behind it. Apprise 2.x copies
+    the context into its own executor; these tests, unpatched, are what say
+    it still arrives (#111).
     """
 
     async def test_apprise_detail_survives_the_thread_hop(self):
