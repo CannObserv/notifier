@@ -32,10 +32,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "anyio>=4.15.1,<5",
+    "anyio>=4.16.0,<5",
     "pre-commit>=4.7.0,<5",
-    "pytest>=9.1.1,<10",
-    "pytest-asyncio>=1.4.1,<2",
+    "pytest>=9.2.0,<10",
+    "pytest-asyncio>=1.4.1.post1,<2",
     "pytest-cov>=7.1.0,<8",
     # tests/ci/ parses pyproject.toml's own specifiers (#30). Present
     # transitively, but declared here because the tests import it directly.
