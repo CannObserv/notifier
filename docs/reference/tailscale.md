@@ -23,8 +23,13 @@ specific to notifier.
   **Non-ephemeral and tagged**, so it never expires. That matters more here
   than for a fleet worker: an expiring node key would take every dispatch with
   it, silently.
-- **Consumer node:** `watcher`, tag `tag:watcher`, `100.66.24.24` — the
-  `watcher` VM, which now runs watcher alone.
+- **Former consumer node:** `watcher`, tag `tag:watcher`, `100.66.24.24` —
+  the `watcher` VM. Watcher stopped dispatching at F3 (CannObserv/watcher#376),
+  its keys were revoked (#118) and both its tenants deleted on 2026-11-10
+  (#127). Its `tag:watcher → tag:notifier:9000,9001` rule was removed from the
+  policy on 2026-11-09; this node's packet filter no longer admits it on either
+  port. It is still a source in the index-store rule below; that edge is
+  co-index's to keep or drop.
 - **Former reporting node:** `broker`, tag `tag:broker`, `100.97.91.19` — the
   `co-broker` VM. It checked in to a dead-man's timer here every ten minutes
   (#56, CannObserv/broker#3) until that moved to co-status (#83, broker#66).
@@ -55,9 +60,8 @@ specific to notifier.
 - **Consumer node:** `archiver`, tag `tag:archiver`, `100.109.138.101` — the
   `co-registrar` VM. It takes over Watcher's notifications (#116,
   CannObserv/archiver#368) as tenant `archiver`, held in both databases
-  (#117). So it gets **both ports**, like watcher: `:9001` is where its
-  non-production processes point. It is also one of the index store's
-  clients.
+  (#117). So it gets **both ports**: `:9001` is where its non-production
+  processes point. It is also one of the index store's clients.
 - **Monitor node:** `status`, tag `tag:status`, `100.88.216.92`: the
   `co-status` VM. This host's disk headroom sensor checks in there every ten
   minutes (#136, CannObserv/status#74), as monitor
@@ -83,7 +87,7 @@ specific to notifier.
     // initiates nothing across the tailnet: its Apprise egress goes straight
     // to the internet. Two rules list tag:notifier as a source, both host
     // tooling: the index store's, and the disk sensor's to co-status.
-    { "action": "accept", "src": ["tag:watcher"], "dst": ["tag:notifier:9000,9001"] },
+    // tag:watcher's rule to notifier was removed 2026-11-09 (#118, #127).
     // #57, index D17: every cohort VM is a CLIENT of the shared index store.
     // Qdrant is TLS + API-key gated; Ollama has no auth and is gated by this
     // rule alone. One of two rules listing tag:notifier as a source.
@@ -104,7 +108,7 @@ specific to notifier.
     // Power Map's API OnFailure= handler (#114). :9000 only — production alone.
     { "action": "accept", "src": ["tag:power-map"], "dst": ["tag:notifier:9000"] },
     // Archiver, Watcher's successor as the notifying tenant (#117, #116).
-    // Both ports, like watcher: it has a development tenant on :9001.
+    // Both ports: it has a development tenant on :9001.
     { "action": "accept", "src": ["tag:archiver"], "dst": ["tag:notifier:9000,9001"] },
     // co-status dispatches its monitor pages here (#83). Both ports: it polls
     // and dispatches against :9001 too. Recorded 2026-10-31 (#136).
@@ -117,9 +121,9 @@ specific to notifier.
 > **History: the broker's rule, removed 2026-10-02 (#83).** The two notes
 > below record why it had the shape it did, while it existed.
 >
-> **The broker gets `:9000` only; watcher gets both.** Not an inconsistency.
+> **The broker gets `:9000` only; watcher got both.** Not an inconsistency.
 > `:9001` exists because #24 made it the endpoint consumers point their
-> *non-production* processes at, and watcher has some. `co-broker`'s probe is
+> *non-production* processes at, and watcher had some. `co-broker`'s probe is
 > a single always-on production unit with no dev counterpart, so a grant
 > covering `:9001` is wider than any use that node has.
 >
@@ -320,10 +324,10 @@ curl "http://$(tailscale ip -4):9000/health"
 `https://notifier.exe.xyz:9000/` reaches the exe.dev login gate and stops:
 nothing listens on the interface the proxy forwards to. Deliberate, not broken.
 
-Watcher, the first consumer, is on the `watcher` VM (`lax`) — its own, since
-archiver and replicator left for `co-registrar` and `co-replicator`. Its API is
-on 8000 there; its production credential is `/etc/watcher/notifier.env`,
-pointed at `http://notifier:9000` (watcher#278).
+Watcher, the first consumer, called `http://notifier:9000` from the `watcher`
+VM (`lax`) until F3 (CannObserv/watcher#376); Archiver took over its
+notifications (#116). Its credential file was shredded (watcher#379), its keys
+revoked (#118), and both its tenants deleted on 2026-11-10 (#127).
 
 ## Joining or re-joining this host
 
@@ -375,7 +379,7 @@ The alternative, rejected at the time, was `--accept-dns=false` plus an
 |---|---|---|
 | Tailscale **auth key** (`tskey-auth-…`, pre-approved + tagged + non-ephemeral) | this VM → joins the tailnet | admin console → staged 0600, shredded after join |
 | exe.dev **API token** (`exe1.…`) | agent → `POST https://exe.dev/exec` | operator's `.env`; default `cmds` scope is `new`/`ls`/`whoami` — **no `rm`** |
-| `X-API-Key` (`nk_…`) | consumer → notifier | consumer-side; for watcher, `/etc/watcher/notifier.env` on the watcher VM |
+| `X-API-Key` (`nk_…`) | consumer → notifier | consumer-side, on each consumer's own host |
 
 Independent secrets for independent hops. A tailnet key never authenticates an
 API call, and the API key is not what gets a host onto the tailnet.
