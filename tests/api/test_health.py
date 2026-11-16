@@ -208,3 +208,17 @@ async def test_ready_reports_503_when_the_database_refuses_connections(refused_e
 
     assert response.status_code == 503
     assert response.json() == {"status": "not_ready", "db": False}
+
+
+def test_the_served_health_schema_names_401_before_403():
+    """The docstring is served in /openapi.json and copied into the SDK (#141).
+
+    A key this database does not hold — a ``notifier_dev`` key sent to :9000 —
+    is a 401 before its environment is read (#138); only a ``development`` key
+    the database does hold reaches the 403. A description naming the 403 alone
+    sends a consumer looking for the wrong failure.
+    """
+    description = app.openapi()["components"]["schemas"]["HealthResponse"]["description"]
+    assert "401" in description
+    assert "403" in description
+    assert description.index("401") < description.index("403")
