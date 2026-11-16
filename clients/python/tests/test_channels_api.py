@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -32,7 +32,7 @@ _CHANNEL_BODY = {
 @pytest.mark.asyncio
 async def test_channels_list_returns_typed(fast_retry):
     respx.get("https://t.local/api/v1/channels").mock(
-        return_value=httpx.Response(200, json=[_CHANNEL_BODY])
+        return_value=httpx2.Response(200, json=[_CHANNEL_BODY])
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -47,7 +47,7 @@ async def test_channels_list_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_channels_create_sends_body_and_returns_typed(fast_retry):
     route = respx.post("https://t.local/api/v1/channels").mock(
-        return_value=httpx.Response(201, json=_CHANNEL_BODY)
+        return_value=httpx2.Response(201, json=_CHANNEL_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -66,7 +66,7 @@ async def test_channels_create_sends_body_and_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_channels_get_returns_typed(fast_retry):
     respx.get("https://t.local/api/v1/channels/01HA").mock(
-        return_value=httpx.Response(200, json=_CHANNEL_BODY)
+        return_value=httpx2.Response(200, json=_CHANNEL_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -80,7 +80,7 @@ async def test_channels_get_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_channels_update_patches_and_returns_typed(fast_retry):
     route = respx.patch("https://t.local/api/v1/channels/01HA").mock(
-        return_value=httpx.Response(200, json={**_CHANNEL_BODY, "name": "renamed"})
+        return_value=httpx2.Response(200, json={**_CHANNEL_BODY, "name": "renamed"})
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -95,7 +95,7 @@ async def test_channels_update_patches_and_returns_typed(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_channels_delete_returns_none(fast_retry):
-    respx.delete("https://t.local/api/v1/channels/01HA").mock(return_value=httpx.Response(204))
+    respx.delete("https://t.local/api/v1/channels/01HA").mock(return_value=httpx2.Response(204))
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
@@ -107,7 +107,7 @@ async def test_channels_delete_returns_none(fast_retry):
 @pytest.mark.asyncio
 async def test_channels_send_test_returns_typed(fast_retry):
     respx.post("https://t.local/api/v1/channels/01HA/test").mock(
-        return_value=httpx.Response(200, json={"success": True, "reason": "ok"})
+        return_value=httpx2.Response(200, json={"success": True, "reason": "ok"})
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -121,7 +121,7 @@ async def test_channels_send_test_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_channels_create_validation_error(fast_retry):
     respx.post("https://t.local/api/v1/channels").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             422,
             json={
                 "detail": [
@@ -143,7 +143,7 @@ async def test_channels_create_validation_error(fast_retry):
 @pytest.mark.parametrize("status", [500, 502, 503, 504])
 async def test_channels_delete_not_auto_retried_on_5xx(fast_retry, status):
     route = respx.delete("https://t.local/api/v1/channels/01HA").mock(
-        return_value=httpx.Response(status),
+        return_value=httpx2.Response(status),
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry

@@ -1,5 +1,7 @@
-import httpx
+import httpx2
+import pytest
 
+from notifier_client import NotifierClient, RetryConfig
 from notifier_client.errors import (
     AuthError,
     NotifierError,
@@ -10,8 +12,8 @@ from notifier_client.errors import (
 )
 
 
-def _resp(status: int, json_body: dict | None = None) -> httpx.Response:
-    return httpx.Response(status_code=status, json=json_body or {})
+def _resp(status: int, json_body: dict | None = None) -> httpx2.Response:
+    return httpx2.Response(status_code=status, json=json_body or {})
 
 
 def test_auth_error_for_401():
@@ -44,7 +46,7 @@ def test_validation_error_handles_pydantic_style_detail():
 
 
 def test_rate_limited_carries_retry_after():
-    resp = httpx.Response(
+    resp = httpx2.Response(
         status_code=429, headers={"Retry-After": "30"}, json={"detail": "slow down"}
     )
     err = error_from_response(resp)
@@ -61,3 +63,16 @@ def test_generic_notifier_error_for_other_4xx():
     err = error_from_response(_resp(404, {"detail": "not found"}))
     assert isinstance(err, NotifierError)
     assert err.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_a_raised_error_carries_the_httpx2_response(httpx2_wire):
+    """``NotifierError.response`` is the response the SDK received — httpx2's (#141)."""
+    httpx2_wire.response = httpx2.Response(401, json={"detail": "bad key"})
+    async with NotifierClient(
+        base_url="http://127.0.0.1:9", api_key="nk_x", retry_config=RetryConfig(max_attempts=1)
+    ) as c:
+        with pytest.raises(AuthError) as exc:
+            await c.health()
+    assert isinstance(exc.value.response, httpx2.Response)
+    assert exc.value.response.status_code == 401

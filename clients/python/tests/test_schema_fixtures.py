@@ -35,10 +35,10 @@ def test_create_is_also_refused_while_the_server_is_serving(notifier_url, _serve
 
 def test_schema_survives_a_refused_drop(notifier_url, tenant_credentials):
     """The refusal must not be cosmetic — the schema and seed are still there."""
-    import httpx
+    import httpx2
 
     _, api_key = tenant_credentials
-    response = httpx.get(
+    response = httpx2.get(
         f"{notifier_url}/api/v1/templates",
         headers={"X-API-Key": api_key},
         timeout=10.0,

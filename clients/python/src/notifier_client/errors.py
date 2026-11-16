@@ -8,7 +8,7 @@ subclass.
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 
 from notifier_client.retry_after import parse_retry_after
 
@@ -21,7 +21,7 @@ class NotifierError(Exception):
         message: str,
         *,
         status_code: int | None = None,
-        response: httpx.Response | None = None,
+        response: httpx2.Response | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -61,7 +61,7 @@ class ServerError(NotifierError):
     """5xx — server-side failure. Retried by the transport before this fires."""
 
 
-def error_from_response(response: httpx.Response) -> NotifierError:
+def error_from_response(response: httpx2.Response) -> NotifierError:
     """Map an HTTP response to the appropriate typed error."""
     status = response.status_code
     try:

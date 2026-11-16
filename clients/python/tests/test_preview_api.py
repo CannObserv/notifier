@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -14,7 +14,7 @@ def fast_retry():
 @pytest.mark.asyncio
 async def test_preview_renders_inline(fast_retry):
     route = respx.post("https://t.local/api/v1/preview").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             200,
             json={
                 "title": "hello world",
@@ -44,7 +44,7 @@ async def test_preview_renders_inline(fast_retry):
 @pytest.mark.asyncio
 async def test_preview_returns_error_section(fast_retry):
     respx.post("https://t.local/api/v1/preview").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             200,
             json={
                 "title": None,

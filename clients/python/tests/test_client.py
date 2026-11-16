@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -24,7 +24,7 @@ def fast_retry():
 @pytest.mark.asyncio
 async def test_health_round_trip(fast_retry):
     respx.get("https://t.local/health").mock(
-        return_value=httpx.Response(200, json={"status": "ok"})
+        return_value=httpx2.Response(200, json={"status": "ok"})
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -37,7 +37,7 @@ async def test_health_round_trip(fast_retry):
 @pytest.mark.asyncio
 async def test_dispatch_sends_x_api_key_header_and_returns_typed(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             202,
             json={
                 "id": "01HABCDEFGHJKMNPQRSTVWXYZ0",
@@ -72,7 +72,7 @@ async def test_dispatch_sends_x_api_key_header_and_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_dispatch_with_auto_idempotency_generates_ulid(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             202,
             json={
                 "id": "01H...",
@@ -108,7 +108,7 @@ async def test_dispatch_with_auto_idempotency_generates_ulid(fast_retry):
 @pytest.mark.asyncio
 async def test_dispatch_never_auto_retried_without_idempotency_key(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(503),
+        return_value=httpx2.Response(503),
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -133,8 +133,8 @@ async def test_dispatch_never_auto_retried_without_idempotency_key(fast_retry):
 async def test_dispatch_retried_with_idempotency_key(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch").mock(
         side_effect=[
-            httpx.Response(503),
-            httpx.Response(
+            httpx2.Response(503),
+            httpx2.Response(
                 202,
                 json={
                     "id": "01H...",
@@ -168,7 +168,7 @@ async def test_dispatch_retried_with_idempotency_key(fast_retry):
 @pytest.mark.asyncio
 async def test_validation_error_with_field_path(fast_retry):
     respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             422,
             json={
                 "detail": {
@@ -196,7 +196,7 @@ async def test_validation_error_with_field_path(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_auth_error_on_401(fast_retry):
-    route = respx.get("https://t.local/health").mock(return_value=httpx.Response(401))
+    route = respx.get("https://t.local/health").mock(return_value=httpx2.Response(401))
     async with NotifierClient(
         base_url="https://t.local", api_key="bad", retry_config=fast_retry
     ) as c:
@@ -211,7 +211,7 @@ async def test_auth_error_on_401(fast_retry):
 async def test_rate_limited_when_429_exhausted(fast_retry):
     # max_attempts=2; both 429 → final response surfaces as RateLimited
     respx.get("https://t.local/health").mock(
-        return_value=httpx.Response(429, headers={"Retry-After": "0"})
+        return_value=httpx2.Response(429, headers={"Retry-After": "0"})
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -231,7 +231,7 @@ def test_repr_redacts_api_key():
 @pytest.mark.asyncio
 async def test_health_returns_dict(fast_retry):
     respx.get("https://t.local/health").mock(
-        return_value=httpx.Response(200, json={"status": "ok", "build_id": "abc"})
+        return_value=httpx2.Response(200, json={"status": "ok", "build_id": "abc"})
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -246,7 +246,7 @@ async def test_health_returns_dict(fast_retry):
 async def test_typed_request_empty_body_raises_notifier_error(fast_retry):
     """200 with empty body on a typed endpoint raises NotifierError (not KeyError)."""
     respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(200, content=b""),
+        return_value=httpx2.Response(200, content=b""),
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -270,7 +270,7 @@ async def test_dispatch_omits_variables_when_caller_passes_none(fast_retry):
     when the caller doesn't supply them, not always-sent empty dicts.
     """
     route = respx.post("https://t.local/api/v1/dispatch").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             202,
             json={
                 "id": "01H...",
@@ -333,7 +333,7 @@ _REDELIVERED = {
 @pytest.mark.asyncio
 async def test_redeliver_posts_to_the_dispatch_and_returns_typed(fast_retry):
     route = respx.post("https://t.local/api/v1/dispatch/01HABCDEFGHJKMNPQRSTVWXYZ0/redeliver").mock(
-        return_value=httpx.Response(202, json=_REDELIVERED)
+        return_value=httpx2.Response(202, json=_REDELIVERED)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_secret", retry_config=fast_retry
@@ -351,7 +351,7 @@ async def test_redeliver_is_never_auto_retried(fast_retry):
     """Each call may spend an attempt against the per-channel cap, and a 5xx
     may follow a send that landed — whether to go again is the caller's call."""
     route = respx.post("https://t.local/api/v1/dispatch/d1/redeliver").mock(
-        return_value=httpx.Response(503),
+        return_value=httpx2.Response(503),
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -365,7 +365,7 @@ async def test_redeliver_is_never_auto_retried(fast_retry):
 @pytest.mark.asyncio
 async def test_redeliver_at_the_attempt_cap_raises_409(fast_retry):
     respx.post("https://t.local/api/v1/dispatch/d1/redeliver").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             409,
             json={"detail": {"message": "attempt cap reached", "channel_ids": ["ch1"]}},
         ),

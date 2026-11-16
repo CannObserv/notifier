@@ -93,8 +93,8 @@ IMPORT_LESS = {
         ),
         "httpx": (
             "transport behind fastapi.testclient.TestClient, which only "
-            "tests/conftest.py constructs; the SDK declares its own httpx and "
-            "does not rely on this entry"
+            "tests/conftest.py constructs. The SDK runs on httpx2 since 0.4.0 "
+            "(#141) and declares it itself; nothing here covers the SDK"
         ),
     }.items()
 }

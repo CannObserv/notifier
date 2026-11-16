@@ -119,7 +119,7 @@ retry = RetryConfig(
     backoff_base=0.25,  # exponential: base * 2^(attempt-1)
     retry_on=frozenset({500, 502, 503, 504}),  # default
     honor_retry_after=True,  # honor 429 Retry-After header
-    retry_on_network_error=True,  # retry httpx.TransportError (timeouts, conn errors)
+    retry_on_network_error=True,  # retry httpx2.TransportError (timeouts, conn errors)
 )
 async with NotifierClient(
     base_url=...,
@@ -151,15 +151,21 @@ except RateLimited as e:
     log.warning("notifier rate-limited; back off for %s", e.retry_after_seconds)
 ```
 
+A network failure is not a `NotifierError`. Once retries are exhausted the SDK
+re-raises the HTTP library's own exception, and since 0.4.0 that library is
+[httpx2](https://github.com/pydantic/httpx2): catch `httpx2.HTTPError` (or
+`httpx2.TransportError`). An `except httpx.HTTPError` written for 0.3.x no
+longer matches, and nothing fails to tell you so.
+
 ### Logging
 
-The SDK emits no logs of its own. If you log httpx traffic and want to mask the API key:
+The SDK emits no logs of its own. httpx2 logs each request on the `httpx2` logger; if you log that traffic and want to mask the API key:
 
 ```python
 import logging
 from notifier_client import RedactingFilter
 
-logging.getLogger("httpx").addFilter(RedactingFilter(api_key="nk_..."))
+logging.getLogger("httpx2").addFilter(RedactingFilter(api_key="nk_..."))
 ```
 
 ## Development

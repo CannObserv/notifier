@@ -1,6 +1,6 @@
 import json
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -39,7 +39,7 @@ _PREVIEW_BODY = {"title": "T", "body": "B", "error": None, "error_section": None
 @pytest.mark.asyncio
 async def test_templates_list_returns_typed(fast_retry):
     respx.get("https://t.local/api/v1/templates").mock(
-        return_value=httpx.Response(200, json=[_TEMPLATE_BODY, _TEMPLATE_BODY])
+        return_value=httpx2.Response(200, json=[_TEMPLATE_BODY, _TEMPLATE_BODY])
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -53,7 +53,7 @@ async def test_templates_list_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_templates_create_sends_body_and_returns_typed(fast_retry):
     route = respx.post("https://t.local/api/v1/templates").mock(
-        return_value=httpx.Response(201, json=_TEMPLATE_BODY)
+        return_value=httpx2.Response(201, json=_TEMPLATE_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -73,7 +73,7 @@ async def test_templates_create_sends_body_and_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_templates_get_returns_typed(fast_retry):
     respx.get("https://t.local/api/v1/templates/01HT").mock(
-        return_value=httpx.Response(200, json=_TEMPLATE_BODY)
+        return_value=httpx2.Response(200, json=_TEMPLATE_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -87,7 +87,7 @@ async def test_templates_get_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_templates_update_patches_and_returns_typed(fast_retry):
     route = respx.patch("https://t.local/api/v1/templates/01HT").mock(
-        return_value=httpx.Response(200, json={**_TEMPLATE_BODY, "name": "renamed"})
+        return_value=httpx2.Response(200, json={**_TEMPLATE_BODY, "name": "renamed"})
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -111,7 +111,7 @@ async def test_templates_update_patches_and_returns_typed(fast_retry):
 @respx.mock
 @pytest.mark.asyncio
 async def test_templates_delete_returns_none(fast_retry):
-    respx.delete("https://t.local/api/v1/templates/01HT").mock(return_value=httpx.Response(204))
+    respx.delete("https://t.local/api/v1/templates/01HT").mock(return_value=httpx2.Response(204))
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
     ) as c:
@@ -124,7 +124,7 @@ async def test_templates_delete_returns_none(fast_retry):
 @pytest.mark.parametrize("status", [500, 502, 503, 504])
 async def test_templates_delete_not_auto_retried_on_5xx(fast_retry, status):
     route = respx.delete("https://t.local/api/v1/templates/01HT").mock(
-        return_value=httpx.Response(status),
+        return_value=httpx2.Response(status),
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -139,7 +139,7 @@ async def test_templates_delete_not_auto_retried_on_5xx(fast_retry, status):
 @pytest.mark.asyncio
 async def test_templates_preview_with_variables(fast_retry):
     route = respx.post("https://t.local/api/v1/templates/01HT/preview").mock(
-        return_value=httpx.Response(200, json=_PREVIEW_BODY)
+        return_value=httpx2.Response(200, json=_PREVIEW_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -156,7 +156,7 @@ async def test_templates_preview_with_variables(fast_retry):
 @pytest.mark.asyncio
 async def test_templates_preview_without_variables_uses_sample(fast_retry):
     route = respx.post("https://t.local/api/v1/templates/01HT/preview").mock(
-        return_value=httpx.Response(200, json=_PREVIEW_BODY)
+        return_value=httpx2.Response(200, json=_PREVIEW_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -172,7 +172,7 @@ async def test_templates_preview_without_variables_uses_sample(fast_retry):
 @pytest.mark.asyncio
 async def test_templates_create_validation_error(fast_retry):
     respx.post("https://t.local/api/v1/templates").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             422,
             json={
                 "detail": [

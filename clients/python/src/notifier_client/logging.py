@@ -1,7 +1,7 @@
 """Logging support for notifier-client.
 
 The SDK never emits logs on its own (callers wire their own loggers), but it
-provides ``RedactingFilter`` so callers who do log the SDK's underlying httpx
+provides ``RedactingFilter`` so callers who do log the SDK's underlying httpx2
 traffic don't accidentally leak the X-API-Key.
 """
 

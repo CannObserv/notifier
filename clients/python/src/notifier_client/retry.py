@@ -1,4 +1,4 @@
-"""Retry transport for httpx — retries on 5xx + 429 with exponential backoff.
+"""Retry transport for httpx2 — retries on 5xx + 429 with exponential backoff.
 
 The transport itself never raises notifier-typed errors. It returns the final
 HTTP response (success or terminal failure); the calling wrapper translates
@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 
-import httpx
+import httpx2
 
 from notifier_client.retry_after import parse_retry_after
 
@@ -34,18 +34,18 @@ class RetryConfig:
             object.__setattr__(self, "retry_on", frozenset(self.retry_on))
 
 
-class RetryTransport(httpx.AsyncBaseTransport):
+class RetryTransport(httpx2.AsyncBaseTransport):
     """Wraps an inner transport with retry semantics."""
 
-    def __init__(self, inner: httpx.AsyncBaseTransport, config: RetryConfig) -> None:
+    def __init__(self, inner: httpx2.AsyncBaseTransport, config: RetryConfig) -> None:
         self._inner = inner
         self._config = config
 
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         """Send ``request`` through the inner transport with retry semantics.
 
         Retries on ``cfg.retry_on`` status codes (5xx by default), on 429 when
-        ``cfg.honor_retry_after`` is set, and on ``httpx.TransportError`` (network
+        ``cfg.honor_retry_after`` is set, and on ``httpx2.TransportError`` (network
         failures, timeouts) when ``cfg.retry_on_network_error`` is set. Backoff is
         exponential from ``cfg.backoff_base``; for 429 the ``Retry-After`` header
         wins when present.
@@ -55,7 +55,7 @@ class RetryTransport(httpx.AsyncBaseTransport):
         wrapper to skip retries on ``POST /dispatch`` without an idempotency key.
 
         The transport never raises notifier-typed errors; it returns the final
-        response (or re-raises the final ``httpx.TransportError`` on exhaustion).
+        response (or re-raises the final ``httpx2.TransportError`` on exhaustion).
 
         Note: relies on the request body being a re-readable buffer, which is
         true for ``client.request(json=...)``. Streaming bodies would be consumed
@@ -68,7 +68,7 @@ class RetryTransport(httpx.AsyncBaseTransport):
         for attempt in range(1, cfg.max_attempts + 1):
             try:
                 response = await self._inner.handle_async_request(request)
-            except httpx.TransportError:
+            except httpx2.TransportError:
                 if cfg.retry_on_network_error and attempt < cfg.max_attempts:
                     sleep_for = self._backoff_for(attempt)
                     if sleep_for > 0:
@@ -88,7 +88,7 @@ class RetryTransport(httpx.AsyncBaseTransport):
     def _backoff_for(self, attempt: int) -> float:
         return self._config.backoff_base * (2 ** (attempt - 1))
 
-    def _should_retry(self, response: httpx.Response, attempt: int) -> tuple[bool, float]:
+    def _should_retry(self, response: httpx2.Response, attempt: int) -> tuple[bool, float]:
         cfg = self._config
         if attempt >= cfg.max_attempts:
             return (False, 0.0)

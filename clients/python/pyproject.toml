@@ -5,7 +5,7 @@ description = "Async Python SDK for the notifier service. Generated from notifie
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.28.0,<0.29",
+    "httpx2>=2.16.2,<3",        # 2.16.1 broke `QueryParamTypes | None` at run time
     # Spans two majors deliberately, unlike the service's >=4.0.1 (#45).
     # idempotency.py only ever calls str(ULID()), which 4.0 left untouched
     # — it removed ValueProvider and ULID.provider — so a consumer already
@@ -25,7 +25,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short -m 'not integration'"
+# -p no:respx: respx's entry-point plugin imports httpx before conftest can
+# alias it to httpx2; tests/conftest.py registers the plugin itself, after.
+addopts = "-v --tb=short -m 'not integration' -p no:respx"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"

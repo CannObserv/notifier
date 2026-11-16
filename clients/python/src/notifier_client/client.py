@@ -1,6 +1,6 @@
 """``NotifierClient`` — the public facade.
 
-Composes the generated client (for typed models) with our own httpx layer
+Composes the generated client (for typed models) with our own httpx2 layer
 (for retries, auth, error mapping). We do *not* subclass anything in
 ``generated/`` — codegen renames internals between versions of
 ``openapi-python-client``.
@@ -14,7 +14,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Any, TypeVar
 
-import httpx
+import httpx2
 
 from notifier_client.errors import NotifierError, error_from_response
 from notifier_client.generated.models.dispatch_request import DispatchRequest
@@ -52,11 +52,11 @@ class NotifierClient:
         self._api_key = api_key
         self._retry_config = retry_config or RetryConfig()
         self._mask = (api_key[:3] + "***") if api_key else "***"
-        self._http = httpx.AsyncClient(
+        self._http = httpx2.AsyncClient(
             base_url=self._base_url,
             headers={"X-API-Key": api_key},
             timeout=timeout,
-            transport=RetryTransport(httpx.AsyncHTTPTransport(), self._retry_config),
+            transport=RetryTransport(httpx2.AsyncHTTPTransport(), self._retry_config),
         )
         self.channels = ChannelsAPI(self)
         self.templates = TemplatesAPI(self)

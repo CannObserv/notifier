@@ -23,8 +23,18 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal
 
-import httpx
+import httpx2
 import pytest
+
+# respx mocks httpx only. The alias makes its `import httpx` resolve to httpx2,
+# so mocks are httpx2 objects end to end — tests only: httpx2's own docstring
+# says libraries never call this. It has to run before anything imports httpx,
+# which is why pyproject's addopts disables respx's entry-point plugin and this
+# file loads it below. The alias would also hide a stray `import httpx` in the
+# SDK; tests/test_http_stack.py checks that in a subprocess, without it (#141).
+httpx2.alias_httpx()
+
+pytest_plugins = ["respx.plugin"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -232,13 +242,13 @@ def notifier_url(_server_env, _test_db_schema):
                     )
                 try:
                     if (
-                        httpx.get(
+                        httpx2.get(
                             f"{base}/health", timeout=HEALTH_PROBE_TIMEOUT_SECONDS
                         ).status_code
                         == 200
                     ):
                         break
-                except httpx.HTTPError:
+                except httpx2.HTTPError:
                     pass
                 time.sleep(HEALTH_POLL_INTERVAL_SECONDS)
             else:
@@ -299,3 +309,28 @@ def tenant_credentials(_server_env, _test_db_schema) -> tuple[str, str]:
     if not (tid and key):
         pytest.fail(f"seed script output unparseable: {out!r}")
     return tid.group(1), key.group(1)
+
+
+@pytest.fixture
+def httpx2_wire(monkeypatch):
+    """Answer every request the SDK sends through httpx2's own transport.
+
+    Patches ``httpx2.AsyncHTTPTransport`` rather than mocking with respx, so a
+    test using it fails if the SDK sends through any other stack (#141).
+    Returns the list of requests seen; set ``.response`` on it to choose the
+    reply, 200 ``{}`` by default.
+    """
+
+    class Wire(list):
+        response = httpx2.Response(200, json={})
+
+    wire = Wire()
+
+    async def handle(self, request: httpx2.Request) -> httpx2.Response:
+        wire.append(request)
+        return httpx2.Response(
+            wire.response.status_code, headers=wire.response.headers, content=wire.response.content
+        )
+
+    monkeypatch.setattr(httpx2.AsyncHTTPTransport, "handle_async_request", handle)
+    return wire

@@ -3,7 +3,7 @@
 from urllib.parse import quote
 
 #: Values quoting cannot neutralise: dots are unreserved, so ``..`` survives
-#: ``quote`` and httpx resolves it, and an empty value leaves an empty segment.
+#: ``quote`` and httpx2 resolves it, and an empty value leaves an empty segment.
 _DOT_SEGMENTS = frozenset({"", ".", ".."})
 
 
@@ -13,7 +13,7 @@ def segment(value: str) -> str:
     ``safe=""`` escapes ``/`` too, so an ID can never add a segment, a query,
     or a fragment, matching the generated client. A value that is itself a
     dot segment, or empty, is refused with ``ValueError``, since escaping
-    cannot stop httpx from resolving it to another endpoint. No ID or plugin
+    cannot stop httpx2 from resolving it to another endpoint. No ID or plugin
     schema name is either.
     """
     text = str(value)

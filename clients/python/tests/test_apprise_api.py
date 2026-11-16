@@ -1,6 +1,6 @@
 import json
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -43,7 +43,7 @@ _ASSEMBLE_BODY = {"apprise_url": "slack://hook/AAA/BBB"}
 @pytest.mark.asyncio
 async def test_apprise_list_plugins_returns_typed(fast_retry):
     respx.get("https://t.local/api/v1/apprise/plugins").mock(
-        return_value=httpx.Response(200, json=_LIST_BODY)
+        return_value=httpx2.Response(200, json=_LIST_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -59,7 +59,7 @@ async def test_apprise_list_plugins_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_apprise_get_plugin_returns_typed(fast_retry):
     respx.get("https://t.local/api/v1/apprise/plugins/slack").mock(
-        return_value=httpx.Response(200, json=_DETAIL_BODY)
+        return_value=httpx2.Response(200, json=_DETAIL_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -73,7 +73,7 @@ async def test_apprise_get_plugin_returns_typed(fast_retry):
 @pytest.mark.asyncio
 async def test_apprise_assemble_sends_tokens_and_returns_url(fast_retry):
     route = respx.post("https://t.local/api/v1/apprise/plugins/slack/assemble").mock(
-        return_value=httpx.Response(200, json=_ASSEMBLE_BODY)
+        return_value=httpx2.Response(200, json=_ASSEMBLE_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -94,7 +94,7 @@ async def test_apprise_assemble_sends_tokens_and_returns_url(fast_retry):
 @pytest.mark.asyncio
 async def test_apprise_assemble_omits_variant_index_when_none(fast_retry):
     route = respx.post("https://t.local/api/v1/apprise/plugins/slack/assemble").mock(
-        return_value=httpx.Response(200, json=_ASSEMBLE_BODY)
+        return_value=httpx2.Response(200, json=_ASSEMBLE_BODY)
     )
     async with NotifierClient(
         base_url="https://t.local", api_key="nk_x", retry_config=fast_retry
@@ -110,7 +110,7 @@ async def test_apprise_assemble_omits_variant_index_when_none(fast_retry):
 @pytest.mark.asyncio
 async def test_apprise_assemble_validation_error(fast_retry):
     respx.post("https://t.local/api/v1/apprise/plugins/slack/assemble").mock(
-        return_value=httpx.Response(
+        return_value=httpx2.Response(
             422,
             json={
                 "detail": [
