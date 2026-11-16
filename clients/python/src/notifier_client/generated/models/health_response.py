@@ -17,7 +17,9 @@ class HealthResponse:
     working tree, so the SHA agreeing is correct and will keep agreeing
     (#58). ``environment`` is the field to assert on, and it carries the same
     vocabulary as an API key's own marking — so a consumer sees the mismatch
-    here before the 403 in ``require_api_key`` tells it the same thing.
+    here before ``require_api_key`` refuses the key: 401 for a key this
+    database does not hold (a ``notifier_dev`` key sent to production is
+    unknown there), 403 for a ``development`` key it does (#138).
 
         Attributes:
             build (str):
