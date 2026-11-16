@@ -1,18 +1,36 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-11-16
+
+The SDK moves from httpx to [httpx2](https://github.com/pydantic/httpx2), Pydantic's maintained fork of httpx 0.28.1, the version 0.3.x pinned. The fork renamed the package, its logger and `httpcore`, and left the API as it was. Every `NotifierClient` method, argument and return type is unchanged. What a consumer changes is where its own code names httpx (CannObserv/notifier#141).
+
+### Breaking
+- **A network failure now raises httpx2's exception, not httpx's.** Once retries are exhausted, the SDK re-raises the transport error as it always has, but `except httpx.HTTPError` or `except httpx.TransportError` around an SDK call no longer matches it. Nothing fails to tell you: the clause just stops catching. Change it to `httpx2.HTTPError` or `httpx2.TransportError`, and declare `httpx2` yourself if your code imports it. A project that imported httpx only to catch these can drop it.
+- `NotifierError.response` is an `httpx2.Response`. The attributes are the same.
+- The request log line is on the `httpx2` logger, and httpcore's are on `httpcore2.*`. Move any `RedactingFilter`, level or handler you attached to `httpx` or `httpcore`. A filter left on `httpx` sees nothing.
+- `notifier_client.retry.RetryTransport` subclasses `httpx2.AsyncBaseTransport` and wraps an httpx2 transport. It isn't exported from the package root.
+- The generated client (`notifier_client.generated.Client` and `AuthenticatedClient`, which the package root has never exported) renames `httpx_args` to `httpx2_args`. The same goes for `get_httpx_client`, `set_httpx_client`, `get_async_httpx_client` and `set_async_httpx_client`, which become `*_httpx2_*`. That's openapi-python-client 0.30.0's output.
+- **If your tests mock the SDK with respx:** respx mocks httpx only. Call `httpx2.alias_httpx()` before anything imports httpx. respx's own pytest plugin imports httpx at startup, so disable it with `-p no:respx` and load `respx.plugin` from `conftest.py` after the alias. This package's `tests/conftest.py` is a worked example.
+
+### Changed
+- The runtime dependency is `httpx2>=2.16.2,<3`, replacing `httpx>=0.28.0,<0.29`. It brings `httpcore2` and `truststore`.
+- **TLS verification for an `https://` base URL now uses the operating system's trust store instead of certifi.** On macOS and Windows it goes through `truststore`. On Linux it uses OpenSSL's system CA paths. `SSL_CERT_FILE` and `SSL_CERT_DIR` still take precedence. A certificate chained to a CA that certifi carries but the OS store lacks will stop verifying. Plain `http://` base URLs, including the cohort's calls over the tailnet, are unaffected.
+- The `User-Agent` header is `python-httpx2/<version>`.
+- `generated/` was regenerated with openapi-python-client 0.30.0. Apart from the httpx2 rename above, the only change is `HealthResponse`'s docstring. It now says a key the server's database doesn't hold gets a 401, and a `development` key it does hold gets a 403 (CannObserv/notifier#138).
+- The server runs apprise 2.2.0 (was 1.13.1: 2.1.0 under CannObserv/notifier#111, then 2.2.0 under #174, which carries the fix for GHSA-cfp4-m43r-v9q4). No response schema moved, but three things a consumer can see did:
+  - `apprise.list_plugins()` lists 33 more plugin schemas, and `chime` is gone (141 → 173). A `chime://` channel stops delivering and can't be created again. In `get_plugin`, `mailto` loses its `pgpkey` arg and `tgram` gains `album`. For `mailgun`, `mailto`, `slack`, `json`, `syslog` and `tgram`, `assemble`'s `variant_index` still picks the same template.
+  - Telegram channels now receive the Markdown source rather than notifier's HTML render. Email channels (`mailto`, `mailgun`) still get the HTML render, and a channel's `?format=` override still wins.
+  - A channel that hasn't finished sending after 60 seconds is recorded as a failed attempt, even if apprise finishes delivering it in the background. The realistic case is an unbatched `mailgun` channel with a dozen or more recipients. If you `redeliver` that attempt, those recipients can get the notification twice.
 
 ### Removed
 - The generated `notifier_client.generated.api.monitors` endpoints and their models (`MonitorCreate`, `MonitorOut`, `MonitorUpdate`, `CheckinRequest`, `CheckinResponse` and their nested types). The server no longer serves `/api/v1/monitors`: dead-man's timers moved to co-status (CannObserv/status), whose check-in contract is unchanged, so consumers switch base URL and key, not code. The public surface never exported these (CannObserv/notifier#83).
 
-### Changed
-- The server runs apprise 2.1.0 (was 1.13.1). No response schema moved, but three things a consumer can see did (CannObserv/notifier#111):
-  - `apprise.list_plugins()` lists 21 more plugin schemas, and `chime` is gone (141 → 161). A `chime://` channel stops delivering and can't be created again. In `get_plugin`, `mailto` loses its `pgpkey` arg and `tgram` gains `album`. For `mailgun`, `mailto`, `slack`, `json`, `syslog` and `tgram`, `assemble`'s `variant_index` still picks the same template.
-  - Telegram channels now receive the Markdown source rather than notifier's HTML render. Email channels (`mailto`, `mailgun`) still get the HTML render, and a channel's `?format=` override still wins.
-  - A channel that hasn't finished sending after 60 seconds is recorded as a failed attempt, even if apprise finishes delivering it in the background. The realistic case is an unbatched `mailgun` channel with a dozen or more recipients. If you `redeliver` that attempt, those recipients can get the notification twice.
-
 ### Fixed
 - `POST /dispatch` retried with the same `idempotency_key` while the first call is still sending now waits for it and returns 202 with the same dispatch record. Before this fix the retry got a 500 once the first call committed: sequential replay was safe, concurrent replay was not, and a client retries concurrently exactly when the first call timed out. No notification was ever sent twice. If the first call fails and rolls back, the retry delivers as a fresh dispatch (CannObserv/notifier#115).
+
+### Unchanged
+- Every `NotifierClient` and sub-client method keeps its signature and return type. Every name in `notifier_client.__all__` and `notifier_client.types` is still there.
+- Request paths, bodies and headers are identical to 0.3.2, except `User-Agent` (above). So are retry, `Retry-After`, idempotency and error-mapping semantics. `RetryConfig` takes the same arguments.
 
 ## 0.3.2 — 2026-09-30
 

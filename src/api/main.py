@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 # which an explicit setting here overrides. Exporting the alert path's telemetry
 # off-host is a decision to make deliberately, not one a stray variable makes
 # for us (CR 12, #112).
-app = FastAPI(title="notifier", version="0.3.2", telemetry={"auto_configure": False})
+app = FastAPI(title="notifier", version="0.4.0", telemetry={"auto_configure": False})
 
 # Every /api/v1 route inherits require_api_key, so every one of them can fail
 # these two ways. Declaring them here puts both in the OpenAPI spec, which is
