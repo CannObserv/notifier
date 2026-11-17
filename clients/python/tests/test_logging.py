@@ -85,6 +85,6 @@ async def test_the_readme_logger_is_the_one_sdk_traffic_is_logged_on(httpx2_wire
             await c.health()
     finally:
         logger.removeFilter(seen)
-    assert [r.getMessage() for r in seen.records] == [
-        'HTTP Request: GET http://127.0.0.1:9/health "HTTP/1.1 200 OK"'
-    ]
+    # The request line only, not httpx2's exact wording after it.
+    assert len(seen.records) == 1
+    assert seen.records[0].getMessage().startswith("HTTP Request: GET http://127.0.0.1:9/health ")
