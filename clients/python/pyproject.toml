@@ -5,7 +5,7 @@ description = "Async Python SDK for the notifier service. Generated from notifie
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "httpx2>=2.16.2,<3",        # 2.16.1 broke `QueryParamTypes | None` at run time
+    "httpx2>=2.16.2,<3",        # the locked, tested version; 2.16.1's _types regression never reached the SDK
     # Spans two majors deliberately, unlike the service's >=4.0.1 (#45).
     # idempotency.py only ever calls str(ULID()), which 4.0 left untouched
     # — it removed ValueProvider and ULID.provider — so a consumer already
