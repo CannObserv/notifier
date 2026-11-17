@@ -9,7 +9,7 @@ Async Python SDK for the [notifier](https://github.com/CannObserv/notifier) serv
 dependencies = ["notifier-client"]
 
 [tool.uv.sources]
-notifier-client = { git = "https://github.com/CannObserv/notifier.git", subdirectory = "clients/python", tag = "v0.3.1" }
+notifier-client = { git = "https://github.com/CannObserv/notifier.git", subdirectory = "clients/python", tag = "v0.4.0" }
 ```
 
 `CannObserv/notifier` is public, so this needs no credential — no SSH key, no
@@ -23,7 +23,7 @@ consuming both pins them the same way. The one-liner below is equivalent and
 writes a direct URL reference instead:
 
 ```bash
-uv add "notifier-client @ git+https://github.com/CannObserv/notifier.git@v0.3.1#subdirectory=clients/python"
+uv add "notifier-client @ git+https://github.com/CannObserv/notifier.git@v0.4.0#subdirectory=clients/python"
 ```
 
 ## Versioning
