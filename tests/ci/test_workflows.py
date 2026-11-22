@@ -46,6 +46,8 @@ CI = WORKFLOWS / "ci.yml"
 STALENESS = WORKFLOWS / "sdk-staleness.yml"
 AUDIT = WORKFLOWS / "audit.yml"
 CANARY_STEP_PATTERN = "uv audit --script"
+ATTEST_JOB = "attest"
+ATTEST_CONTEXT = "gate/local"
 
 # PyYAML resolves a bare `on:` key to the boolean True (the YAML 1.1 "Norway
 # problem"). GitHub Actions means the string. Look up both rather than
@@ -77,6 +79,16 @@ def run_tokens(job: dict) -> list[str]:
     with a message about marker expressions.
     """
     return [token for step in steps(job) for token in shlex.split(step.get("run", ""))]
+
+
+def python_jobs(doc: dict) -> list[tuple[str, dict]]:
+    """Every job but ``attest``, which runs no Python (#182).
+
+    Exempt by name, not by "has no uv step": a job that dropped its uv steps
+    by mistake must still fail the pin and lockfile checks, and
+    test_attest_job_stays_a_status_read keeps the exemption honest.
+    """
+    return [(name, job) for name, job in doc["jobs"].items() if name != ATTEST_JOB]
 
 
 def postgres(job: dict) -> dict:
@@ -129,7 +141,9 @@ def test_ci_never_cancels_a_run_on_main(ci):
 
 
 def test_ci_takes_read_only_permissions(ci):
-    assert ci["permissions"] == {"contents": "read"}
+    """`statuses: read` is the attest job's, to read `gate/local` (#182).
+    Unlisted keys are none, so it must be named; nothing here writes."""
+    assert ci["permissions"] == {"contents": "read", "statuses": "read"}
 
 
 def test_ci_runs_lint_test_and_migrations(ci):
@@ -212,7 +226,7 @@ def test_no_job_carries_the_production_opt_in(ci):
 def test_every_workflow_pins_the_interpreter(workflow):
     """sysmon falls back silently below 3.12 and reports ~6 points low."""
     doc = load(workflow)
-    for name, job in doc["jobs"].items():
+    for name, job in python_jobs(doc):
         pinned = [
             step
             for step in steps(job)
@@ -230,7 +244,7 @@ def test_every_job_installs_from_the_lockfile(workflow):
     `uv sync --no-dev`, misses a trailing `uv sync` with no newline after it,
     and cannot tell that *every* job installs this way.
     """
-    for name, job in load(workflow)["jobs"].items():
+    for name, job in python_jobs(load(workflow)):
         syncs = [
             shlex.split(step["run"])
             for step in steps(job)
@@ -450,3 +464,193 @@ def test_no_audit_job_or_step_is_advisory(audit):
         assert "continue-on-error" not in job, f"audit.yml:{name} is advisory"
         for step in steps(job):
             assert "continue-on-error" not in step, f"audit.yml:{name} has an advisory step"
+
+
+# --- The local-gate attestation (#182, gregoryfoster/skills#688) -----------
+#
+# shipping-work's push.sh posts the commit status `gate/local` = success on a
+# SHA whose tree passed the local gate. ci.yml reads it in a small `attest`
+# job and skips the `test` job for that commit, at job level so its Postgres
+# container never starts. The cases below are the contract: an attested push
+# or a person's PR skips; a schedule, a manual run, a tag, a bot's PR, a
+# fork's PR and a failed read never do.
+
+STATUS_FUNCTIONS = ("success()", "failure()", "always()", "cancelled()")
+_STRING = re.compile(r"('(?:[^']|'')*')")
+_PATH = re.compile(r"\b[A-Za-z_][\w-]*(?:\.[\w-]+)+")
+
+
+def evaluate_if(expression: str, context: dict, *, upstream_ok: bool = True) -> bool:
+    """Evaluate a GitHub Actions `if:` against a flat context, as Python.
+
+    Covers what ci.yml's conditions use: property paths (an unset one is
+    null, as on GitHub), '...' literals, ==, !=, !, &&, ||, startsWith() and
+    the status functions. An `if:` naming no status function gets GitHub's
+    implicit success() in front. A test of the YAML text would pass a
+    condition with a clause in the wrong branch of an ||; this asks the
+    condition the questions the brief asks of it.
+    """
+    expression = expression.strip()
+    if expression.startswith("${{") and expression.endswith("}}"):
+        expression = expression[3:-2]
+    if not any(fn in expression for fn in STATUS_FUNCTIONS):
+        expression = f"success() && ({expression})"
+    parts = []
+    for i, part in enumerate(_STRING.split(expression)):
+        if i % 2:
+            parts.append(repr(part[1:-1].replace("''", "'")))
+            continue
+        part = _PATH.sub(lambda m: f"_get({m.group(0)!r})", part)
+        part = part.replace("||", " or ").replace("&&", " and ")
+        part = part.replace("!=", "\0").replace("!", " not ").replace("\0", "!=")
+        parts.append(part)
+    namespace = {
+        "_get": context.get,
+        "startsWith": lambda s, prefix: (s or "").lower().startswith(prefix.lower()),
+        "success": lambda: upstream_ok,
+        "failure": lambda: not upstream_ok,
+        "always": lambda: True,
+        "cancelled": lambda: False,
+    }
+    return bool(eval("".join(parts).replace("\n", " "), {"__builtins__": {}}, namespace))
+
+
+REPO = "CannObserv/notifier"
+
+
+def event(name: str, *, attested: bool, ref: str = "refs/heads/main", **pr) -> dict:
+    """The context a run sees, with the attest job's output."""
+    context = {
+        "github.event_name": name,
+        "github.ref": ref,
+        "github.repository": REPO,
+        "needs.attest.outputs.attested": "yes" if attested else "no",
+    }
+    if name == "pull_request":
+        context["github.event.pull_request.user.type"] = pr.get("user_type", "User")
+        context["github.event.pull_request.head.repo.full_name"] = pr.get("head_repo", REPO)
+    return context
+
+
+HEAVY_TIER_CASES = {
+    "attested push to main skips": (event("push", attested=True), False),
+    "unattested push to main runs": (event("push", attested=False), True),
+    "attested PR from a person skips": (event("pull_request", attested=True), False),
+    "unattested PR runs": (event("pull_request", attested=False), True),
+    "bot PR runs even if attested": (
+        event("pull_request", attested=True, user_type="Bot"),
+        True,
+    ),
+    "fork PR runs even if attested": (
+        event("pull_request", attested=True, head_repo="someone/notifier"),
+        True,
+    ),
+    "schedule runs even if attested": (event("schedule", attested=True), True),
+    "manual run runs even if attested": (event("workflow_dispatch", attested=True), True),
+    "tag push runs even if attested": (
+        event("push", attested=True, ref="refs/tags/v0.4.0"),
+        True,
+    ),
+}
+
+
+@pytest.fixture(scope="module")
+def attest_job(ci) -> dict:
+    assert ATTEST_JOB in ci["jobs"], "ci.yml has no attest job (#182)"
+    return ci["jobs"][ATTEST_JOB]
+
+
+def test_evaluator_reads_the_upstream_reference_condition():
+    """The evaluator itself, against upstream's step-level condition
+    (shipping-work references/attestation.md), so a green table below means
+    the condition is right, not that the evaluator says yes to everything."""
+    upstream = """steps.attest.outputs.attested != 'yes'
+      || (github.event_name != 'push' && github.event_name != 'pull_request')
+      || startsWith(github.ref, 'refs/tags/')
+      || (github.event_name == 'pull_request'
+          && (github.event.pull_request.user.type == 'Bot'
+              || github.event.pull_request.head.repo.full_name != github.repository))"""
+    upstream = upstream.replace("steps.attest", "needs.attest")
+    for case, (context, runs) in HEAVY_TIER_CASES.items():
+        assert evaluate_if(upstream, context) is runs, case
+
+
+def test_ci_runs_on_a_daily_schedule_off_the_audit_minute(ci, audit):
+    """A directly shipped, attested commit gets no clean-runner test run from
+    its push. The schedule is the one it gets: daily, always the full tier.
+    Off the hour, where GitHub queues scheduled runs late or drops them, and
+    off audit.yml's minute so the two don't contend for one runner slot."""
+    crons = [entry["cron"] for entry in triggers(ci).get("schedule", [])]
+    assert crons, "ci.yml has no schedule: an attested push to main is never re-tested"
+    audit_crons = {entry["cron"] for entry in triggers(audit)["schedule"]}
+    for cron in crons:
+        minute, hour, day, month, weekday = cron.split()
+        assert (day, month, weekday) == ("*", "*", "*"), f"{cron!r} is not daily"
+        assert minute.isdigit() and hour.isdigit(), f"{cron!r} runs more than once a day"
+        assert int(minute) % 15, f"{cron!r} is on a quarter hour, where runs queue late"
+        assert cron not in audit_crons, f"{cron!r} is audit.yml's schedule"
+
+
+def test_attest_job_stays_a_status_read(attest_job):
+    """No checkout, no uv, no service: one API call, so the jobs that wait on
+    it wait seconds. That is also why python_jobs() may exempt it."""
+    assert "services" not in attest_job
+    for step in steps(attest_job):
+        assert "uses" not in step, f"attest runs {step['uses']}"
+        assert "uv " not in step.get("run", "")
+
+
+def test_attest_reads_the_combined_status_of_the_head_commit(attest_job):
+    """The combined status keeps each context's latest state; /statuses lists
+    every one ever posted. On pull_request, github.sha is the merge commit,
+    which nobody gated: the PR's head is what push.sh attested."""
+    reads = [step for step in steps(attest_job) if ATTEST_CONTEXT in step.get("run", "")]
+    assert len(reads) == 1, "attest needs exactly one step reading gate/local"
+    step = reads[0]
+    assert step["env"]["HEAD"] == "${{ github.event.pull_request.head.sha || github.sha }}"
+    assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
+    assert "/commits/$HEAD/status" in step["run"]
+    assert "per_page=100" in step["run"]
+    assert '"success"' in step["run"]
+    assert "attested=" in step["run"] and "GITHUB_OUTPUT" in step["run"]
+    assert attest_job["outputs"]["attested"] == f"${{{{ steps.{step['id']}.outputs.attested }}}}"
+
+
+def test_test_job_waits_on_the_attest_read(ci):
+    assert ci["jobs"]["test"].get("needs") in (ATTEST_JOB, [ATTEST_JOB])
+
+
+@pytest.mark.parametrize("case", HEAVY_TIER_CASES)
+def test_test_job_skips_only_an_attested_push_or_persons_pr(ci, case):
+    """Job level, not step level: the brief measured ~21s of the test job's
+    ~62s as container init, which a skipped step still pays."""
+    context, runs = HEAVY_TIER_CASES[case]
+    assert evaluate_if(ci["jobs"]["test"]["if"], context) is runs, case
+
+
+def test_job_conditions_fold_to_one_line(ci):
+    """A more-indented continuation inside `>-` keeps its newline, and a
+    condition carrying one has misbehaved silently before (auditing-ci-cost
+    references/traps.md #7). The parsed value is what GitHub evaluates."""
+    for name, job in ci["jobs"].items():
+        assert "\n" not in job.get("if", ""), f"{name}'s if: parses across lines"
+
+
+def test_a_failed_status_read_runs_the_suite(ci):
+    """A refused read fails the attest job, which is loud. It must not also
+    skip the suite: without a status check function in the `if:`, GitHub's
+    implicit success() would skip `test` whenever `attest` failed."""
+    context = event("push", attested=False)
+    context["needs.attest.outputs.attested"] = None
+    assert evaluate_if(ci["jobs"]["test"]["if"], context, upstream_ok=False)
+
+
+@pytest.mark.parametrize("job_name", ["lint", "migrations"])
+def test_lint_and_migrations_run_on_every_commit(ci, job_name):
+    """lint is cheap. migrations is the one check the local gate never makes:
+    shipping-work's gate runs ruff and pytest, and conftest builds schema with
+    create_all, so `alembic upgrade head` and `alembic check` run only here.
+    Skipping it on an attested push would leave a broken chain to surface on
+    deploy, which is what the job exists to prevent."""
+    job = ci["jobs"][job_name]
+    assert "if" not in job and "needs" not in job, f"{job_name} must not wait on or skip for attest"

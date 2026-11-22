@@ -1,9 +1,23 @@
-# The repo's only automated correctness gate. Until this landed, every green
+# The repo's clean-runner correctness gate. Until this landed, every green
 # result notifier ever reported came from a human or an agent choosing to run
 # the suite: `.github/workflows/` held one PR-triggered workflow, and this
 # repo commits straight to main, so it had never executed once (#27).
 #
 # `pre-commit` is not a substitute — it runs ruff and nothing else.
+#
+# The local-gate attestation (#182, gregoryfoster/skills#688). With
+# .skills/attest-local-gate committed as `on`, shipping-work's push.sh runs
+# the local gate (scripts/pre-ship.sh) on the exact tree, pushes, and posts
+# the commit status `gate/local` = success on that SHA. The `attest` job reads
+# it, and `test` is skipped for an attested push or a person's PR. So a green
+# run on such a commit did not run pytest here: the local gate did, and the
+# daily schedule re-runs everything on a clean runner. `gate/local` is trust,
+# not proof — anyone with push access can post it — so it is never a required
+# status on its own; require the jobs that read it.
+#
+# Never skipped: `lint`, and `migrations`, which the local gate never runs
+# (it runs ruff and pytest; conftest builds schema with create_all). Nor is
+# `test` skipped for a schedule, a manual run, a tag, a bot's PR or a fork's.
 name: CI
 
 on:
@@ -11,6 +25,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Daily, always the full tier: the only clean-runner test run an attested,
+  # directly shipped commit gets. Off the hour, where GitHub queues scheduled
+  # runs late, and off audit.yml's 23 13. GitHub mails a failed scheduled run
+  # to whoever last edited this cron line.
+  schedule:
+    - cron: "41 11 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -21,6 +41,7 @@ concurrency:
 
 permissions:
   contents: read
+  statuses: read # the attest job reads the combined status; unlisted keys are none
 
 jobs:
   lint:
@@ -44,7 +65,47 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check .
 
+  attest:
+    # One API call, no checkout: did push.sh attest this commit's local gate?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      attested: ${{ steps.read.outputs.attested }}
+    steps:
+      - id: read
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The PR's head. On pull_request, github.sha is the merge commit,
+          # which nobody gated.
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # The combined status keeps each context's latest state; /statuses
+          # lists every status ever posted, so a later failure would still
+          # count. A page is 30 contexts unless more are asked for. A refused
+          # read fails this job: loud, and `test` then runs (see its if:).
+          n=$(gh api "repos/${{ github.repository }}/commits/$HEAD/status?per_page=100" \
+                --jq '[.statuses[] | select(.context == "gate/local" and .state == "success")] | length')
+          echo "attested=$([ "$n" -gt 0 ] && echo yes || echo no)" >>"$GITHUB_OUTPUT"
+          echo "gate/local = success on $HEAD: $([ "$n" -gt 0 ] && echo yes || echo no)"
+
   test:
+    needs: attest
+    # Skipped only for an attested commit, on a branch push or a pull request,
+    # and never for a bot's PR or a fork's: neither came from a local gate.
+    # Job level, so a skip never starts the Postgres container (~21s of the
+    # job). `!cancelled()` replaces the implicit success(): a failed attest
+    # read leaves `attested` unset, and the suite runs. Every line at one
+    # indent, so `>-` folds the condition to one line: a more-indented line
+    # keeps its newline (auditing-ci-cost traps.md #7).
+    if: >-
+      !cancelled() && (
+      needs.attest.outputs.attested != 'yes'
+      || (github.event_name != 'push' && github.event_name != 'pull_request')
+      || startsWith(github.ref, 'refs/tags/')
+      || (github.event_name == 'pull_request'
+      && (github.event.pull_request.user.type == 'Bot'
+      || github.event.pull_request.head.repo.full_name != github.repository))
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -97,7 +158,8 @@ jobs:
   migrations:
     # The one gate the test suite structurally cannot be. tests/conftest.py
     # builds schema with Base.metadata.create_all, so a broken migration chain
-    # never surfaces in pytest — it surfaces on deploy.
+    # never surfaces in pytest — it surfaces on deploy. The local gate never
+    # runs alembic either, so an attestation never skips this job (#182).
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
