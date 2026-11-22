@@ -150,6 +150,39 @@ skew. Note the hooks stop there: **pre-commit runs no tests**. The suite runs
 in CI, and in the ship gate, `scripts/pre-ship.sh`. That file is a thin wrapper.
 It loads both env files and execs the vendored gate in the
 `shipping-work` skill, which runs ruff, an import check and pytest (#153, #162).
+It runs pytest with `--no-cov` and never runs alembic, so coverage's
+`fail_under` and the migration chain are checked only in CI.
+
+## Shipping: the local-gate attestation (#182)
+
+`.skills/attest-local-gate` is committed `on`, so shipping-work's `push.sh`
+gates before it pushes and attests the pass afterwards
+([upstream reference](../skills/shipping-work/references/attestation.md)):
+
+```bash
+. scripts/load_env.sh                                   # exports GH_TOKEN for the status write
+bash skills/shipping-work/scripts/push.sh               # gate, push, post gate/local
+GATE_STAMP=off bash skills/shipping-work/scripts/push.sh  # force a fresh gate run
+```
+
+1. The tree must be strictly clean: no untracked file, no dirty submodule.
+2. It asks `scripts/pre-ship.sh` about the tree. A pass already stamped for
+   this exact tree answers in under a second; otherwise the full gate runs
+   (~52s on this VM, 2026-11-22). A failing gate pushes nothing.
+3. It pushes, then posts the commit status `gate/local` = success on the
+   pushed SHA and reads it back. Expect `Attestation: gate/local = success
+   posted on <sha>`. `ATTESTATION NOT POSTED` (a token without **Commit
+   statuses: Read and write**, or `GH_TOKEN` not exported) still pushes; CI
+   then runs in full. Never post the status by hand.
+
+`ci.yml`'s `attest` job reads that status, and `test` is skipped for an
+attested push or a person's PR. `lint` and `migrations` always run, and so
+does `test` on the daily schedule, a manual run, a tag, a bot's PR or a fork's.
+`gate/local` is trust, not proof: anyone with push access can post it, so it is
+never a required status on its own.
+
+Turn it off by committing `off` to the knob: CI then runs in full on every
+commit, and `push.sh` pushes without gating.
 
 A third hook, `ruff-exclude-symlinks`, runs `scripts/check_ruff_exclude.py`
 on a commit that stages a symlink or a TOML file. A file symlink into

@@ -21,7 +21,7 @@ Python ≥3.12, uv, pytest, ruff.
 ## Continuous Integration
 
 `.github/workflows/ci.yml` runs `lint`, `test`, and `migrations` on every push
-to main, on PRs, and on manual dispatch. `sdk-staleness.yml` runs on the same
+to main, on PRs, on manual dispatch, and daily at 11:41 UTC. `sdk-staleness.yml` runs on the same
 triggers when `src/api/**`, `scripts/dump_openapi.py`, `clients/python/**`,
 or the root `pyproject.toml`/`uv.lock` changes. `audit.yml` runs `uv audit`
 over both locks on push, PRs and daily (#103).
@@ -30,7 +30,16 @@ Never re-derive these from the YAML:
 
 - **`pre-commit` runs ruff plus `scripts/check_ruff_exclude.py`, never
   pytest** (#126). A clean commit hook says nothing about correctness — only
-  CI does.
+  the local gate (`scripts/pre-ship.sh`) and CI do.
+- **An attested push skips CI's `test` job** (#182). With
+  `.skills/attest-local-gate` committed `on`, shipping-work's `push.sh` runs
+  the local gate on the exact tree and posts `gate/local` = success; `ci.yml`'s
+  `attest` job reads it. On such a commit pytest ran locally, not on a runner:
+  the daily run is its clean-runner check. `lint`, `migrations` (the gate never
+  runs alembic) and every schedule, manual, bot or fork run never skip.
+  `gate/local` is trust, not proof — never a required status alone. Push with
+  `GH_TOKEN` exported (`. scripts/load_env.sh`), else the write is refused and
+  CI runs in full. Turn it off by committing `off`.
 - **CI pins CPython 3.12 and installs with `uv sync --locked`, deliberately.**
   `[tool.coverage.run] core = "sysmon"` needs ≥3.12 and coverage ≥7.10; below
   either it falls back silently and reports ~6 points low against the live
