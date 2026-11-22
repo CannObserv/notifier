@@ -72,7 +72,8 @@ jobs:
     outputs:
       attested: ${{ steps.read.outputs.attested }}
     steps:
-      - id: read
+      - name: Read gate/local on the head commit
+        id: read
         env:
           GH_TOKEN: ${{ github.token }}
           # The PR's head. On pull_request, github.sha is the merge commit,

@@ -607,6 +607,7 @@ def test_attest_reads_the_combined_status_of_the_head_commit(attest_job):
     reads = [step for step in steps(attest_job) if ATTEST_CONTEXT in step.get("run", "")]
     assert len(reads) == 1, "attest needs exactly one step reading gate/local"
     step = reads[0]
+    assert step.get("name"), "unnamed, the Actions UI labels it with the script's first line"
     assert step["env"]["HEAD"] == "${{ github.event.pull_request.head.sha || github.sha }}"
     assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
     assert "/commits/$HEAD/status" in step["run"]
