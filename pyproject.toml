@@ -42,8 +42,8 @@ dev = [
     "packaging>=26.3,<27",
     # tests/ci/ parses .github/workflows/*.yml. Available transitively via
     # pre-commit, but declared here because the tests import it directly.
-    "pyyaml>=6.0,<7",
-    "ruff>=0.17.5,<0.18",
+    "pyyaml>=6.0.4,<7",
+    "ruff>=0.17.6,<0.18",
 ]
 
 [tool.pytest.ini_options]
